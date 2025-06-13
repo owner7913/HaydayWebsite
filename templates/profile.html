@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Your Profile - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .profile-container {
+      max-width: 600px;
+      margin: 120px auto 60px;
+      position: relative;
+      background: white;
+      z-index: 0;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      text-align: center;
+      margin-bottom: 120px; /* Prevent overlap with footer */
+    }
+
+    .profile-container h1 {
+      margin-bottom: 10px;
+    }
+
+    .avatar {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      margin-bottom: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    .discord-tag {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .discord-id {
+      font-size: 14px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    body.dark .profile-container {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    body.dark .discord-id {
+      color: #aaa;
+    }
+
+    .role-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .role-badge {
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+      transition: transform 0.2s ease;
+    }
+
+    .role-badge:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="profile-container">
+    <img class="avatar" src="https://cdn.discordapp.com/avatars/{{ discord_id }}/{{ avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+    
+    <div class="discord-tag">👤 {{ display_name }}</div>
+    <div class="discord-id">Discord ID: {{ discord_id }}</div>
+
+    {% if highest_role %}
+      <p style="margin-top: 25px;"><strong>Highest Role:</strong></p>
+      <div class="role-badge" style="background-color: {{ highest_role.color }};">
+        ⭐ {{ highest_role.name }}
+      </div>
+    {% endif %}
+
+    {% if roles %}
+      <p style="margin-top: 25px;"><strong>All Roles:</strong></p>
+      <div class="role-badges">
+        {% for role in roles %}
+          <span class="role-badge" style="background-color: {{ role.color }};" title="Role ID: {{ role.id }}">{{ role.name }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <p>You are now logged in and ready to link your Hay Day ID.</p>
+  </div>
+
+  {% include 'footer.html' %}
+<script>
+function toggleDarkMode() {
+  const body = document.body;
+  const toggleBtn = document.querySelector(".theme-toggle");
+
+  if (body.classList.contains("dark")) {
+    body.classList.remove("dark");
+    body.classList.add("light");
+    localStorage.setItem("theme", "light");
+    if (toggleBtn) toggleBtn.textContent = "🌙 Toggle Dark Mode";
+  } else {
+    body.classList.remove("light");
+    body.classList.add("dark");
+    localStorage.setItem("theme", "dark");
+    if (toggleBtn) toggleBtn.textContent = "☀️ Toggle Light Mode";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedTheme = localStorage.getItem("theme") || "light";
+  document.body.classList.remove("light", "dark");
+  document.body.classList.add(savedTheme);
+
+  const btn = document.querySelector(".theme-toggle");
+  if (btn) {
+    const isDark = document.body.classList.contains("dark");
+    btn.textContent = isDark ? "☀️ Toggle Light Mode" : "🌙 Toggle Dark Mode";
+    btn.addEventListener("click", toggleDarkMode);
+  } else {
+    console.warn("Dark mode toggle button not found.");
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Current Bans - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .ban-cards {
+      max-width: 1100px;
+      margin: 100px auto;
+      padding: 30px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .ban-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      text-align: center;
+      transition: transform 0.2s ease;
+    }
+
+    .ban-card:hover {
+      transform: scale(1.02);
+    }
+
+    .ban-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #eee;
+      margin-bottom: 10px;
+    }
+
+    .ban-name {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .ban-id {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .ban-reason {
+      font-size: 14px;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+
+    .copy-id {
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #ddd;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .unban-button {
+      padding: 5px 10px;
+      background: #ff5a5a;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .unban-button:hover {
+      background: #ff3030;
+    }
+
+    body.dark .ban-card { background: #2a2a2a; color: #eee; }
+    body.dark .ban-id { color: #aaa; }
+    body.dark .copy-id { background: #444; color: white; }
+
+    .search-bar {
+      display: flex;
+      justify-content: center;
+      margin: 30px auto 0;
+      max-width: 600px;
+      gap: 10px;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    .pagination {
+      margin-top: 30px;
+      text-align: center;
+    }
+
+    .pagination a {
+      margin: 0 10px;
+      color: inherit;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="ban-page">
+    <h2 style="text-align: center;">🔨 Current Banned Users</h2>
+
+    <form class="search-bar" method="GET" action="/current-bans">
+      <input type="text" name="search" placeholder="Search by name or reason..." value="{{ search }}">
+    </form>
+    {% if bans %}
+    <div id="ban-results" class="ban-cards">
+        {% for ban in bans %}
+        <div class="ban-card">
+            <img class="ban-avatar" src="{{ ban.avatar if ban.avatar else 'https://cdn.discordapp.com/embed/avatars/0.png' }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+            <div class="ban-name">{{ ban.name }}</div>
+            <div class="ban-id">
+            ID: {{ ban._id }}
+            <br>
+            <button class="copy-id" data-id="{{ ban._id }}">Copy ID</button>
+            </div>
+            <div class="ban-reason">📝 {{ ban.reason }}</div>
+            {% if session.get("discord_id") and is_staff(session.get("roles", [])) %}
+            <form action="/mod-action" method="POST" onsubmit="return confirm('Unban {{ ban.name }}?');">
+                <input type="hidden" name="user_input" value="{{ ban._id }}">
+                <input type="hidden" name="action" value="unban">
+                <input type="hidden" name="reason" value="Unbanned via panel">
+                <button class="unban-button" type="submit">Unban</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="pagination" style="grid-column: 1 / -1; text-align: center;">
+        {% if page > 1 %}
+            <a href="?search={{ search }}&page={{ page - 1 }}">⬅️ Prev</a>
+        {% endif %}
+        Page {{ page }} of {{ total_pages }}
+        {% if page < total_pages %}
+            <a href="?search={{ search }}&page={{ page + 1 }}">Next ➡️</a>
+        {% endif %}
+        <input type="number" min="1" max="{{ total_pages }}" placeholder="Page #"
+            style="margin-left: 12px; width: 60px;"
+            onkeydown="if(event.key==='Enter'){let p=parseInt(this.value);if(p>=1&&p<={{ total_pages }}){location.href='?search={{ search }}&page='+p;} }">
+        </div>
+    </div>
+    {% else %}
+    <p style="text-align: center;">✅ No users are currently banned.</p>
+    {% endif %}
+
+  </div>
+
+  {% include 'footer.html' %}
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script>
+    const searchInput = document.querySelector('input[name="search"]');
+    let debounce;
+
+    searchInput.addEventListener("input", () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+        const query = encodeURIComponent(searchInput.value);
+        fetch(`/current-bans?search=${query}&ajax=1`)
+            .then(response => response.text())
+            .then(html => {
+            document.getElementById("ban-results").innerHTML = html;
+            });
+        }, 250);
+    });
+    </script>
+<script>
+  document.addEventListener("click", function (e) {
+    if (e.target.classList.contains("copy-id")) {
+      const userId = e.target.dataset.id;
+      if (userId) {
+        navigator.clipboard.writeText(userId).then(() => {
+          const originalText = e.target.textContent;
+          e.target.textContent = "ID Copied ✅";
+          e.target.disabled = true;
+          setTimeout(() => {
+            e.target.textContent = originalText;
+            e.target.disabled = false;
+          }, 5000); // 5 seconds
+        }).catch(err => {
+          alert("Failed to copy ID: " + err);
+        });
+      }
+    }
+  });
+</script>
+
+    
+</body>
+</html>

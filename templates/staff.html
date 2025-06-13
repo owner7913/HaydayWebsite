@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Verified Staff - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+  .profile-container {
+    margin-top: 100px;
+    padding: 0 5vw;
+  }
+
+  .staff-list h2 {
+    font-size: 20px;
+    margin-top: 40px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 4px;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .staff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .member {
+    background: #fff;
+    padding: 12px 14px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    min-height: 64px;
+    cursor: pointer;
+  }
+
+  .avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 12px;
+    object-fit: cover;
+    border: 2px solid #ccc;
+  }
+
+  .info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .name {
+    font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tag {
+    font-size: 13px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Dark mode compatibility */
+  body.dark .member {
+    background-color: #1e1e1e;
+    color: #ddd;
+  }
+  body.dark .tag {
+    color: #aaa;
+  }
+  body.dark .avatar {
+    border-color: #333;
+  }
+  .member:hover {
+    background-color: #f1f1f1;
+  }
+  body.dark .member:hover {
+    background-color: #2a2a2a;
+  }
+  body.dark .staff-list h2 {
+    border-color: #333;
+  }
+  .status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Color mappings */
+.status-dot.online {
+  background-color: #43b581;
+}
+.status-dot.idle {
+  background-color: #faa61a;
+}
+.status-dot.dnd {
+  background-color: #f04747;
+}
+.status-dot.offline {
+  background-color: #747f8d;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.modal-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  margin-bottom: 16px;
+  object-fit: cover;
+}
+
+.staff-button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  background-color: #7289DA;
+  color: white;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.status-dot.online { background-color: #43b581; }
+.status-dot.idle { background-color: #faa61a; }
+.status-dot.dnd { background-color: #f04747; }
+.status-dot.offline { background-color: #747f8d; }
+
+.boost-rocket {
+  display: inline-block;
+  animation: pulseBoost 1.4s infinite ease-in-out;
+  margin-right: 6px;
+  color: #f47fff; /* Discord pink */
+}
+
+@keyframes pulseBoost {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2) translateY(-3px);
+    opacity: 0.7;
+  }
+}
+body.dark .modal-card {
+  background-color: #1e1e1e;
+  color: #e0e0e0;
+}
+
+body.dark .staff-button {
+  background-color: #5865f2;  /* Discord blurple */
+  color: white;
+}
+
+body.dark .boost-rocket {
+  color: #ff73fa; /* brighter pink for dark mode */
+}
+
+body.dark .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.85);
+}
+
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="profile-container" style="margin-top: 100px;">
+    <h1>👥 Verified Staff Members</h1>
+    <div class="staff-list">
+    {% set grouped_staff = {} %}
+    {% for member in staff %}
+      {% set _ = grouped_staff.setdefault(member.role, []).append(member) %}
+    {% endfor %}
+
+      {% set role_order = [
+        "Owner", "Co-Owner", "Head Admin", "Moderator", "Trial Moderator", "Verifier", "Giveaway Staff"
+      ] %}
+      {% for role in role_order %}
+        {% if grouped_staff.get(role) %}
+          {% set role_icons = {
+            "Owner": "🛡️",
+            "Co-Owner": "👑",
+            "Head Admin": "⚙️",
+            "Moderator": "🔧",
+            "Trial Moderator": "🧪",
+            "Verifier": "🔍",
+            "Giveaway Staff": "🎁"
+          } %}
+
+          <h2>{{ role_icons.get(role, '👥') }} {{ role }}</h2>
+          <div class="staff-grid">
+            {% for member in grouped_staff[role] %}
+              <div class="member" onclick='showProfileModal(JSON.parse(this.dataset.member))' data-member='{{ member | tojson | escape }}'>
+                <img src="{{ member.avatar }}" class="avatar" alt="avatar">
+                <div class="info">
+                  <div class="name">{{ member.name }}</div>
+                  <div class="tag">
+                    {{ member.tag }}
+                    <span class="status-dot {{ member.status | lower }}" title="{{ member.status }}"></span>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+<div id="profileModal" class="modal-overlay" style="display: none;" onclick="closeProfileModal(event)">
+  <div class="modal-card">
+    <img id="modalAvatar" src="" alt="avatar" class="modal-avatar">
+    <h2 id="modalName"></h2>
+    <p id="modalTag"></p>
+    <div id="modalStatus" class="status-dot"></div>
+    <p id="modalJoin"></p>
+    <p id="modalBoost"></p>
+    <button id="modalButton" class="staff-button" target="_blank">Open Discord Profile</button>
+  </div>
+</div>
+
+  {% include 'footer.html' %}
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <script>
+function openDiscordProfile(userId) {
+  const link = `https://discord.com/users/${userId}`;
+  window.open(link, '_blank');
+}
+</script>
+<script>
+function showProfileModal(member) {
+  document.getElementById("profileModal").style.display = "flex";
+  document.getElementById("modalAvatar").src = member.avatar;
+  document.getElementById("modalName").textContent = member.name;
+  document.getElementById("modalTag").textContent = member.tag;
+  document.getElementById("modalStatus").className = "status-dot " + (member.status || "offline").toLowerCase();
+  document.getElementById("modalJoin").textContent = member.joined_at
+    ? "Joined: " + new Date(member.joined_at).toLocaleDateString()
+    : "Join date unknown";
+  document.getElementById("modalBoost").innerHTML = member.boosting
+    ? `<span class="boost-rocket">🚀</span> Boosting the server`
+    : `Not boosting`;
+
+  const btn = document.getElementById("modalButton");
+  btn.onclick = () => window.open(`https://discord.com/users/${member._id}`, '_blank');
+}
+
+function closeProfileModal(e) {
+  if (e.target.id === "profileModal") {
+    document.getElementById("profileModal").style.display = "none";
+  }
+}
+</script>
+
+</body>
+</html>

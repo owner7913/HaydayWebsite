@@ -1,0 +1,25 @@
+<!-- templates/header.html -->
+<header>
+  <div style="font-weight: bold; font-size: 18px;">HayDay 🍀</div>
+  <nav style="display: flex; gap: 20px; font-size: 15px;">
+    <a href="/">Home</a>
+    <a href="/staff">Current Staffs</a>
+    <a href="/production">Production</a> <!-- ✅ Add this -->
+    <a href="/profile">Profile</a>
+
+    {% if session.get("discord_id") %}
+      <a href="/logout">Logout</a>
+      {% if session.get("roles") and '1307838468788846652' in session.get("roles") %}
+        <a href="/staff-panel">Staff Panel</a>
+      {% endif %}
+    {% else %}
+      <a href="/login">Login</a>
+    {% endif %}
+
+
+
+
+    <button class="theme-toggle">🌙 Toggle Dark Mode</button>
+  </nav>
+
+</header>

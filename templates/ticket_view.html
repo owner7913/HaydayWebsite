@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📄 {{ ticket.channel_name }} - HayDay Support</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    .chat-box {
+      background: white;
+      padding: 20px;
+      margin: 40px auto;
+      border-radius: 12px;
+      max-width: 900px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    #transcript-container {
+      max-height: 500px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+      background: #fafafa;
+    }
+
+    .chat-box textarea {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      border-radius: 6px;
+      resize: vertical;
+    }
+
+    .send-btn {
+      margin-top: 10px;
+      background: #2ecc71;
+      color: white;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+    }
+
+    body.dark .chat-box {
+      background-color: #1e1e1e;
+      color: #eee;
+    }
+
+    body.dark #transcript-container {
+      background-color: #1f1f1f;
+      color: #eee;
+      border-color: #444;
+    }
+
+    body.dark .send-btn {
+      background-color: #388e3c;
+    }
+  </style>
+
+  <script>
+    function reloadTranscript() {
+    fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(response => response.text())
+        .then(html => {
+        const parser = new DOMParser();
+        const newDoc = parser.parseFromString(html, 'text/html');
+        const newChat = newDoc.querySelector("#transcript-container");
+        const container = document.querySelector("#transcript-container");
+        container.innerHTML = newChat.innerHTML;
+        setTimeout(() => {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+        }, 50);
+        });
+    }
+    setInterval(reloadTranscript, 1000);
+  </script>
+</head>
+
+<body>
+  {% include 'header.html' %}
+  <div class="chat-box">
+    <h2>📄 Ticket: {{ ticket.channel_name }}</h2>
+
+    <!-- Live-updating transcript container -->
+    <div id="transcript-container">{{ html_chat | safe }}</div>
+
+    <form id="replyForm">
+    <input type="hidden" name="channel_id" value="{{ ticket._id }}">
+    <textarea id="messageBox" name="message" rows="4" placeholder="Write your response..."></textarea>
+    <button class="send-btn" type="submit">💬 Send Reply</button>
+    </form>
+
+  </div>
+  {% include 'footer.html' %}
+
+<script>
+  // Clear form input after successful reply
+  document.querySelector("form").addEventListener("submit", function (e) {
+    const textarea = this.querySelector("textarea");
+    setTimeout(() => textarea.value = "", 100);  // clear after submit
+  });
+
+  // Avoid caching form data on back
+  if (window.history.replaceState) {
+    window.history.replaceState(null, null, window.location.href);
+  }
+</script>
+<script>
+  const messageBox = document.getElementById("messageBox");
+  messageBox.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();  // prevent newline
+      this.closest("form").requestSubmit();  // send the form
+    }
+  });
+</script>
+
+<script>
+  const replyForm = document.getElementById("replyForm");
+
+  replyForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const message = messageBox.value.trim();
+    if (!message) return;
+
+    fetch("/send-ticket-message", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams(new FormData(replyForm))
+    }).then(() => {
+      messageBox.value = "";
+      reloadTranscript();
+    });
+  });
+
+  // Press Enter to send, Shift+Enter = newline
+  messageBox.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      replyForm.requestSubmit();
+    }
+  });
+</script>
+
+<script>
+  const transcriptContainer = document.getElementById("transcript-container");
+
+  replyForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const message = messageBox.value.trim();
+    if (!message) return;
+
+    fetch("/send-ticket-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(new FormData(replyForm))
+    }).then(() => {
+      messageBox.value = "";
+      reloadTranscript();
+    });
+  });
+
+  messageBox.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      replyForm.requestSubmit();
+    }
+  });
+
+  function reloadTranscript() {
+    fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(response => response.text())
+      .then(html => {
+        const parser = new DOMParser();
+        const newDoc = parser.parseFromString(html, 'text/html');
+        const newChat = newDoc.querySelector("#transcript-container");
+        if (newChat) {
+          transcriptContainer.innerHTML = newChat.innerHTML;
+          transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
+        }
+      });
+  }
+
+  // Refresh every second
+  setInterval(reloadTranscript, 1000);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: auto; /* changed from hidden */
+    }
+
+    .home-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-image: url("{{ url_for('static', filename='img/home_bg.jpg') }}");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      padding-top: 80px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .button-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+
+    .nav-button {
+      padding: 14px 24px;
+      border: none;
+      border-radius: 10px;
+      background-color: #4caf50;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+      text-decoration: none;
+    }
+
+    .nav-button:hover {
+      background-color: #3e9141;
+    }
+
+    body.dark .nav-button {
+      background-color: #388e3c;
+    }
+
+    body.dark .nav-button:hover {
+      background-color: #2e7d32;
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="home-container">
+    <div class="card-overlay">
+      <h1>🌾 Welcome to HayDay 🍀</h1>
+      <p>Please choose an option below to get started.</p>
+
+      <div class="button-grid">
+        <a class="nav-button" href="/staff">👥 View Verified Staff</a>
+        <a class="nav-button" href="#" onclick="openPrivacyModal()">🔐 Privacy Policy</a>
+      </div>
+    </div>
+  </div>
+
+  {% include 'footer.html' %}
+
+  <!-- Privacy Modal -->
+  <div id="privacyModal" class="modal-overlay" onclick="overlayClick(event)">
+    <div class="modal-content" id="privacyContentWrapper">
+      <button class="close-button" onclick="closePrivacyModal()">✖</button>
+      <div id="privacyContent">
+        <p>Loading privacy policy...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+
+</html>

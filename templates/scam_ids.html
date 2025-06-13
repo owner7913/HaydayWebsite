@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scam & Banned Hay Day IDs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    body {
+      padding-top: 80px;
+      font-family: sans-serif;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .search-container {
+      text-align: center;
+      margin: 20px auto;
+    }
+
+    .search-container input {
+      padding: 10px;
+      font-size: 16px;
+      width: 300px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      padding: 20px;
+      width: 90%;
+      margin: 0 auto;
+    }
+
+    .grid-card {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 14px 18px;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 0 6px rgba(0,0,0,0.1);
+    }
+
+    .grid-id {
+      font-family: monospace;
+      font-size: 16px;
+      color: #fff;
+      word-break: break-word;
+    }
+
+    .copy-btn {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 20px;
+    }
+
+    .pagination a {
+      padding: 6px 12px;
+      text-decoration: none;
+      border-radius: 4px;
+      background-color: #555;
+      color: white;
+    }
+
+    .pagination a:hover {
+      background-color: #777;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #111;
+        color: #ccc;
+      }
+    }
+  </style>
+</head>
+<body class="dark">
+  {% include 'header.html' %}
+
+  <h2>🚫 Scam & Banned Hay Day IDs</h2>
+
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="Search for an ID...">
+  </div>
+
+  <div class="grid-container" id="gridContainer">
+    {% for id in scam_ids %}
+    <div class="grid-card">
+      <span class="grid-id">{{ id }}</span>
+      <button class="copy-btn" onclick="copyToClipboard('{{ id }}')">📋 Copy</button>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="pagination">
+    {% if current_page > 1 %}
+      <a href="{{ url_for('scam_ids', page=current_page-1) }}">⬅️ Previous</a>
+    {% endif %}
+    Page {{ current_page }} of {{ total_pages }}
+    {% if current_page < total_pages %}
+      <a href="{{ url_for('scam_ids', page=current_page+1) }}">Next ➡️</a>
+    {% endif %}
+  </div>
+
+  {% include 'footer.html' %}
+
+  <script>
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text);
+      alert("Copied: " + text);
+    }
+
+    document.getElementById("searchInput").addEventListener("input", function () {
+      const filter = this.value.toLowerCase().replace(/[^a-z0-9]/gi, "");
+      const cards = document.querySelectorAll(".grid-card");
+
+      cards.forEach(card => {
+        const rawId = card.querySelector(".grid-id").textContent;
+        const cleanId = rawId.toLowerCase().replace(/[^a-z0-9]/gi, ""); // strip non-alphanum
+        card.style.display = cleanId.includes(filter) ? "" : "none";
+      });
+    });
+  </script>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

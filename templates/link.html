@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Link Hay Day ID - Also V is cute</title>
+  <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+  <script src="{{ url_for('static', filename='js/client.js') }}?v={{ config['VERSION'] }}"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden; /* ✅ Prevent horizontal scroll */
+  }
+
+  body {
+    font-family: sans-serif;
+    background-image: url("{{ url_for('static', filename='img/hayday_bg.jpg') }}");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    padding-top: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    backdrop-filter: blur(2px);
+  }
+
+  form {
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+    max-width: 600px;
+    width: 90%;
+  }
+
+  nav {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+</style>
+
+</head>
+<!-- Modern Privacy Policy Modal -->
+<div id="privacyModal" class="modal-overlay">
+  <div class="modal-content">
+    <h2 style="margin-top: 0;">Privacy Policy</h2>
+
+    <p>Thank you for using our Hay Day verification service. Your privacy is very important to us. Below is a summary of what data we collect, how we use it, and your rights under GDPR and COPPA compliance.</p>
+
+    <h3>📦 Data We Collect</h3>
+    <ul>
+      <li>Your <strong>Discord ID</strong> (submitted via the form)</li>
+      <li>Your <strong>Hay Day ID</strong></li>
+      <li>Your <strong>IP address</strong></li>
+      <li>Your <strong>device/browser fingerprint</strong></li>
+      <li>Your <strong>User-Agent</strong> (browser, OS, device info)</li>
+      <li>Consent flags (GDPR, Age Confirmation)</li>
+    </ul>
+
+    <h3>🔒 How We Use Your Data</h3>
+    <p>We use this information to:</p>
+    <ul>
+      <li>Verify identity and prevent duplicate or fraudulent accounts</li>
+      <li>Detect and flag known scammers</li>
+      <li>Ensure users meet the minimum age requirement of 13</li>
+      <li>Protect the integrity of our community and linked accounts</li>
+    </ul>
+
+    <h3>⏳ Data Retention</h3>
+    <p>Your data is stored securely in our database and is only accessible by verified administrators. It is not shared with third parties or sold.</p>
+
+    <h3>🧑‍⚖️ Your Rights</h3>
+    <ul>
+      <li>Request to see what data we store about you</li>
+      <li>Request permanent deletion of your data</li>
+    </ul>
+    <p>You can make these requests by messaging <strong>@yourDiscordTag#1234</strong> or using our official Discord support channel.</p>
+
+    <h3>👶 COPPA Compliance</h3>
+    <p>This service is not intended for users under the age of 13. We explicitly ask for age confirmation before submission.</p>
+
+    <h3>📅 Last Updated</h3>
+    <p>June 12, 2025</p>
+
+    <div style="text-align: right; margin-top: 30px;">
+      <button onclick="closePrivacyModal()" style="padding: 8px 16px; background-color: #4285f4; color: white; border: none; border-radius: 6px; cursor: pointer;">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<body>
+  <!-- Header Menu -->
+<header>
+  <div style="font-weight: bold; font-size: 18px;">
+    HayDay 🍀
+  </div>
+
+  <nav style="display: flex; gap: 20px; font-size: 15px;">
+    <a href="/">Home</a>
+    <a href="/scam-ids">Scam IDs</a>
+    <a href="#" onclick="openPrivacyModal()">Privacy Policy</a>
+    <a href="/staff">Staff Panel</a>
+    <button onclick="toggleDarkMode()" class="theme-toggle">🌙 Toggle Dark Mode</button>
+  </nav>
+</header>
+
+  <h1>Welcome, {{ username }}! Link Your Hay Day ID</h1>
+  <form method="POST" action="/submit" id="linkForm" onsubmit="return validateConsent();">
+    <input type="text" name="hay_day_id" placeholder="Hay Day ID (e.g. #ABC123)" required><br>
+    <input type="hidden" name="fingerprint" id="fingerprint">
+    <input type="hidden" name="ip" id="ip">
+    <input type="hidden" name="discord_id" value="{{ discord_id }}">
+
+    <label>
+      <input type="checkbox" id="over_13" required>
+      I confirm that I am at least 13 years old.
+    </label><br>
+
+    <label>
+      <input type="checkbox" id="gdpr_consent" required>
+      I agree to the <a href="#" onclick="openPrivacyModal()">Privacy Policy</a>.
+    </label><br><br>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+  function openPrivacyModal() {
+    document.getElementById("privacyModal").style.display = "block";
+  }
+
+  function closePrivacyModal() {
+    document.getElementById("privacyModal").style.display = "none";
+  }
+  document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") closePrivacyModal();
+});
+
+document.getElementById("privacyModal").addEventListener("click", function(e) {
+  if (e.target === this) closePrivacyModal();
+});
+
+  </script>
+
+  <script>
+  function validateConsent() {
+    if (!document.getElementById("gdpr_consent").checked || !document.getElementById("over_13").checked) {
+      alert("You must confirm you are over 13 and agree to the privacy policy.");
+      return false;
+    }
+    return true;
+  }
+  </script>
+  <script src="{{ url_for('static', filename='js/client.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <footer>
+  <div class="footer-content">
+    <span>&copy; {{ year }} HayDay 🍀</span>
+    <a href="#" onclick="openPrivacyModal()">Privacy Policy</a>
+    <span>Made by Xavi</span>
+  </div>
+</footer>
+<div id="privacyModal" class="modal-overlay" onclick="overlayClick(event)">
+  <div class="modal-content" id="privacyContentWrapper">
+    <button class="close-button" onclick="closePrivacyModal()">✖</button> <!-- ⬅️ stays here -->
+    <div id="privacyContent">
+      <p>Loading privacy policy...</p> <!-- This will be replaced -->
+    </div>
+  </div>
+</div>
+</body>
+</html>
+

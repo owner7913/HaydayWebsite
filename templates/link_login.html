@@ -1,0 +1,52 @@
+<!-- templates/link_login.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login with Discord - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding-top: 100px;
+      background: linear-gradient(to bottom, #ffffff, #e7f3d7);
+    }
+
+    .login-container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.15);
+      display: inline-block;
+    }
+
+    .login-container h1 {
+      margin-bottom: 10px;
+    }
+
+    .discord-btn {
+      background-color: #7289DA;
+      color: white;
+      text-decoration: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 16px;
+      display: inline-block;
+      margin-top: 15px;
+    }
+
+    .discord-btn:hover {
+      background-color: #5a6fb4;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1>🔐 Log in with Discord</h1>
+    <p>You must log in before linking your Hay Day ID.</p>
+    <a class="discord-btn" href="/login">Login with Discord</a>
+  </div>
+</body>
+</html>
