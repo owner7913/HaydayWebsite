@@ -1,2 +1,5 @@
 ﻿.env
 fly.toml
+*.pyc
+__pycache__/
+.DS_Store
