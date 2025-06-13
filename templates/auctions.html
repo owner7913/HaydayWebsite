@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auctions — HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <style>
+    .auction-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      padding: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .auction-card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .auction-card h3 {
+      margin: 0 0 10px;
+    }
+    .auction-card .info {
+      margin-bottom: 6px;
+    }
+    body.dark .auction-card {
+      background: #1f1f1f;
+      color: #eee;
+    }
+    button {
+    margin: 0 6px;
+    padding: 8px 12px;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #f0f0f0;
+    transition: background 0.2s;
+    }
+    button:hover {
+    background: #ddd;
+    }
+    body.dark button {
+    background: #2c2c2c;
+    color: #eee;
+    }
+    body.dark button:hover {
+    background: #3a3a3a;
+    }
+
+    .active-filter {
+    background: #c6f7d4;
+    border: 1px solid #b0e5c1;
+    }
+    body.dark .active-filter {
+    background: #3e5b47;
+    border: 1px solid #4f7d5c;
+    }
+
+    @media (max-width: 600px) {
+    .auction-grid {
+        padding: 10px;
+    }
+    }
+        
+    form input[type="number"] {
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    width: 100px;
+    }
+    form button {
+    margin-left: 8px;
+    padding: 6px 10px;
+    }
+    .bid-form {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    }
+    .bid-form input {
+    flex: 1;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    }
+    .bid-form button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #90e190;
+    cursor: pointer;
+    }
+    body.dark .bid-form input {
+    background: #2a2a2a;
+    color: #eee;
+    border: 1px solid #444;
+    }
+    body.dark .bid-form button {
+    background: #3f7d3f;
+    color: white;
+    }
+
+  </style>
+</head>
+<body class="light">
+  {% include 'header.html' %}
+  <main style="margin-top: 100px;">
+    <h1 style="text-align:center;">📦 Live Auctions</h1>
+    <div style="text-align:center; margin-bottom: 20px;" id="filter-buttons">
+    <button onclick="sortAuctions('ending', this)">⏱️ Ending Soon</button>
+    <button onclick="sortAuctions('highest', this)">💰 Highest Bid</button>
+    <button onclick="sortAuctions('lowest', this)">🔻 Lowest Bid</button>
+    <button onclick="sortAuctions('alphabetical', this)">🔤 A–Z</button>
+    </div>
+    <div class="auction-grid">
+      {% for auction in auctions %}
+        <div class="auction-card">
+        <h3>{{ auction.item }} ×{{ auction.quantity }}</h3>
+        <div class="info"><strong>Current Bid:</strong> {{ "{:,}".format(auction.current_bid) }} coins</div>
+        <div class="info"><strong>Time Left:</strong> {{ auction.time_remaining }}</div>
+
+        {% if auction.highest_bidder %}
+            <div class="info">
+            <strong>Highest Bidder:</strong>
+            {% if auction.avatar %}
+                <img src="{{ auction.avatar }}" width="22" height="22"
+                    style="border-radius: 50%; vertical-align: middle; margin-right: 6px;"
+                    title="{{ auction.display_name or auction.bidder_tag }}">
+            {% endif %}
+            {{ auction.display_name or auction.bidder_tag }}
+            </div>
+        {% else %}
+            <div class="info"><em>No bids yet</em></div>
+        {% endif %}
+
+        {% if discord_id %}
+            <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id }}')">
+            <input type="number" name="amount" placeholder="Enter your bid" min="1" required>
+            <button type="submit">Place Bid</button>
+            </form>
+        {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </main>
+  {% include 'footer.html' %}
+<script>
+function submitBid(e, auctionId) {
+  e.preventDefault();
+  const form = e.target;
+  const amount = form.amount.value;
+
+  fetch("/api/bid", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      auction_id: auctionId,
+      amount: parseInt(amount)
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert("✅ Bid submitted!");
+      location.reload();
+    } else {
+      alert("❌ " + data.message);
+    }
+  })
+  .catch(() => alert("❌ Failed to submit bid."));
+}
+</script>
+
+</body>
+<script>
+function sortAuctions(mode, btn) {
+  const grid = document.querySelector(".auction-grid");
+  const cards = Array.from(grid.children);
+
+  // Remove previous active button highlight
+  document.querySelectorAll("#filter-buttons button").forEach(b => b.classList.remove("active-filter"));
+  btn.classList.add("active-filter");
+
+  const parseTime = text => {
+    const [h, m, s] = text.split(':').map(Number);
+    return h * 3600 + m * 60 + s;
+  };
+
+  cards.sort((a, b) => {
+    if (mode === "ending") {
+      const timeA = parseTime(a.innerHTML.match(/Time Left:<\/strong> (.*?)<\/div>/)?.[1] || "0:0:0");
+      const timeB = parseTime(b.innerHTML.match(/Time Left:<\/strong> (.*?)<\/div>/)?.[1] || "0:0:0");
+      return timeA - timeB;
+    } else if (mode === "highest") {
+      const bidA = parseInt(a.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
+      const bidB = parseInt(b.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
+      return bidB - bidA;
+    } else if (mode === "lowest") {
+      const bidA = parseInt(a.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
+      const bidB = parseInt(b.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
+      return bidA - bidB;
+    } else if (mode === "alphabetical") {
+      const nameA = a.querySelector("h3").textContent.trim();
+      const nameB = b.querySelector("h3").textContent.trim();
+      return nameA.localeCompare(nameB);
+    }
+  });
+
+  grid.innerHTML = "";
+  cards.forEach(card => grid.appendChild(card));
+}
+
+</script>
+
+</html>

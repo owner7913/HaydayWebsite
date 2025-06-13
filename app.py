@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, HiddenField
 from wtforms.validators import DataRequired
@@ -92,6 +92,153 @@ def send_reply():
         "message": message
     })
     return redirect("/active-tickets")
+
+@app.route("/api/bid", methods=["POST"])
+def api_bid():
+    # Step 1: Verify Discord login
+    user_id = session.get("discord_id")
+    if not user_id:
+        return jsonify({"success": False, "message": "Not logged in via Discord"}), 401
+
+    try:
+        data = request.get_json(force=True)
+        print("✅ JSON received:", data)
+    except Exception as e:
+        print("❌ JSON decode error:", e)
+        return jsonify({"success": False, "message": "Invalid JSON"}), 400
+    auction_id = data.get("auction_id")
+    amount = data.get("amount")
+
+    print(f"🔍 Incoming bid: auction_id={auction_id}, amount={amount}, user_id={session.get('discord_id')}")
+
+    if not auction_id or not isinstance(amount, int) or amount <= 0:
+        return jsonify({"success": False, "message": "Invalid input"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["hayday"]
+        auction = db["auctions"].find_one({"message_id": int(auction_id), "status": "active"})
+
+        if not auction:
+            return jsonify({"success": False, "message": "Auction not found or already ended"}), 404
+
+        now = datetime.now(timezone.utc)
+        if auction["end_time"] <= now:
+            return jsonify({"success": False, "message": "Auction already expired"}), 410
+
+        # Step 2: Bid validation
+        current_bid = auction.get("current_bid", 0)
+        min_increment = auction.get("min_increment") or 1
+        if amount < current_bid + min_increment:
+            return jsonify({
+                "success": False,
+                "message": f"Bid must be at least {min_increment:,} higher than the current bid."
+            }), 400
+
+        # Step 3: Update auction
+        db["auctions"].update_one(
+            {"_id": auction["_id"]},
+            {"$set": {
+                "current_bid": amount,
+                "highest_bidder": int(user_id),
+                "last_bid": {
+                    "user_id": int(user_id),
+                    "amount": amount,
+                    "timestamp": datetime.utcnow()
+                }
+            },
+            "$push": {
+                "bid_logs": {
+                    "user_id": int(user_id),
+                    "amount": amount,
+                    "timestamp": datetime.utcnow()
+                }
+            }}
+        )
+
+        try:
+            requests.post(
+                "http://discord-mega-bot.internal:5050/refresh_auction",
+                json={"message_id": auction_id},
+                headers={"X-Webhook-Key": os.getenv("BOT_WEBHOOK_KEY")},
+                timeout=2
+            )
+        except Exception as e:
+            print(f"Failed to ping bot webhook: {e}")
+
+    return jsonify({"success": True, "message": "Bid placed!"})
+
+@app.route("/submit_bid", methods=["POST"])
+def submit_bid():
+    data = request.json
+    message_id = int(data.get("message_id"))
+    amount = int(data.get("amount"))
+    user_id = int(session.get("discord_id"))
+
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 403
+
+    # Save bid in MongoDB
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["hayday"]
+        auction = db["auctions"].find_one({"message_id": message_id, "status": "active"})
+        if not auction:
+            return jsonify({"error": "Auction not found or already ended"}), 404
+
+        # Basic validation (same as bot)
+        base_bid = auction["current_bid"] if auction["current_bid"] > 0 else auction["starting_bid"]
+        min_inc = auction.get("min_increment", 1)
+        if amount <= base_bid or (amount - base_bid) < min_inc:
+            return jsonify({"error": "Invalid bid amount"}), 400
+
+        db["auctions"].update_one(
+            {"_id": auction["_id"]},
+            {"$set": {
+                "current_bid": amount,
+                "highest_bidder": user_id,
+                "last_bid": {
+                    "user_id": user_id,
+                    "amount": amount,
+                    "timestamp": datetime.utcnow()
+                }
+            }}
+        )
+
+    # Optional: notify the bot via a webhook or a background task (ideal)
+    try:
+        requests.post(os.getenv("BOT_SYNC_URL"), json={
+            "action": "refresh_auction",
+            "message_id": message_id
+        })
+    except:
+        pass
+
+    return jsonify({"success": True})
+
+@app.route("/auctions")
+def auctions_page():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["hayday"]
+        auctions = list(db["auctions"].find({"status": "active"}).sort("end_time", 1))
+        user_map = {str(u["_id"]): u for u in client["Website"]["UserCache"].find()}
+
+    now = datetime.now(timezone.utc)
+    for auc in auctions:
+        end_time = auc.get("end_time")
+        if not end_time:
+            continue
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+        auc["time_remaining"] = str(end_time - now).split(".")[0]
+
+        bidder_id = str(auc.get("highest_bidder"))
+        user_info = user_map.get(bidder_id, {})
+        auc["bidder_tag"] = user_info.get("tag") or f"User {bidder_id}"
+        auc["display_name"] = user_info.get("display_name")
+        auc["avatar"] = user_info.get("avatar")
+
+    discord_id = session.get("discord_id")  # ✅ Add this
+    return render_template("auctions.html", auctions=auctions, year=now.year, discord_id=discord_id)
+
 
 @app.route("/send-ticket-message", methods=["POST"])
 def send_ticket_message():
