@@ -7,29 +7,27 @@
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
   <style>
     .auction-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
-      padding: 30px;
-      max-width: 1200px;
-      margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 30px;
+    max-width: 1200px;
+    margin: 0 auto;
     }
+
     .auction-card {
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .auction-card h3 {
-      margin: 0 0 10px;
-    }
-    .auction-card .info {
-      margin-bottom: 6px;
-    }
+
     body.dark .auction-card {
-      background: #1f1f1f;
-      color: #eee;
+    background: #1f1f1f;
+    color: #eee;
     }
+
+    /* Buttons */
     button {
     margin: 0 6px;
     padding: 8px 12px;
@@ -40,13 +38,16 @@
     background: #f0f0f0;
     transition: background 0.2s;
     }
+
     button:hover {
     background: #ddd;
     }
+
     body.dark button {
     background: #2c2c2c;
     color: #eee;
     }
+
     body.dark button:hover {
     background: #3a3a3a;
     }
@@ -55,38 +56,39 @@
     background: #c6f7d4;
     border: 1px solid #b0e5c1;
     }
+
     body.dark .active-filter {
     background: #3e5b47;
     border: 1px solid #4f7d5c;
     }
 
+    /* Responsive padding */
     @media (max-width: 600px) {
     .auction-grid {
         padding: 10px;
     }
     }
-        
-    form input[type="number"] {
-    padding: 6px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    width: 100px;
-    }
-    form button {
-    margin-left: 8px;
-    padding: 6px 10px;
-    }
+
+    /* Bid form */
     .bid-form {
     margin-top: 10px;
     display: flex;
     gap: 8px;
     }
+
     .bid-form input {
     flex: 1;
     padding: 6px;
     border: 1px solid #ccc;
     border-radius: 6px;
     }
+
+    body.dark .bid-form input {
+    background: #2a2a2a;
+    color: #eee;
+    border: 1px solid #444;
+    }
+
     .bid-form button {
     padding: 6px 12px;
     border: none;
@@ -94,14 +96,63 @@
     background: #90e190;
     cursor: pointer;
     }
-    body.dark .bid-form input {
-    background: #2a2a2a;
-    color: #eee;
-    border: 1px solid #444;
-    }
+
     body.dark .bid-form button {
     background: #3f7d3f;
     color: white;
+    }
+
+    /* Live bids floater */
+    #live-bids-floater {
+    position: fixed;
+    top: 60px;
+    left: 10px;
+    width: 220px;
+    max-height: 80vh;
+    overflow-y: auto;
+    background-color: #f0f0f0;  /* Light mode default */
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    z-index: 1000;
+    color: #000;
+    }
+
+    body.dark #live-bids-floater {
+    background-color: rgba(30, 30, 30, 0.9);
+    color: #eee;
+    box-shadow: 0 2px 10px rgba(255, 255, 255, 0.15);
+    }
+
+    /* Floater bid entry truncation */
+    #live-bids-floater .bid-entry {
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    }
+
+    /* Theme toggle button */
+    .theme-toggle {
+    cursor: pointer;
+    padding: 6px 12px;
+    border: none;
+    background: #ddd;
+    border-radius: 6px;
+    font-weight: bold;
+    }
+
+    body.dark .theme-toggle {
+    background: #444;
+    color: #eee;
+    }
+
+    @media (prefers-color-scheme: dark) {
+    #live-bids-floater {
+        background-color: rgba(30, 30, 30, 0.9) !important;
+        color: #eee !important;
+    }
     }
 
   </style>
@@ -117,11 +168,22 @@
     <button onclick="sortAuctions('alphabetical', this)">🔤 A–Z</button>
     </div>
     <div class="auction-grid">
-      {% for auction in auctions %}
-        <div class="auction-card">
-        <h3>{{ auction.item }} ×{{ auction.quantity }}</h3>
+        {% for auction in auctions %}
+        <div class="auction-card" data-endtime="{{ auction.end_time }}" data-current-bid="{{ auction.current_bid }}">
+            <h3>{{ auction.item }} × {{ auction.quantity }}</h3>
+
+        <div class="info"><strong>Starting Bid:</strong> {{ "{:,}".format(auction.starting_bid) }} coins</div>
+        <div class="info"><strong>Min. Increment:</strong> {{ "{:,}".format(auction.min_increment or 1) }} coins</div>
+            <div class="info"><strong>Started by:</strong>
+            {% if auction.owner_avatar %}
+                <img src="{{ auction.owner_avatar }}" width="22" height="22" style="border-radius: 50%; vertical-align: middle; margin-right: 6px;" title="{{ auction.owner_display_name or auction.owner_tag }}">
+            {% endif %}
+            {{ auction.owner_display_name or auction.owner_tag or ("User " ~ auction.owner_id) }}
+            </div>
+
+
         <div class="info"><strong>Current Bid:</strong> {{ "{:,}".format(auction.current_bid) }} coins</div>
-        <div class="info"><strong>Time Left:</strong> {{ auction.time_remaining }}</div>
+          <div class="time-left">Time Left: <span class="time-left-text"></span></div>
 
         {% if auction.highest_bidder %}
             <div class="info">
@@ -139,16 +201,114 @@
 
         {% if discord_id %}
             <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id }}')">
-            <input type="number" name="amount" placeholder="Enter your bid" min="1" required>
+            <input type="text" name="amount" placeholder="Enter your bid" min="1" required>
             <button type="submit">Place Bid</button>
             </form>
         {% endif %}
         </div>
+
       {% endfor %}
     </div>
+<div id="live-bids-floater" style="
+  position: fixed;
+  top: 60px;
+  left: 10px;
+  width: 220px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  z-index: 1000;
+">
+  <h4 style="margin-top:0; margin-bottom:10px;">Live Bids</h4>
+  <div id="live-bids-content">Loading...</div>
+</div>
+
   </main>
   {% include 'footer.html' %}
 <script>
+async function fetchLiveAuctions() {
+  try {
+    const res = await fetch('/api/live-auctions');
+    if (!res.ok) throw new Error('Network error');
+    let auctions = await res.json();
+
+    // Sort auctions by latest bid timestamp descending (most recent first)
+    auctions.sort((a, b) => {
+      const aTime = a.last_bid?.timestamp ? new Date(a.last_bid.timestamp) : new Date(0);
+      const bTime = b.last_bid?.timestamp ? new Date(b.last_bid.timestamp) : new Date(0);
+      return bTime - aTime;
+    });
+
+    // Limit to 10 most recent auctions
+    auctions = auctions.slice(0, 10);
+
+    const container = document.getElementById('live-bids-content');
+    container.innerHTML = '';
+
+    auctions.forEach(auc => {
+      const div = document.createElement('div');
+      div.style.marginBottom = '8px';
+      const item = auc.item || 'Unknown item';
+      const qty = auc.quantity || 1;
+      const bid = auc.current_bid ? Number(auc.current_bid).toLocaleString() : 'No bids';
+      const bidder = auc.display_name || auc.bidder_tag || 'No bids';
+
+      div.textContent = `${item} ×${qty}: ${bid} coins by ${bidder}`;
+      container.appendChild(div);
+    });
+
+  } catch (err) {
+    console.error('Failed to fetch live auctions:', err);
+  }
+}
+
+
+// Fetch every 5 seconds
+setInterval(fetchLiveAuctions, 5000);
+
+// Fetch once on page load
+fetchLiveAuctions();
+
+
+  // Format a number with commas as thousands separators
+  function formatNumberWithCommas(x) {
+    if (!x) return "";
+    // Remove all non-digit characters (e.g. commas) first
+    x = x.replace(/\D/g, '');
+    return x.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  // Remove commas from the formatted string to get the raw number
+  function unformatNumber(x) {
+    return x.replace(/,/g, '');
+  }
+
+  // Add event listener to format input on every keystroke
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('.bid-form input[name="amount"]').forEach(input => {
+      input.addEventListener('input', e => {
+        let caretPos = input.selectionStart;
+        const originalLength = input.value.length;
+
+        // Format the value with commas
+        input.value = formatNumberWithCommas(input.value);
+
+        // Adjust caret position after formatting
+        const newLength = input.value.length;
+        caretPos += newLength - originalLength;
+        input.setSelectionRange(caretPos, caretPos);
+      });
+
+      // On form submit, send raw number without commas
+      input.form.addEventListener('submit', e => {
+        input.value = unformatNumber(input.value);
+      });
+    });
+  });
+
 function submitBid(e, auctionId) {
   e.preventDefault();
   const form = e.target;
@@ -158,8 +318,8 @@ function submitBid(e, auctionId) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      auction_id: auctionId,
-      amount: parseInt(amount)
+    auction_id: auctionId,
+    amount: parseInt(amount.replace(/,/g, ''))
     })
   })
   .then(res => res.json())
@@ -185,23 +345,24 @@ function sortAuctions(mode, btn) {
   document.querySelectorAll("#filter-buttons button").forEach(b => b.classList.remove("active-filter"));
   btn.classList.add("active-filter");
 
-  const parseTime = text => {
-    const [h, m, s] = text.split(':').map(Number);
-    return h * 3600 + m * 60 + s;
+  const parseISOTime = (isoString) => {
+    if (!isoString) return 0;
+    return new Date(isoString).getTime();
   };
 
   cards.sort((a, b) => {
     if (mode === "ending") {
-      const timeA = parseTime(a.innerHTML.match(/Time Left:<\/strong> (.*?)<\/div>/)?.[1] || "0:0:0");
-      const timeB = parseTime(b.innerHTML.match(/Time Left:<\/strong> (.*?)<\/div>/)?.[1] || "0:0:0");
-      return timeA - timeB;
+      // Use the data attribute for sorting by end time
+      const timeA = parseISOTime(a.dataset.endtime);
+      const timeB = parseISOTime(b.dataset.endtime);
+      return timeA - timeB;  // earlier ending first
     } else if (mode === "highest") {
-      const bidA = parseInt(a.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
-      const bidB = parseInt(b.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
+      const bidA = parseInt(a.dataset.currentBid) || 0;
+      const bidB = parseInt(b.dataset.currentBid) || 0;
       return bidB - bidA;
     } else if (mode === "lowest") {
-      const bidA = parseInt(a.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
-      const bidB = parseInt(b.innerHTML.replace(/,/g, '').match(/Current Bid:<\/strong> (.*?) coins/)?.[1] || "0");
+      const bidA = parseInt(a.dataset.currentBid) || 0;
+      const bidB = parseInt(b.dataset.currentBid) || 0;
       return bidA - bidB;
     } else if (mode === "alphabetical") {
       const nameA = a.querySelector("h3").textContent.trim();
@@ -210,9 +371,43 @@ function sortAuctions(mode, btn) {
     }
   });
 
+  // Re-append sorted cards
   grid.innerHTML = "";
   cards.forEach(card => grid.appendChild(card));
 }
+
+function formatTimeLeft(seconds) {
+  if (seconds <= 0) return "Expired";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
+function updateCountdowns() {
+  const now = new Date();
+  document.querySelectorAll(".auction-card").forEach(card => {
+    const endTimeStr = card.dataset.endtime;
+    if (!endTimeStr) return;
+
+    const endTime = new Date(endTimeStr);
+    let diffSeconds = Math.floor((endTime - now) / 1000);
+    if (diffSeconds < 0) diffSeconds = 0;
+
+    const h = Math.floor(diffSeconds / 3600);
+    const m = Math.floor((diffSeconds % 3600) / 60);
+    const s = diffSeconds % 60;
+
+    const formatted = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    const timeLeftElem = card.querySelector(".time-left-text");
+    if (timeLeftElem) timeLeftElem.textContent = formatted;
+  });
+}
+
+setInterval(updateCountdowns, 1000);
+updateCountdowns();
+// Initial update on page load
+updateCountdowns();
 
 </script>
 

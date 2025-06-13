@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import os, requests
 import re
 import time
+from bson import ObjectId
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -56,6 +58,21 @@ def get_mongo_client():
     mongo_uri = os.getenv("MONGO_URI")
     return MongoClient(mongo_uri)
 
+def serialize_auction(auction):
+    auction["_id"] = str(auction["_id"])
+    auction["end_time"] = auction.get("end_time").isoformat() if auction.get("end_time") else None
+
+    # Pick fields to expose safely
+    return {
+        "id": auction["_id"],
+        "item": auction.get("item", "Unknown"),
+        "quantity": auction.get("quantity", 1),
+        "current_bid": auction.get("current_bid", 0),
+        "highest_bidder": auction.get("highest_bidder"),  # user ID
+        "display_name": None,  # to fill below
+        "bidder_tag": None,
+        "end_time": auction["end_time"],
+    }
 
 def fetch_role_mapping(guild_id):
     url = f"https://discord.com/api/guilds/{guild_id}/roles"
@@ -93,42 +110,85 @@ def send_reply():
     })
     return redirect("/active-tickets")
 
+@app.route("/api/live-auctions")
+def live_auctions():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["hayday"]
+        auctions = list(db["auctions"].find({"status": "active"}))
+        user_cache = db.database["UserCache"]  # or wherever you store user data
+
+        results = []
+        for auction in auctions:
+            data = serialize_auction(auction)
+            # Lookup bidder display name/tag from user_cache if available
+            bidder_id = data.get("highest_bidder")
+            if bidder_id:
+                user_doc = user_cache.find_one({"user_id": bidder_id})
+                if user_doc:
+                    data["display_name"] = user_doc.get("display_name") or user_doc.get("username")
+                    data["bidder_tag"] = user_doc.get("discord_tag")
+            results.append(data)
+
+    return jsonify(results)
+
+@csrf.exempt
 @app.route("/api/bid", methods=["POST"])
 def api_bid():
-    # Step 1: Verify Discord login
+    print("API BID endpoint called!")
+    print("Request content-type:", request.content_type)
+    print("Request data:", request.data)
+    print("Request form:", request.form)
+    print("Request args:", request.args)
+
     user_id = session.get("discord_id")
     if not user_id:
         return jsonify({"success": False, "message": "Not logged in via Discord"}), 401
 
     try:
         data = request.get_json(force=True)
-        print("✅ JSON received:", data)
+        print("Received data from frontend:", data)
     except Exception as e:
         print("❌ JSON decode error:", e)
         return jsonify({"success": False, "message": "Invalid JSON"}), 400
+
     auction_id = data.get("auction_id")
     amount = data.get("amount")
+    print(f"auction_id: {auction_id} (type: {type(auction_id)})")
+    print(f"amount: {amount} (type: {type(amount)})")
 
-    print(f"🔍 Incoming bid: auction_id={auction_id}, amount={amount}, user_id={session.get('discord_id')}")
+    try:
+        amount = int(amount)
+        auction_id_int = int(auction_id)
+    except (TypeError, ValueError):
+        print("Failed to cast amount or auction_id to int!")
+        return jsonify({"success": False, "message": "Invalid input (amount or auction_id)"}), 400
 
-    if not auction_id or not isinstance(amount, int) or amount <= 0:
+    print(f"🔍 Incoming bid: auction_id={auction_id_int}, amount={amount}, user_id={user_id}")
+
+    if amount <= 0:
+        print("amount <= 0")
         return jsonify({"success": False, "message": "Invalid input"}), 400
 
     with MongoClient(os.getenv("MONGO_URI")) as client:
         db = client["hayday"]
-        auction = db["auctions"].find_one({"message_id": int(auction_id), "status": "active"})
+        auction = db["auctions"].find_one({"message_id": auction_id_int, "status": "active"})
 
         if not auction:
+            print("Auction not found or already ended")
             return jsonify({"success": False, "message": "Auction not found or already ended"}), 404
 
         now = datetime.now(timezone.utc)
-        if auction["end_time"] <= now:
+        end_time = auction["end_time"]
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+        if end_time <= now:
             return jsonify({"success": False, "message": "Auction already expired"}), 410
-
+        
         # Step 2: Bid validation
         current_bid = auction.get("current_bid", 0)
         min_increment = auction.get("min_increment") or 1
         if amount < current_bid + min_increment:
+            print("Bid too low")
             return jsonify({
                 "success": False,
                 "message": f"Bid must be at least {min_increment:,} higher than the current bid."
@@ -157,8 +217,8 @@ def api_bid():
 
         try:
             requests.post(
-                "http://discord-mega-bot.internal:5050/refresh_auction",
-                json={"message_id": auction_id},
+                "https://discord-mega-bot.fly.dev/refresh_auction",
+                json={"message_id": auction_id_int},
                 headers={"X-Webhook-Key": os.getenv("BOT_WEBHOOK_KEY")},
                 timeout=2
             )
@@ -166,6 +226,7 @@ def api_bid():
             print(f"Failed to ping bot webhook: {e}")
 
     return jsonify({"success": True, "message": "Bid placed!"})
+
 
 @app.route("/submit_bid", methods=["POST"])
 def submit_bid():
@@ -219,7 +280,12 @@ def auctions_page():
     with MongoClient(os.getenv("MONGO_URI")) as client:
         db = client["hayday"]
         auctions = list(db["auctions"].find({"status": "active"}).sort("end_time", 1))
-        user_map = {str(u["_id"]): u for u in client["Website"]["UserCache"].find()}
+        user_cache = list(client["Website"]["UserCache"].find())
+        user_map = {str(u["_id"]): u for u in user_cache}
+
+        # Ensure all owners are in the user_map
+        owner_ids = {str(a['owner_id']) for a in auctions}
+        # Optionally, fetch missing users and add to user_map if needed
 
     now = datetime.now(timezone.utc)
     for auc in auctions:
@@ -235,6 +301,14 @@ def auctions_page():
         auc["bidder_tag"] = user_info.get("tag") or f"User {bidder_id}"
         auc["display_name"] = user_info.get("display_name")
         auc["avatar"] = user_info.get("avatar")
+
+        # Also add owner user info for Jinja
+        owner_id = str(auc.get("owner_id"))
+        owner_info = user_map.get(owner_id, {})
+        auc["owner_display_name"] = owner_info.get("display_name")
+        auc["owner_tag"] = owner_info.get("tag")
+        auc["owner_avatar"] = owner_info.get("avatar")
+
 
     discord_id = session.get("discord_id")  # ✅ Add this
     return render_template("auctions.html", auctions=auctions, year=now.year, discord_id=discord_id)
