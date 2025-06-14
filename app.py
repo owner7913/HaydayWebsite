@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages, flash
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, HiddenField
 from wtforms.validators import DataRequired
@@ -11,6 +11,8 @@ import os, requests
 import re
 import time
 from bson import ObjectId
+from flask_wtf.csrf import CSRFError
+
 
 load_dotenv()
 
@@ -33,7 +35,7 @@ limiter = Limiter(get_remote_address, app=app, default_limits=["10 per minute"])
 csrf = CSRFProtect(app)
 
 # Session lifetime
-app.permanent_session_lifetime = timedelta(hours=2)
+app.permanent_session_lifetime = timedelta(days=7)
 
 
 STAFF_ROLE_IDS = {"1307838468788846652"}
@@ -676,7 +678,7 @@ def api_news():
 
 
 
-@app.route("/production")
+@app.route("/production_guide")
 def production():
     return render_template("production_guide.html")
 
@@ -732,6 +734,41 @@ def scam_ids():
 def home():
     year = datetime.now(timezone.utc).year
     return render_template("index.html", year=year)
+
+@app.route("/login-page")
+def login_page():
+    return render_template("login.html", sitekey=os.getenv("HCAPTCHA_SITEKEY"))
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    flash("⚠️ CAPTCHA must be completed before logging in.", "error")
+    return redirect(url_for("login_page"))
+
+@app.route("/verify-captcha", methods=["POST"])
+def verify_captcha():
+    if not request.form.get("agree_terms"):
+        flash("❌ You must agree to the Terms of Service.", "error")
+        return redirect(url_for("login_page"))
+
+    token = request.form.get("h-captcha-response")
+    if not token:
+        flash("❌ CAPTCHA must be completed before logging in.", "error")
+        return redirect(url_for("login_page"))
+
+    verify = requests.post(
+        "https://hcaptcha.com/siteverify",
+        data={
+            "response": token,
+            "secret": os.getenv("HCAPTCHA_SECRET")
+        }
+    ).json()
+
+    if verify.get("success"):
+        return redirect(url_for("login"))  # Redirect to Discord OAuth
+    else:
+        flash("❌ CAPTCHA validation failed.", "error")
+        return redirect(url_for("login_page"))
+
 
 @app.route("/login")
 def login():
@@ -821,6 +858,9 @@ def profile():
 
         # Rank
         rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users_collection = client["Website"]["users"]
+        user = users_collection.find_one({"_id": discord_id}) or {}
 
 
     return render_template(
@@ -839,8 +879,40 @@ def profile():
         current_xp_formatted=current_xp_formatted,
         required_xp_formatted=required_xp_formatted,
         rank=rank,
-        mention_count=mention_count
+        mention_count=mention_count,
+        is_owner=True, 
+        user=user
     )
+
+@app.route("/test-flash")
+def test_flash():
+    flash("✅ This is a test message!", "success")
+    print("Flashed:", get_flashed_messages(with_categories=True))
+    return redirect(url_for("profile"))
+
+
+@csrf.exempt
+@app.route("/toggle-privacy", methods=["POST"])
+def toggle_privacy():
+    if "discord_id" not in session:
+        flash("Session expired. Please log in again.", "error")
+        return redirect(url_for("login"))
+
+    discord_id = session["discord_id"]
+    users_collection = MongoClient(os.getenv("MONGO_URI"))["Website"]["users"]
+    user = users_collection.find_one({"_id": discord_id})
+
+    if user:
+        new_value = not user.get("public_profile", True)
+        users_collection.update_one(
+            {"_id": discord_id},
+            {"$set": {"public_profile": new_value}}
+        )
+        flash("✅ Profile visibility updated.", "success")
+
+    return redirect(url_for("profile"))
+
+
 
 @app.route("/leaderboard")
 def leaderboard():
@@ -908,7 +980,7 @@ def callback():
             f"https://discord.com/api/guilds/{GUILD_ID}",
             headers={"Authorization": f"Bot {BOT_TOKEN}"}
         ).json()
-
+        session.permanent = True
         session["guild_name"] = guild_data.get("name", "HayDay 🍀")
         if member_res.status_code == 200:
             member_data = member_res.json()
@@ -922,6 +994,22 @@ def callback():
         session["username"] = user["username"] + "#" + user["discriminator"]
         session["avatar_hash"] = user["avatar"]
 
+        with MongoClient(os.getenv("MONGO_URI")) as client:
+            users_collection = client["Website"]["users"]
+
+            users_collection.update_one(
+                {"_id": user["id"]},
+                {"$set": {
+                    "username": user["username"] + "#" + user["discriminator"],
+                    "display_name": member_data.get("nick") or user["username"],
+                    "avatar_hash": user["avatar"],
+                    "hay_day_id": None,  # Will be filled after linking
+                    "linked_at": datetime.utcnow(),
+                    "public_profile": True
+                }},
+                upsert=True
+            )
+
 
         print("User object:", user)  # <- add this too
 
@@ -931,6 +1019,130 @@ def callback():
         traceback.print_exc()
         return f"<h1>❌ Error:</h1><pre>{e}</pre>", 500
 
+@app.route("/directory")
+def public_directory():
+    query = request.args.get("q", "").lower()
+    page = int(request.args.get("page", 1))
+    page_size = 12
+
+    users_collection = MongoClient(os.getenv("MONGO_URI"))["Website"]["users"]
+
+    query_filter = {"public_profile": True}
+    if query:
+        query_filter["$or"] = [
+            {"username": {"$regex": query, "$options": "i"}},
+            {"hay_day_id": {"$regex": query, "$options": "i"}},
+        ]
+
+    total = users_collection.count_documents(query_filter)
+    users = (
+        users_collection.find(query_filter)
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+    )
+
+    return render_template("directory.html",
+                           users=list(users),
+                           page=page,
+                           total_pages=(total // page_size) + 1,
+                           query=query)
+
+@app.route("/profile-directory")
+def profile_directory():
+    search = request.args.get("search", "").strip()
+    page = int(request.args.get("page", 1))
+    per_page = 12
+
+    users_collection = MongoClient(os.getenv("MONGO_URI"))["Website"]["users"]
+
+    query = {}
+    if search:
+        query["$or"] = [
+            {"username": {"$regex": search, "$options": "i"}},
+            {"display_name": {"$regex": search, "$options": "i"}}
+        ]
+    if search:
+        query["$or"] = [
+            {"username": {"$regex": search, "$options": "i"}},
+            {"display_name": {"$regex": search, "$options": "i"}}
+        ]
+
+    total = users_collection.count_documents(query)
+    users = list(
+        users_collection.find(query)
+        .sort("display_name", 1)  # or "username"
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
+
+
+    total_pages = (total + per_page - 1) // per_page
+
+    return render_template(
+        "profile_directory.html",
+        users=users,
+        search=search,
+        page=page,
+        total_pages=total_pages
+    )
+
+
+
+@app.route("/profile/<discord_id>")
+def public_profile(discord_id):
+    users_collection = MongoClient(os.getenv("MONGO_URI"))["Website"]["users"]
+    user = users_collection.find_one({"_id": discord_id})
+
+    if not user or not user.get("public_profile", False):
+        return "🚫 This profile is private or does not exist.", 404
+
+    # Optional: If you want to show level stats, fetch them too
+    level_col = MongoClient(os.getenv("MONGO_URI"))["hayday"]["level"]
+    level_doc = level_col.find_one({"_id": discord_id})
+
+    level = xp = message_count = mention_count = boost_time_left = None
+    progress_percent = current_xp_formatted = required_xp_formatted = rank = None
+
+    if level_doc:
+        level = level_doc.get("level", 1)
+        xp = level_doc.get("xp", 0)
+        message_count = level_doc.get("message_count", 0)
+        mention_col = MongoClient(os.getenv("MONGO_URI"))["Mentions"]["Amount"]
+        mention_doc = mention_col.find_one({"id": int(discord_id)})
+        mention_count = mention_doc.get("Mentions", 0) if mention_doc else 0
+
+        # Calculate XP progress
+        def calc_required_xp(lvl):
+            return 100 * (lvl ** 2) + 100 * lvl + 100
+
+        prev_xp = calc_required_xp(level - 1) if level > 1 else 0
+        next_xp = calc_required_xp(level)
+        current_xp = xp - prev_xp
+        required_xp = next_xp - prev_xp
+        progress_percent = int((current_xp / required_xp) * 100)
+
+        current_xp_formatted = f"{current_xp:,}"
+        required_xp_formatted = f"{required_xp:,}"
+        rank = "?"
+
+    return render_template("profile.html",
+        discord_id=user["_id"],
+        display_name=user.get("display_name", "Unknown"),
+        avatar_hash=user.get("avatar_hash", ""),
+        is_owner=False,
+        user=user,
+        level=level,
+        xp=xp,
+        message_count=message_count,
+        mention_count=mention_count,
+        boost_time_left=boost_time_left,
+        progress_percent=progress_percent,
+        current_xp_formatted=current_xp_formatted,
+        required_xp_formatted=required_xp_formatted,
+        rank=rank,
+        roles=[],
+        highest_role=None
+    )
 
 
 @app.route("/logout")
@@ -943,6 +1155,12 @@ class SubmitForm(FlaskForm):
     discord_id = StringField("Discord ID", validators=[DataRequired()])
     fingerprint = HiddenField("Fingerprint")
     # You can later add a `captcha_response = HiddenField()` here
+
+@app.route("/terms")
+def terms_page():
+    year = datetime.now().year
+    return render_template("terms.html", year=year)
+
 
 @app.route('/submit', methods=['POST'])
 @limiter.limit("5 per minute")
@@ -972,7 +1190,9 @@ def submit():
 
 @app.route("/privacy")
 def privacy_page():
-    return render_template("privacy.html")
+    year = datetime.now().year
+    return render_template("privacy.html", year=year)
+
 
 
 @app.route("/staff")

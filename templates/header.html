@@ -36,10 +36,13 @@
           <li><a href="/staff-panel">Staff Panel</a></li>
           {% endif %}
           <li><a href="/profile">My Profile</a></li>
+          <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}">
+            <a href="/profile-directory">Members</a>
+          </li>
           <li><a href="/logout">Logout</a></li>
         </ul>
         {% else %}
-        <a href="/login">Login</a>
+        <a href="/login-page">Login</a>
         {% endif %}
       </li>
     </ul>
