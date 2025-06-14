@@ -186,6 +186,43 @@ def giveaways_page():
             discord_id=session.get("discord_id"),
             year=datetime.now().year
         )
+    
+@app.route("/api/live-giveaways")
+def api_live_giveaways():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Giveaway"]
+        user_db = client["hayday"]["level"]
+
+        raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
+
+        # Gather all unique user IDs for host lookup
+        user_ids = {str(g.get("host_id")) for g in raw_giveaways if "host_id" in g}
+        user_map = {str(u["_id"]): u for u in user_db.find({"_id": {"$in": list(user_ids)}})}
+
+        giveaways = []
+        now = datetime.utcnow()
+
+        for g in raw_giveaways:
+            end = g.get("end_time")
+            if not end or end < now:
+                continue
+
+            host_id = str(g.get("host_id"))
+            host_doc = user_map.get(host_id, {})
+            host_display = host_doc.get("username", "Anonymous")
+            avatar_url = (
+                f"https://cdn.discordapp.com/avatars/{host_id}/{host_doc.get('avatar_hash')}.png"
+                if host_doc.get("avatar_hash") else None
+            )
+
+            giveaways.append({
+                "prize": g.get("prize", "Unknown"),
+                "host_display": host_display,
+                "host_avatar": avatar_url,
+                "end_time_ts": int(end.timestamp()),
+            })
+
+        return jsonify(giveaways)
 
 @app.route("/api/live-bids-feed")
 def live_bids_feed():
@@ -617,6 +654,24 @@ def mod_action():
     return redirect("/staff-panel")
 
 
+@app.route("/api/news")
+def api_news():
+    from pymongo import MongoClient
+    mongo_uri = os.getenv("MONGO_URI")
+    with MongoClient(mongo_uri) as client:
+        collection = client["hayday"]["NewsFeed"]
+        items = list(collection.find().sort("_id", -1).limit(5))
+        return jsonify([
+            {
+                "title": item.get("title", "Untitled"),
+                "url": item.get("_id", "#"),
+                "timestamp": item.get("timestamp") or datetime.utcnow().isoformat(),
+                "source": item.get("source", "unknown"),
+                "thumbnail": item.get("thumbnail")  # ✅ ensure this field is populated by your bot
+            }
+            for item in items
+        ])
+
 
 
 
@@ -940,7 +995,22 @@ def consent_log():
     return html
 
 if __name__ == "__main__":
+    import os
+
     port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    env = os.getenv("FLASK_ENV", "prod")
 
+    if env == "dev":
+        # Local dev with livereload
+        from livereload import Server
+        import logging
 
+        logging.getLogger("livereload").setLevel(logging.WARNING)
+
+        server = Server(app)
+        server.watch('templates/')
+        server.watch('static/')
+        server.serve(host='127.0.0.1', port=port)
+    else:
+        # Production for Fly.io
+        app.run(host="0.0.0.0", port=port)
