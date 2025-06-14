@@ -8,20 +8,21 @@
     .profile-container {
       max-width: 600px;
       margin: 120px auto 60px;
-      position: relative;
       background: white;
-      z-index: 0;
       border-radius: 16px;
       padding: 30px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
       text-align: center;
-      margin-bottom: 120px; /* Prevent overlap with footer */
+      font-family: 'Segoe UI', sans-serif;
+      z-index: 0;
     }
 
-    .profile-container h1 {
-      margin-bottom: 10px;
+    body.dark .profile-container {
+      background: #1e1e1e;
+      color: #eee;
     }
 
+    /* Avatar & Identity */
     .avatar {
       width: 96px;
       height: 96px;
@@ -31,25 +32,171 @@
     }
 
     .discord-tag {
-      font-size: 18px;
-      font-weight: bold;
+      font-size: 20px;
+      font-weight: 600;
     }
 
     .discord-id {
-      font-size: 14px;
-      color: #666;
-      margin-top: 4px;
-    }
-
-    body.dark .profile-container {
-      background: #1e1e1e;
-      color: #eee;
+      font-size: 13px;
+      color: #bbb;
+      margin-top: 2px;
     }
 
     body.dark .discord-id {
       color: #aaa;
     }
 
+    .profile-header {
+      margin-bottom: 30px;
+      padding-bottom: 10px;
+    }
+
+    /* Stats Section */
+    .stats-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 18px 24px;
+      border-radius: 14px;
+      min-width: 120px;
+      max-width: 150px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: transform 0.2s ease;
+      flex: 1 1 120px;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .stat-card .emoji {
+      font-size: 16px;
+      margin: 0;
+      display: inline-block;
+      line-height: 1;
+    }
+
+    .stat-card .label {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #aaa;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .stat-card .value {
+      font-size: 24px;
+      font-weight: 700;
+      margin-top: 2px;
+      color: #111;
+    }
+
+    body.dark .stat-card .value {
+      color: white;
+    }
+
+    .stat-card.highlight {
+      background: linear-gradient(145deg, #ffca28, #f57c00);
+      color: black;
+      border: none;
+    }
+
+    body.dark .stat-card.highlight {
+      background: linear-gradient(145deg, #ffb300, #fb8c00);
+      color: #111;
+    }
+
+    /* XP Progress Bar */
+    .xp-progress-container {
+      margin-top: 25px;
+      text-align: center;
+    }
+
+    .xp-bar-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .xp-bar {
+      background: #e0e0e0;
+      border-radius: 10px;
+      height: 22px;
+      flex: 1;
+      min-width: 260px;
+      max-width: 400px;
+      position: relative;
+      overflow: hidden;
+    }
+
+  .xp-fill {
+    height: 100%;
+    background: linear-gradient(to right, #4caf50, #81c784);
+    border-radius: 10px 0 0 10px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    width: 0; /* Start at 0 */
+    transition: width 1s ease-in-out;
+  }
+
+  .xp-text-overlay {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 100%;
+    line-height: 22px;
+    font-size: 15px; /* ⬅️ was 13px */
+    font-weight: 700;
+    color: #111;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .xp-rank {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-top: 4px;
+  }
+
+    body.dark .xp-bar {
+      background: #333;
+    }
+
+  body.dark .xp-fill {
+    background: linear-gradient(to right, #66bb6a, #a5d6a7);
+  }
+
+    body.dark .xp-rank {
+      color: #ccc;
+    }
+
+    body.dark .xp-text-overlay {
+      color: #eee;
+    }
+
+    /* Role styling */
     .role-badges {
       display: flex;
       flex-wrap: wrap;
@@ -72,17 +219,117 @@
     .role-badge:hover {
       transform: scale(1.05);
     }
+    .xp-rank-link {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.2s ease;
+    }
+
+    .xp-rank-link:hover {
+      text-decoration: underline;
+      color: #2563eb;
+    }
+
+    body.dark .xp-rank-link {
+      color: #90c4ff;
+    }
+
+    body.dark .xp-rank-link:hover {
+      color: #60aaff;
+    }
+  .mentions-card {
+    background: #262626;
+    border: 1px solid #444;
+  }
+  body.dark .mentions-card {
+    background: #2b2b2b;
+    border: 1px solid #555;
+  }
+  .mentions-card .label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #aaa;
+  }
+  .stat-card .text {
+    font-size: 13px;
+  }
+
+  @keyframes pulse-bar {
+    0% { box-shadow: 0 0 0px rgba(255, 255, 255, 0); }
+    50% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.6); }
+    100% { box-shadow: 0 0 0px rgba(255, 255, 255, 0); }
+  }
+
+  .xp-fill.pulse {
+    animation: pulse-bar 1.2s ease-in-out infinite;
+  }
+
   </style>
 </head>
 <body>
   {% include 'header.html' %}
 
   <div class="profile-container">
+    <div class="profile-header">
     <img class="avatar" src="https://cdn.discordapp.com/avatars/{{ discord_id }}/{{ avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
     
     <div class="discord-tag">👤 {{ display_name }}</div>
     <div class="discord-id">Discord ID: {{ discord_id }}</div>
-
+      {% if level %}
+        <div class="stats-section">
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Level</span>
+              <span class="emoji">🆙</span>
+            </span>
+            <span class="value">{{ level }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">TOTAL XP</span>
+              <span class="emoji">✨</span>
+            </span>
+            <span class="value">{{ xp | format }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Messages</span>
+              <span class="emoji">💬</span>
+            </span>
+            <span class="value">{{ message_count | format }}</span>
+          </div>
+          <div class="stat-card mentions-card">
+            <span class="label">
+              <span class="text">Mentions</span>
+              <span class="emoji">🔔</span>
+            </span>
+            <span class="value">{{ mention_count | format }}</span>
+          </div>
+          {% if boost_time_left %}
+            <div class="stat-card highlight">
+              <span class="label">
+                <span class="text">XP Boost</span>
+                <span class="emoji">🔥</span>
+              </span>
+              <span class="value">{{ boost_time_left }} left</span>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+        {% if xp and level %}
+        <div class="xp-progress-container">
+          <div class="xp-bar-wrap">
+              <div class="xp-bar">
+                <div class="xp-fill" data-percent="{{ progress_percent }}"></div>
+                <span class="xp-text-overlay">{{ current_xp_formatted }} / {{ required_xp_formatted }}</span>
+              </div>
+            </div>
+            <div class="xp-rank"><a href="/leaderboard" class="xp-rank-link">#{{ rank }} in Server</a></div>
+          </div>
+        </div>
+        {% endif %}
     {% if highest_role %}
       <p style="margin-top: 25px;"><strong>Highest Role:</strong></p>
       <div class="role-badge" style="background-color: {{ highest_role.color }};">
@@ -135,6 +382,35 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("Dark mode toggle button not found.");
   }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fill = document.querySelector('.xp-fill');
+  const percent = parseInt(fill.dataset.percent || 0);
+  const isDark = document.body.classList.contains("dark");
+
+  setTimeout(() => {
+    fill.style.width = percent + "%";
+  }, 100);
+
+  let gradient;
+  if (percent <= 25) {
+    gradient = isDark ? "linear-gradient(to right, #b71c1c, #ef6c00)" : "linear-gradient(to right, #e53935, #fb8c00)";
+  } else if (percent <= 50) {
+    gradient = isDark ? "linear-gradient(to right, #ef6c00, #fbc02d)" : "linear-gradient(to right, #fb8c00, #fdd835)";
+  } else if (percent <= 75) {
+    gradient = isDark ? "linear-gradient(to right, #fbc02d, #9ccc65)" : "linear-gradient(to right, #fdd835, #aed581)";
+  } else {
+    gradient = isDark ? "linear-gradient(to right, #9ccc65, #43a047)" : "linear-gradient(to right, #aed581, #66bb6a)";
+  }
+
+  fill.style.background = gradient;
+
+  if (percent >= 95) {
+    fill.classList.add("pulse");
+  }
+});
+
+
 </script>
 
 </body>

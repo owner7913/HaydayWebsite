@@ -107,7 +107,7 @@
     position: fixed;
     top: 60px;
     left: 10px;
-    width: 220px;
+    width: 280px;
     max-height: 80vh;
     overflow-y: auto;
     background-color: #f0f0f0;  /* Light mode default */
@@ -169,7 +169,7 @@
     </div>
     <div class="auction-grid">
         {% for auction in auctions %}
-        <div class="auction-card" data-endtime="{{ auction.end_time }}" data-current-bid="{{ auction.current_bid }}">
+        <div class="auction-card" data-endtime="{{ auction.end_time.isoformat() }}" data-current-bid="{{ auction.current_bid }}">
             <h3>{{ auction.item }} × {{ auction.quantity }}</h3>
 
         <div class="info"><strong>Starting Bid:</strong> {{ "{:,}".format(auction.starting_bid) }} coins</div>
@@ -209,19 +209,7 @@
 
       {% endfor %}
     </div>
-<div id="live-bids-floater" style="
-  position: fixed;
-  top: 60px;
-  left: 10px;
-  width: 220px;
-  max-height: 80vh;
-  overflow-y: auto;
-  background-color: #f0f0f0;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-  z-index: 1000;
-">
+<div id="live-bids-floater">
   <h4 style="margin-top:0; margin-bottom:10px;">Live Bids</h4>
   <div id="live-bids-content">Loading...</div>
 </div>
@@ -235,29 +223,35 @@ async function fetchLiveAuctions() {
     if (!res.ok) throw new Error('Network error');
     let auctions = await res.json();
 
-    // Sort auctions by latest bid timestamp descending (most recent first)
+    // <-- Add filter here to keep only auctions with bids
+    auctions = auctions.filter(auc => auc.current_bid && auc.last_bid && auc.last_bid.timestamp);
+
+    // Now sort filtered auctions by latest bid timestamp descending
     auctions.sort((a, b) => {
-      const aTime = a.last_bid?.timestamp ? new Date(a.last_bid.timestamp) : new Date(0);
-      const bTime = b.last_bid?.timestamp ? new Date(b.last_bid.timestamp) : new Date(0);
+      const aTime = new Date(a.last_bid.timestamp);
+      const bTime = new Date(b.last_bid.timestamp);
       return bTime - aTime;
     });
 
     // Limit to 10 most recent auctions
     auctions = auctions.slice(0, 10);
 
+    // Clear old live bids
     const container = document.getElementById('live-bids-content');
     container.innerHTML = '';
 
     auctions.forEach(auc => {
       const div = document.createElement('div');
       div.style.marginBottom = '8px';
+      div.classList.add('bid-entry');
+
       const item = auc.item || 'Unknown item';
       const qty = auc.quantity || 1;
-      const bid = auc.current_bid ? Number(auc.current_bid).toLocaleString() : 'No bids';
-      const bidder = auc.display_name || auc.bidder_tag || 'No bids';
+      const bid = Number(auc.current_bid).toLocaleString();
+      const bidder = auc.display_name || auc.bidder_tag || 'A user';
 
-      div.textContent = `${item} ×${qty}: ${bid} coins by ${bidder}`;
-      container.appendChild(div);
+      div.textContent = `${bidder} placed a bid of ${bid} coins on ${item} ×${qty}`;
+      container.prepend(div);
     });
 
   } catch (err) {
@@ -271,6 +265,10 @@ setInterval(fetchLiveAuctions, 5000);
 
 // Fetch once on page load
 fetchLiveAuctions();
+
+
+// Your input formatting code is fine, no change needed there
+
 
 
   // Format a number with commas as thousands separators
@@ -333,6 +331,32 @@ function submitBid(e, auctionId) {
   })
   .catch(() => alert("❌ Failed to submit bid."));
 }
+</script>
+<script>
+async function fetchLiveBids() {
+  try {
+    const response = await fetch('/api/live-bids-feed');
+    const bids = await response.json();
+
+    const container = document.getElementById('live-bids-content');
+    container.innerHTML = ''; // Clear existing
+
+    bids.forEach(bid => {
+      const entry = document.createElement('div');
+      entry.className = 'bid-entry';
+      // Format amount with commas
+      const formattedAmount = bid.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      entry.textContent = `A user placed a bid of ${formattedAmount} coins on ${bid.item} × ${bid.quantity}`;
+      container.appendChild(entry);
+    });
+  } catch (e) {
+    console.error('Failed to fetch live bids:', e);
+  }
+}
+
+// Initial fetch and then every 5 seconds
+fetchLiveBids();
+setInterval(fetchLiveBids, 5000);
 </script>
 
 </body>

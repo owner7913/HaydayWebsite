@@ -95,6 +95,10 @@ def fetch_role_mapping(guild_id):
         for role in roles
     }
 
+@app.template_filter('format')
+def format_number(n):
+    return f"{n:,}" if isinstance(n, int) else n
+
 @app.route("/send-reply", methods=["POST"])
 def send_reply():
     if not is_staff(session.get("roles", [])):
@@ -110,11 +114,49 @@ def send_reply():
     })
     return redirect("/active-tickets")
 
+@app.route("/api/live-bids-feed")
+def live_bids_feed():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["hayday"]
+        auctions = db["auctions"].find({"status": "active"})
+
+        live_bids = []
+        for auction in auctions:
+            item = auction.get("item")
+            quantity = auction.get("quantity", 1)
+            bid_logs = auction.get("bid_logs", [])
+
+            for bid in bid_logs:
+                user_id = bid.get("user_id")
+                amount = bid.get("amount")
+                timestamp = bid.get("timestamp")
+
+                # Lookup user display/tag from your cached collection or fallback to user id
+                user_doc = db["UserCache"].find_one({"_id": user_id})
+                bidder_tag = user_doc.get("display_name") if user_doc and "display_name" in user_doc else f"User {user_id}"
+
+                live_bids.append({
+                    "item": item,
+                    "quantity": quantity,
+                    "amount": amount,
+                    "bidder_tag": bidder_tag,
+                    "timestamp": timestamp.isoformat() if isinstance(timestamp, datetime) else str(timestamp)
+                })
+
+        # Sort by timestamp descending (newest first) and limit to 20
+        live_bids_sorted = sorted(live_bids, key=lambda x: x["timestamp"], reverse=True)[:20]
+
+        return jsonify(live_bids_sorted)
+
 @app.route("/api/live-auctions")
 def live_auctions():
     with MongoClient(os.getenv("MONGO_URI")) as client:
         db = client["hayday"]
-        auctions = list(db["auctions"].find({"status": "active"}))
+        auctions = list(db["auctions"].find({
+        "status": "active",
+        "current_bid": {"$exists": True, "$gt": 0},
+        "last_bid": {"$exists": True}
+        }))
         user_cache = db.database["UserCache"]  # or wherever you store user data
 
         results = []
@@ -218,7 +260,7 @@ def api_bid():
         try:
             requests.post(
                 "https://discord-mega-bot.fly.dev/refresh_auction",
-                json={"message_id": auction_id_int},
+                json={"message_id": auction_id_int, "notify": True},
                 headers={"X-Webhook-Key": os.getenv("BOT_WEBHOOK_KEY")},
                 timeout=2
             )
@@ -580,6 +622,9 @@ def profile():
     if "discord_id" not in session:
         return redirect(url_for("login"))
 
+    discord_id = session["discord_id"]
+
+    # Fetch role info
     guild_id = "959220051427340379"
     try:
         role_mapping = fetch_role_mapping(guild_id)
@@ -588,8 +633,6 @@ def profile():
         role_mapping = {}
 
     user_roles = session.get("roles", [])
-
-    # Fetch valid roles with metadata
     enriched_roles = [
         {
             "id": rid,
@@ -599,23 +642,97 @@ def profile():
         }
         for rid in user_roles if rid in role_mapping
     ]
-
-    # Sort by highest position
     sorted_roles = sorted(enriched_roles, key=lambda r: r["position"], reverse=True)
     highest_role = sorted_roles[0] if sorted_roles else None
+
+    # Fetch level data and calculate progress
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        level_col = client["hayday"]["level"]
+        level_doc = level_col.find_one({"_id": discord_id})
+        all_users = list(level_col.find().sort("xp", -1))  # used for rank
+
+        mention_count = 0
+        mention_col = client["Mentions"]["Amount"]
+        mention_doc = mention_col.find_one({"id": int(discord_id)})
+        if mention_doc:
+            mention_count = mention_doc.get("Mentions", 0)
+
+
+    level = xp = message_count = 0
+    boost_time_left = None
+    rank = "?"
+    progress_percent = 0
+    current_xp = required_xp = 0
+    current_xp_formatted = required_xp_formatted = "0"
+
+    if level_doc:
+        level = level_doc.get("level", 1)
+        xp = level_doc.get("xp", 0)
+        message_count = level_doc.get("message_count", 0)
+
+        # XP Boost
+        boost_until = level_doc.get("xp_boost_until")
+        if boost_until:
+            now = datetime.utcnow()
+            boost_until = boost_until if isinstance(boost_until, datetime) else boost_until.to_datetime()
+            if boost_until > now:
+                boost_time_left = str(boost_until - now).split(".")[0]
+
+        # XP Progress Calculation
+        def calc_required_xp(lvl):
+            return 100 * (lvl ** 2) + 100 * lvl + 100
+
+        prev_xp = calc_required_xp(level - 1) if level > 1 else 0
+        next_xp = calc_required_xp(level)
+        current_xp = xp - prev_xp
+        required_xp = next_xp - prev_xp
+        progress_percent = int((current_xp / required_xp) * 100)
+
+        current_xp_formatted = f"{current_xp:,}"
+        required_xp_formatted = f"{required_xp:,}"
+
+        # Rank
+        rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
+
 
     return render_template(
         "profile.html",
         username=session.get("username"),
         display_name=session.get("display_name"),
-        discord_id=session.get("discord_id"),
+        discord_id=discord_id,
         avatar_hash=session.get("avatar_hash"),
         roles=sorted_roles,
-        highest_role=highest_role
+        highest_role=highest_role,
+        level=level,
+        xp=xp,
+        message_count=message_count,
+        boost_time_left=boost_time_left,
+        progress_percent=progress_percent,
+        current_xp_formatted=current_xp_formatted,
+        required_xp_formatted=required_xp_formatted,
+        rank=rank,
+        mention_count=mention_count
     )
 
+@app.route("/leaderboard")
+def leaderboard():
+    page = int(request.args.get("page", 1))
+    limit = 15
+    skip = (page - 1) * limit
 
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        level_col = client["hayday"]["level"]
+        users = list(level_col.find().sort("xp", -1).skip(skip).limit(limit))
+        total_users = level_col.count_documents({})
 
+    for i, user in enumerate(users):
+        user["rank"] = skip + i + 1
+        user["xp_formatted"] = f"{user.get('xp', 0):,}"
+        user["level"] = user.get("level", 1)
+
+    total_pages = (total_users + limit - 1) // limit
+
+    return render_template("leaderboard.html", users=users, page=page, total_pages=total_pages)
 
 
 
