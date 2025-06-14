@@ -66,12 +66,13 @@ body.dark form {
 
 /* Inputs + buttons */
 body.dark input,
-body.dark button,
+body.dark button:not(.darkmode-toggle),
 body.dark label {
   background-color: #1e1e1e;
   color: #eee;
   border: 1px solid #555;
 }
+
 
 /* Modal */
 body.dark #privacyModal > div {
@@ -101,13 +102,9 @@ header a {
   text-decoration: none;
 }
 
-.theme-toggle {
-  background: none;
-  border: 1px solid gray;
-  padding: 5px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  color: #111;
+
+body.dark .darkmode-toggle {
+  color: #fff;
 }
 
 body.dark .theme-toggle {
@@ -362,3 +359,32 @@ body.dark .home-container::before {
   position: relative;
   z-index: 2;
 }
+.darkmode-toggle {
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 10;
+}
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1000;
+}
+
+.darkmode-wrapper {
+  z-index: 10;
+  position: relative;
+}
+

@@ -114,6 +114,79 @@ def send_reply():
     })
     return redirect("/active-tickets")
 
+from datetime import datetime, timezone
+
+@app.route("/giveaways")
+def giveaways_page():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Giveaway"]
+        user_db = client["hayday"]["level"]
+        raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
+
+        # Step 1: Collect all unique user + host IDs
+        user_ids = set()
+        for g in raw_giveaways:
+            user_ids.update(g.get("participants", {}).keys())
+            if "host_id" in g:
+                user_ids.add(str(g["host_id"]))
+
+        users = user_db.find({"_id": {"$in": list(user_ids)}})
+        user_map = {str(u["_id"]): u for u in users}
+
+        giveaways = []
+        now = datetime.now(timezone.utc)
+
+        for g in raw_giveaways:
+            end = g.get("end_time")
+            if not end:
+                continue
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+
+            # ✅ Skip if the end time has already passed
+            if end < now:
+                continue
+
+            g["end_time_str"] = f"<t:{int(end.timestamp())}:R>"
+            g["end_time_ts"] = int(end.timestamp())
+            g["entry_count"] = sum(g.get("participants", {}).values())
+            g["participants_percent"] = []
+            g["participant_info"] = []
+
+            host_id = str(g.get("host_id"))
+            host = user_map.get(host_id)
+            g["host_display"] = host.get("username") if host else f"User {host_id}"
+            g["host_avatar"] = f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png" if host and host.get("avatar_hash") else None
+
+            total_entries = g["entry_count"]
+            for uid, count in g.get("participants", {}).items():
+                percent = round((count / total_entries) * 100, 2) if total_entries else 0
+                u = user_map.get(uid)
+                username = u.get("username") if u else f"User {uid}"
+                avatar_hash = u.get("avatar_hash") if u else None
+
+                g["participants_percent"].append({
+                    "id": uid,
+                    "count": count,
+                    "percent": percent
+                })
+                g["participant_info"].append({
+                    "id": uid,
+                    "count": count,
+                    "percent": percent,
+                    "name": username,
+                    "avatar": f"https://cdn.discordapp.com/avatars/{uid}/{avatar_hash}.png" if avatar_hash else None
+                })
+
+            giveaways.append(g)
+
+        return render_template(
+            "giveaways.html",
+            giveaways=giveaways,
+            discord_id=session.get("discord_id"),
+            year=datetime.now().year
+        )
+
 @app.route("/api/live-bids-feed")
 def live_bids_feed():
     with MongoClient(os.getenv("MONGO_URI")) as client:
