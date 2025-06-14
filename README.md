@@ -1,37 +1,105 @@
-﻿# HayDay 🍀 Web App
+﻿# 🌾 HayDay 🍀 Web App
 
-Flask-based site for linking Discord + Hay Day IDs, with scam ID and staff panels.
+Flask-based community portal integrated with a Discord bot for linking Hay Day IDs, managing giveaways, auctions, and more.
 
-## 🔧 Setup (Local)
+---
 
-1. Clone the repo:
-   \\\
-   git clone https://github.com/yourname/hayday-verification.git
-   \\\
+## ✅ Features
 
-2. Copy example env:
-   \\\
-   copy .env.example .env
-   \\\
+### 🌐 Frontpage Widgets
+- Blurred minimalistic background with theme toggle
+- 🎁 **Live Giveaways** with avatars, fade-in animations, scroll
+- 📰 **News Feed** from YouTube, Twitter, Instagram (RSS-based)
+- 📦 **Latest Auctions** (placeholder with live data support coming)
 
-3. Fill in your own secrets in \.env\.
+### 👤 User Tools
+- Discord login with session support
+- Profile view with level, XP, boost timer, and rank
+- Scam ID checking and moderation tools
+- Mute, ban, and unban web interface
+- Staff-only ticket viewer and reply system
 
-4. Install dependencies:
-   \\\
-   pip install -r requirements.txt
-   \\\
+---
 
-5. Run the app:
-   \\\
-   python app.py
-   \\\
+## 🛠️ Local Development
 
-## 🎨 Contributing to UI
+### 🔧 Requirements
+- Python 3.10+
+- MongoDB connection
+- Discord bot + tokens
 
-- Modify HTML in \/templates\
-- Style with \/static/css/theme.css\
-- Script with \/static/js/theme.js\
+### ▶️ Run Locally
 
-Login features require Discord and MongoDB setup. UI changes can be previewed without secrets.
+```bash
+git clone https://github.com/yourname/hayday-verification.git
+cd hayday-verification
+pip install -r requirements.txt
+cp .env.example .env  # or manually create .env
+python app.py
+```
 
-## 🔐 Secrets are not committed.
+The app runs at:  
+👉 http://127.0.0.1:8080
+
+To enable **live reloading**, the app uses `livereload` if `FLASK_ENV=dev` is set.
+
+---
+
+## 🚀 Deployment on Fly.io
+
+### 🐳 Docker-based Fly Setup
+
+```bash
+fly deploy
+```
+
+Make sure `.env` has:
+
+```
+FLASK_ENV=prod
+PORT=8080
+```
+
+The app will be hosted at `https://<your-app-name>.fly.dev`
+
+---
+
+## 🗂️ Project Structure
+
+```
+/templates             # Jinja2 HTML templates (header, footer, index, etc.)
+/static/css/theme.css  # Light/dark mode styles
+/static/js             # Widget loaders and client logic
+app.py                 # Flask web app (routes, APIs)
+Dockerfile             # Fly.io-compatible Docker config
+.env                   # Environment variables
+```
+
+---
+
+## 🧪 Integrated Discord Bot
+
+The bot supports:
+- Sending auction/giveaway updates to Discord
+- News fetch from RSS and syncing with MongoDB
+- Reaction roles, mute/unmute, and sync logic
+
+> News entries update only if new OR missing thumbnails.
+
+---
+
+## 📸 Visual Highlights
+
+- ✨ Modern UI using blurred background and grid layout
+- 🧑 Avatars on giveaways and staff listings
+- 🔄 Smooth transitions and entry animations
+- ⚙️ Responsive design for mobile/tablet
+
+---
+
+## 🙌 Credits
+
+Created by [xavi] for the Hay Day Discord Community  
+Assets © Supercell  
+Bot backend hosted with Fly.io  
+Web app powered by Flask + MongoDB
