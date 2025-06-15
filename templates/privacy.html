@@ -16,48 +16,39 @@
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
       font-family: 'Segoe UI', sans-serif;
     }
-
     body.dark .privacy-container {
       background: #1e1e1e;
       color: #e0e0e0;
     }
-
     .privacy-container h1 {
       margin-bottom: 20px;
       font-size: 2rem;
       border-bottom: 2px solid #ccc;
       padding-bottom: 10px;
     }
-
     .privacy-container h2 {
       margin-top: 30px;
       font-size: 1.4rem;
       color: #4caf50;
     }
-
     .privacy-container ul {
       padding-left: 20px;
       margin-top: 10px;
     }
-
     .privacy-container p {
       margin-top: 10px;
       line-height: 1.6;
     }
-
     body.dark .privacy-container h2 {
       color: #7abfff;
     }
-
     a {
       color: #007acc;
       text-decoration: none;
     }
-
     a:hover {
       text-decoration: underline;
     }
-
     body.dark a {
       color: #88c6ff;
     }
@@ -71,53 +62,47 @@
     <p><em>Effective date: {{ year }}</em></p>
 
     <p>
-      At <strong>HayDay 🍀</strong>, we value your privacy. This policy outlines how we handle information when you use our site to link your Discord account with your Hay Day ID.
+      At <strong>HayDay 🍀</strong>, we respect your privacy and collect only the minimum necessary data to operate our services.
     </p>
 
     <h2>What We Collect</h2>
     <ul>
-      <li>Your Discord ID and username</li>
+      <li>Your Discord ID, username, and tag when you log in</li>
+      <li>If implemented in the future: Your Hay Day ID (only if you choose to link it)</li>
     </ul>
 
     <h2>Why We Collect This</h2>
     <p>We collect this data to:</p>
     <ul>
-      <li>Maintain server integrity and prevent impersonation</li>
+      <li>Enable user login and session management</li>
+      <li>Allow future linking between your Discord account and Hay Day ID</li>
     </ul>
 
     <h2>How We Use It</h2>
     <p>
-      We use your information strictly to confirm your identity and enable features related to your verification.
-      We do <strong>not</strong> share, sell, or publicly expose any of this information.
+      Your login data is only used for account recognition and future features. We do <strong>not</strong> share or publish this data.
     </p>
 
     <h2>Your Rights</h2>
-    <p>You have the right to:</p>
-    <ul>
-      <li>Request deletion of your linked data</li>
-      <li>Unlink your Hay Day ID at any time</li>
-    </ul>
-    <p>
-      To do so, please reach out to us through our Discord support server.
-    </p>
+    <p>You may request the deletion of your login session data at any time by contacting us through our Discord server.</p>
 
     <h2>Security</h2>
     <p>
-      All data is securely stored in a private MongoDB database. Only authorized staff have access to this data.
+      Login data is securely stored in a private database. Access is limited to authorized staff members only.
     </p>
 
     <h2>Changes</h2>
     <p>
-      We may update this policy over time. If we do, we’ll notify users via the site or server.
+      If this policy is updated (for example, to include Hay Day ID collection), we will notify users through the website or Discord.
     </p>
 
-<h2>Contact</h2>
-<p>
-  For support, questions, or data removal requests, please contact us through our
-  <a href="https://discord.gg/invite/haydayy" target="_blank"><strong>Discord server</strong></a>.<br><br>
-  You may also reach out directly to
-  <a href="https://discord.com/users/154282062973501441" target="_blank"><strong>XavierDK</strong></a> via Discord.
-</p>
+    <h2>Contact</h2>
+    <p>
+      For questions or data removal requests, please reach out via our
+      <a href="https://discord.gg/invite/haydayy" target="_blank"><strong>Discord server</strong></a>, or message
+      <a href="https://discord.com/users/154282062973501441" target="_blank"><strong>XavierDK</strong></a>.
+    </p>
+  </div>
 
   {% include 'footer.html' %}
 </body>

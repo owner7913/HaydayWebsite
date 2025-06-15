@@ -219,6 +219,79 @@
     .role-badge:hover {
       transform: scale(1.05);
     }
+
+    .achievement-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      margin: 6px;
+      background: linear-gradient(to bottom, #f4f4f4, #dcdcdc);
+      border-radius: 30px;
+      border: 2px solid #bbb;
+      color: #333;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .achievement-badge:hover {
+      transform: translateY(-1px) scale(1.03);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+
+    body.dark .achievement-badge {
+      background: linear-gradient(to bottom, #333, #222);
+      color: #eee;
+      border: 2px solid #555;
+      box-shadow: inset 0 1px 0 #444, 0 2px 6px rgba(0,0,0,0.5);
+    }
+
+    .achievement-badge .icon {
+      font-size: 16px;
+    }
+
+  .achievement-badge.sparkle {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .achievement-badge.sparkle::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 60%);
+    transform: rotate(45deg);
+    animation: sparkleMove 2.8s infinite ease-in-out;
+    pointer-events: none;
+    opacity: 0.2;
+  }
+
+  @keyframes sparkleMove {
+    0% {
+      transform: translate(-100%, -100%) rotate(45deg);
+      opacity: 0;
+    }
+    40% {
+      transform: translate(50%, 50%) rotate(45deg);
+      opacity: 0.4;
+    }
+    70% {
+      transform: translate(120%, 120%) rotate(45deg);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(150%, 150%) rotate(45deg);
+      opacity: 0;
+    }
+  }
+
+
     .xp-rank-link {
       color: #3b82f6;
       text-decoration: none;
@@ -288,15 +361,191 @@
   body.light button.toggle-privacy:hover {
     background: rgba(0, 0, 0, 0.07);
   }
+  .featured-badge {
+    font-size: 18px;
+    font-weight: 700;
+    padding: 6px 12px;
+    background: #fff8e1;
+    border: 2px solid #fdd835;
+    border-radius: 20px;
+    display: inline-block;
+    box-shadow: 0 0 6px rgba(0,0,0,0.1);
+    margin-bottom: 10px;
+  }
+
+  body.dark .featured-badge {
+    background: #4e4400;
+    color: #fff5c3;
+    border: 2px solid #ffe082;
+  }
+dialog#badgeModal {
+  max-width: 680px;
+  padding: 25px 30px;
+  border-radius: 12px;
+  background: #1e1e1e;
+  color: white;
+  border: none;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+dialog#badgeModal::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+dialog#badgeModal form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+dialog#badgeModal h3 {
+  margin: 0;
+  font-size: 18px;
+  text-align: center;
+}
+
+dialog#badgeModal button.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  font-size: 20px;
+  border: none;
+  background: none;
+  color: white;
+  cursor: pointer;
+}
+.profile-container {
+  position: relative;
+}
+
+
+.featured-badge-floating {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 6px;
+  background: linear-gradient(to bottom, #f4f4f4, #dcdcdc);
+  border-radius: 30px;
+  border: 2px solid #bbb;
+  color: #333;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+body.dark .featured-badge-floating {
+  background: linear-gradient(to bottom, #333, #222);
+  color: #eee;
+  border: 2px solid #555;
+  box-shadow: inset 0 1px 0 #444, 0 2px 6px rgba(0,0,0,0.5);
+}
+.featured-badge-floating.sparkle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 6px;
+  background: linear-gradient(to bottom, #f4f4f4, #dcdcdc);
+  border-radius: 30px;
+  border: 2px solid #bbb;
+  color: #333;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  z-index: 10;
+  overflow: hidden;
+}
+
+body.dark .featured-badge-floating.sparkle {
+  background: linear-gradient(to bottom, #333, #222);
+  color: #eee;
+  border: 2px solid #555;
+  box-shadow: inset 0 1px 0 #444, 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.featured-badge-floating.sparkle::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 60%);
+  transform: rotate(45deg);
+  animation: sparkleMove 2.8s infinite ease-in-out;
+  pointer-events: none;
+  opacity: 0.2;
+}
+.featured-badge-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.simple-button {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px solid #bbb;
+  border-radius: 8px;
+  background: #f9f9f9;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.simple-button:hover {
+  background: #f1f1f1;
+  border-color: #999;
+}
+
+body.dark .simple-button {
+  background: #333;
+  color: #eee;
+  border: 1.5px solid #666;
+}
+
+body.dark .simple-button:hover {
+  background: #2a2a2a;
+  border-color: #888;
+}
+
 
   </style>
 </head>
 <body>
   {% include 'header.html' %}
 
+<div class="profile-wrapper">
   <div class="profile-container">
+
     <div class="profile-header">
     <img class="avatar" src="https://cdn.discordapp.com/avatars/{{ discord_id }}/{{ avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+    {% if user.featured_achievement %}
+      <div class="featured-badge-floating sparkle">
+        {{ user.featured_achievement }}
+      </div>
+    {% elif not is_owner %}
+      <div class="featured-badge-floating" style="opacity: 0.7; font-style: italic; font-weight: 500;">
+        🔒 No featured badge yet
+      </div>
+    {% endif %}
+
+   
     {% if is_owner %}
       <div style="text-align: center; margin-top: 8px;">
         <div style="margin-bottom: 4px; font-size: 14px; font-weight: 500;">
@@ -315,7 +564,19 @@
       </div>
     {% endif %}
 
-  
+
+    {% if is_owner %}
+      <div class="featured-badge-actions">
+        <button class="simple-button" onclick="document.getElementById('badgeModal').showModal()">🎖️ Select Featured Achievement</button>
+        {% if user.featured_achievement %}
+          <form method="POST" action="/remove-featured-achievement" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="simple-button" type="submit">❌ Remove Badge</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+      
     <div class="discord-tag">👤 {{ user.display_name }}</div>
     <div class="discord-id">Discord ID: {{ discord_id }}</div>
       {% if staff_badges %}
@@ -409,15 +670,19 @@
         ⭐ {{ highest_role.name }}
       </div>
     {% endif %}
-
-    {% if roles %}
-      <p style="margin-top: 25px;"><strong>All Roles:</strong></p>
-      <div class="role-badges">
-        {% for role in roles %}
-          <span class="role-badge" style="background-color: {{ role.color }};" title="Role ID: {{ role.id }}">{{ role.name }}</span>
-        {% endfor %}
+    {% if achievements %}
+      <div style="margin-top: 30px;">
+        <h3>🏆 Achievements</h3>
+        <div class="achievement-container">
+          {% for badge in achievements %}
+            <span class="achievement-badge sparkle" title="{{ badge.tooltip }}">
+              {{ badge.label }}
+            </span>
+          {% endfor %}
+        </div>
       </div>
     {% endif %}
+
 
   {% if is_owner %}
     <p>You are logged in and can link your Hay Day ID or manage your public profile settings.</p>
@@ -426,7 +691,7 @@
   {% endif %}
 
   </div>
-
+</div>
   {% include 'footer.html' %}
 <script>
 function toggleDarkMode() {
@@ -487,6 +752,45 @@ document.addEventListener("DOMContentLoaded", () => {
     fill.classList.add("pulse");
   }
 });
+</script>
+<dialog id="badgeModal">
+  <form method="dialog">
+    <h3>Select your featured badge</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+      {% for badge in achievements %}
+        <button class="achievement-badge" onclick="selectFeaturedBadge('{{ badge.label }}')">
+          {{ badge.label }}
+        </button>
+      {% endfor %}
+    </div>
+    <button type="button" class="close-btn" onclick="document.getElementById('badgeModal').close()">✖</button
+  </form>
+</dialog>
+
+<script>
+  function selectFeaturedBadge(label) {
+    fetch("/set-featured-achievement", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: `badge=${encodeURIComponent(label)}`
+    }).then(res => {
+      if (res.ok) location.reload();
+    });
+  }
+</script>
+<script>
+  const badgeModal = document.getElementById("badgeModal");
+  badgeModal.addEventListener("click", (e) => {
+    const rect = badgeModal.getBoundingClientRect();
+    if (
+      e.clientX < rect.left || e.clientX > rect.right ||
+      e.clientY < rect.top || e.clientY > rect.bottom
+    ) {
+      badgeModal.close();
+    }
+  });
 </script>
 
 </body>

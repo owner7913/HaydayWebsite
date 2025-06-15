@@ -107,6 +107,103 @@ def fetch_role_mapping(guild_id):
         for role in roles
     }
 
+def calculate_achievements(xp, message_count, coins, streak, auctions_won=0, top_bidder_count=0, mentions=0):
+    achievements = []
+
+    # 📬 Message Milestones
+    if message_count >= 10:
+        achievements.append({"label": "💬 10 Messages", "tooltip": "Send 10 messages in the server"})
+    if message_count >= 100:
+        achievements.append({"label": "💬 100 Messages", "tooltip": "Send 100 messages in the server"})
+    if message_count >= 500:
+        achievements.append({"label": "💬 500 Messages", "tooltip": "Send 500 messages in the server"})
+    if message_count >= 1_000:
+        achievements.append({"label": "💬 1,000 Messages", "tooltip": "Send 1,000 messages in the server"})
+    if message_count >= 5_000:
+        achievements.append({"label": "💬 5,000 Messages", "tooltip": "Send 5,000 messages in the server"})
+    if message_count >= 10_000:
+        achievements.append({"label": "💬 10,000 Messages", "tooltip": "Send 10,000 messages in the server"})
+    if message_count >= 25_000:
+        achievements.append({"label": "💬 25,000 Messages", "tooltip": "Send 25,000 messages in the server"})
+    if message_count >= 50_000:
+        achievements.append({"label": "💬 50,000 Messages", "tooltip": "Send 50,000 messages in the server"})
+    if message_count >= 100_000:
+        achievements.append({"label": "💬 100,000 Messages", "tooltip": "Send 100,000 messages in the server"})
+
+    # 💰 Coin Achievements
+    if coins >= 100:
+        achievements.append({"label": "🟡 First 100 Coins", "tooltip": "Earn 100 coins"})
+    if coins >= 1_000:
+        achievements.append({"label": "🟡 Coin Collector", "tooltip": "Earn 1,000 coins"})
+    if coins >= 10_000:
+        achievements.append({"label": "💸 Rolling in Coins (10k+)", "tooltip": "Earn 10,000 coins"})
+    if coins >= 50_000:
+        achievements.append({"label": "💰 Treasure Stacker (50k+)", "tooltip": "Earn 50,000 coins"})
+    if coins >= 100_000:
+        achievements.append({"label": "🤑 Rich Farmer (100k+)", "tooltip": "Earn 100,000 coins"})
+    if coins >= 250_000:
+        achievements.append({"label": "🏦 Vault Builder (250k+)", "tooltip": "Earn 250,000 coins"})
+    if coins >= 500_000:
+        achievements.append({"label": "💶 Coin Tycoon (500k+)", "tooltip": "Earn 500,000 coins"})
+    if coins >= 1_000_000:
+        achievements.append({"label": "👑 Millionaire Status", "tooltip": "Earn 1,000,000 coins"})
+
+    # 🔥 Streaks
+    if streak >= 2:
+        achievements.append({"label": "🔥 Daily Habit (2+ days)", "tooltip": "Log in 2 days in a row"})
+    if streak >= 5:
+        achievements.append({"label": "🔥🔥 Consistent Farmer (5+ days)", "tooltip": "Log in 5 days in a row"})
+    if streak >= 7:
+        achievements.append({"label": "📅 Weekly Warrior (7+ days)", "tooltip": "Maintain a 7-day login streak"})
+    if streak >= 14:
+        achievements.append({"label": "🌾 Biweekly Beast (14+ days)", "tooltip": "Maintain a 14-day login streak"})
+    if streak >= 30:
+        achievements.append({"label": "🎯 1 Month Grind!", "tooltip": "Maintain a 30-day login streak"})
+    if streak >= 60:
+        achievements.append({"label": "🏆 2 Months Streak", "tooltip": "Maintain a 60-day login streak"})
+    if streak >= 90:
+        achievements.append({"label": "👑 Daily Legend (90+ days)", "tooltip": "Maintain a 90-day login streak"})
+
+    # 🏅 Auctions
+    if auctions_won >= 1:
+        achievements.append({"label": "🏅 Auction Winner", "tooltip": "Win at least 1 auction"})
+    if top_bidder_count >= 5:
+        achievements.append({"label": "🎯 Top Bidder", "tooltip": "Be top bidder in 5+ auctions"})
+
+    # 🤝 Trades (Mentions)
+    if mentions >= 15:
+        achievements.append({"label": "🔴 15+ safe trades!", "tooltip": "Complete 15 valid trades"})
+    if mentions >= 30:
+        achievements.append({"label": "🔴 30+ safe trades!", "tooltip": "Complete 30 valid trades"})
+    if mentions >= 50:
+        achievements.append({"label": "🔴 50+ Professional Trader", "tooltip": "Complete 50 valid trades"})
+    if mentions >= 100:
+        achievements.append({"label": "🟠 Master Of Trades 100+", "tooltip": "Complete 100 valid trades"})
+    if mentions >= 200:
+        achievements.append({"label": "🟠 Trade-a-saurus rex 200+", "tooltip": "Complete 200 valid trades"})
+    if mentions >= 300:
+        achievements.append({"label": "🟡 Bullish Banana 300+", "tooltip": "Complete 300 valid trades"})
+    if mentions >= 400:
+        achievements.append({"label": "🟡 Stocky McTradeface 400+", "tooltip": "Complete 400 valid trades"})
+    if mentions >= 500:
+        achievements.append({"label": "🟢 Profit Piranha 500+", "tooltip": "Complete 500 valid trades"})
+    if mentions >= 600:
+        achievements.append({"label": "🟢 Deal-a-whale 600+", "tooltip": "Complete 600 valid trades"})
+    if mentions >= 700:
+        achievements.append({"label": "🟢 Chart Chimp 700+", "tooltip": "Complete 700 valid trades"})
+    if mentions >= 800:
+        achievements.append({"label": "🔵 Market Munchkin 800+", "tooltip": "Complete 800 valid trades"})
+    if mentions >= 900:
+        achievements.append({"label": "🔵 Penny Pincher 900+", "tooltip": "Complete 900 valid trades"})
+    if mentions >= 1000:
+        achievements.append({"label": "🛡️ 1k Trades??? ur crazy", "tooltip": "Complete 1,000 valid trades"})
+
+    return achievements
+
+
+
+
+
 @app.template_filter('format')
 def format_number(n):
     return f"{n:,}" if isinstance(n, int) else n
@@ -142,6 +239,41 @@ def send_reply():
     return redirect("/active-tickets")
 
 from datetime import datetime, timezone
+
+@app.route("/remove-featured-achievement", methods=["POST"])
+def remove_featured_achievement():
+    if "discord_id" not in session:
+        return redirect("/login")
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users = client["Website"]["users"]
+        users.update_one(
+            {"_id": session["discord_id"]},
+            {"$unset": {"featured_achievement": ""}}
+        )
+
+    return redirect("/profile")
+
+
+@csrf.exempt
+@app.route("/set-featured-achievement", methods=["POST"])
+def set_featured_achievement():
+    if "discord_id" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 403
+
+    new_badge = request.form.get("badge")
+    if not new_badge:
+        return jsonify({"success": False, "error": "Missing badge"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users = client["Website"]["users"]
+        users.update_one(
+            {"_id": session["discord_id"]},
+            {"$set": {"featured_achievement": new_badge}}
+        )
+
+    return jsonify({"success": True})
+
 
 @app.route("/giveaways")
 def giveaways_page():
@@ -895,6 +1027,15 @@ def profile():
 
         # Rank
         rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
+    achievements = calculate_achievements(
+        xp=xp,
+        message_count=message_count,
+        coins=coins,
+        streak=streak,
+        auctions_won=user.get("auctions_won", 0),
+        top_bidder_count=user.get("top_bidder_count", 0),
+        mentions=mention_count
+    )
 
 
     return render_template(
@@ -918,7 +1059,8 @@ def profile():
         user=user,
         staff_badges=staff_badges,
         streak=streak,
-        coins=coins
+        coins=coins,
+        achievements=achievements
     )
 
 @app.route("/test-flash")
