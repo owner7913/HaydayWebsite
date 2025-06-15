@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🎉 Giveaways - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/giveaway_timer.js') }}"></script>
+  <style>
+.giveaway-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 30px;
+}
+
+.giveaway-card {
+  background-color: #fff;
+  border-radius: 18px;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  transition: all 0.3s ease;
+}
+
+body.dark .giveaway-card {
+  background-color: #1e1e1e;
+  color: #eee;
+}
+
+.giveaway-card h3 {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+  color: #4caf50;
+}
+
+.giveaway-card p {
+  font-size: 15px;
+  line-height: 1.4;
+  margin: 6px 0;
+}
+
+.giveaway-card p strong {
+  color: #ccc;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+
+.countdown {
+  font-weight: bold;
+  color: #ff9800;
+}
+
+.you-entered {
+  display: inline-block;
+  background: #2e7d32;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+
+.giveaway-card details {
+  margin-top: 10px;
+}
+
+.giveaway-card details summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #0077cc;
+}
+
+.view-participants-btn {
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 14px;
+  border: none;
+  background-color: #0077cc;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.participants-modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.8);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+
+.participants-modal.show {
+  display: flex;
+}
+
+
+.modal-content {
+  background: #1e1e1e;
+  padding: 20px;
+  max-height: 80vh;
+  overflow-y: auto;
+  width: 90%;
+  max-width: 500px;
+  border-radius: 12px;
+  color: #eee;
+}
+
+.close-button {
+  float: right;
+  background: none;
+  border: none;
+  color: #eee;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.participant-list {
+  margin-top: 20px;
+}
+
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.name {
+  font-weight: bold;
+}
+
+.entries {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.participant-row.me {
+  background: #1e5e2e;
+  border-radius: 6px;
+}
+body {
+  font-family: 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+}
+
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+  <main style="padding-top: 80px; padding-bottom: 80px;">
+    <h1 style="text-align:center;">🎉 Ongoing Giveaways</h1>
+
+    <div class="giveaway-grid">
+      {% for g in giveaways %}
+      <div class="giveaway-card">
+        <h3>{{ g.prize }}</h3>
+            <p style="display: flex; align-items: center; gap: 10px;">
+            {% if g.host_avatar %}
+            <img src="{{ g.host_avatar }}" alt="avatar" style="width: 26px; height: 26px; border-radius: 50%;">
+            {% endif %}
+            <strong>Host:</strong> {{ g.host_display }}
+            </p>
+        <p><strong>Ends:</strong> <span class="countdown" data-end="{{ g.end_time_ts }}"></span></p>
+        <p><strong>Entries:</strong> {{ g.entry_count }}</p>
+        <p><strong>Link:</strong> <a href="https://discord.com/channels/{{ g.guild_id }}/{{ g.channel_id }}/{{ g.message_id }}" target="_blank">Jump to Giveaway</a></p>
+
+        {% if discord_id in g.participants %}
+        <div class="you-entered">You are entered! ({{ g.participants[discord_id] }} entries)</div>
+        {% endif %}
+
+        <button onclick="openParticipantsModal({{ loop.index0 }})" class="view-participants-btn">📋 View Participants and Win %</button>
+
+        <div class="participants-modal" id="modal-{{ loop.index0 }}">
+            <div class="modal-content">
+            <button class="close-button" onclick="closeParticipantsModal({{ loop.index0 }})">✖</button>
+            <h3>🎉 Participants</h3>
+
+            <!-- Search Input -->
+            <input id="search-input-{{ loop.index0 }}"
+                    oninput="loadParticipantPage({{ loop.index0 }}, 1)"
+                    placeholder="🔍 Search name..."
+                    style="width: 100%; padding: 6px; margin: 10px 0; border-radius: 6px; border: 1px solid #444; background: #2c2c2c; color: white;">
+
+            <!-- Participant List -->
+            <div class="participant-list" id="participant-list-{{ loop.index0 }}">
+                {% for p in g.participant_info %}
+                <div class="participant-row{% if p.id == discord_id %} me{% endif %}"
+                    data-name="{{ p.name | lower }}"
+                    data-entries="{{ p.count }}"
+                    style="display: none;">
+                {% if p.avatar %}
+                <img src="{{ p.avatar }}" class="avatar">
+                {% endif %}
+                <div>
+                    <div class="name">{{ p.name }}</div>
+                    <div class="entries">{{ p.count }} entries ({{ p.percent }}%)</div>
+                </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            <div id="pagination-{{ loop.index0 }}" style="text-align:center; margin-top: 10px;"></div>
+          </div> <!-- modal-content -->
+        </div> <!-- participants-modal -->
+      </div> <!-- giveaway-card -->
+      {% endfor %}
+    </div> <!-- giveaway-grid -->
+
+  </main>
+  {% include 'footer.html' %}
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/participants_modal.js') }}"></script>
+  <script>
+    function openParticipantsModal(index) {
+      document.getElementById("modal-" + index).classList.add("show");
+      loadParticipantPage(index, 1); // IMPORTANT for pagination init
+    }
+
+    function closeParticipantsModal(index) {
+      document.getElementById("modal-" + index).classList.remove("show");
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "Escape") {
+        document.querySelectorAll(".participants-modal.show").forEach(modal => {
+          modal.classList.remove("show");
+        });
+      }
+    });
+  </script>
+</body>
+</html>
+

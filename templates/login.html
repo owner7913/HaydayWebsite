@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Log in - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://hcaptcha.com/1/api.js" async defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <style>
+footer {
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #333;
+  border-top: 1px solid #ccc;
+}
+
+body.dark footer {
+  background: rgba(20, 20, 20, 0.85);
+  color: #ccc;
+  border-top: 1px solid #333;
+}
+input[type="checkbox"]:checked::before {
+  content: "✔";
+  font-size: 12px;
+  color: #4caf50;
+  position: absolute;
+  left: 2px;
+  top: -1px;
+}
+
+
+  </style>
+</head>
+<body class="light" style="display: flex; flex-direction: column; min-height: 100vh; margin: 0;">
+
+
+  {% include "header.html" %}
+
+<main style="flex: 1; text-align: center; padding: 100px 20px; font-family: sans-serif;">
+  <h1>🔐 Log in to HayDay 🍀</h1>
+  <form action="/verify-captcha" method="POST"
+        style="display: inline-block; background: none; padding: 0; margin: 0; border: none; box-shadow: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- hCaptcha -->
+    <div class="h-captcha" data-sitekey="{{ sitekey }}"></div>
+
+    <!-- Terms checkbox -->
+    <div style="margin-top: 12px; font-size: 13px;">
+    <label style="font-size: 13px; color: #ccc; display: inline-flex; align-items: center; gap: 6px;">
+      <input type="checkbox" name="agree_terms" required
+            style="appearance: none; width: 16px; height: 16px; background: #222; border: 1px solid #444; border-radius: 3px; display: inline-block; position: relative;">
+      I agree to the <a href="/terms" target="_blank" style="color: #7abfff;">Terms of Service</a>
+    </label>
+
+    </div>
+
+    <!-- Button -->
+    <button type="submit"
+            style="margin-top: 16px; padding: 12px 24px; font-size: 16px; border: none; border-radius: 8px; background: #4caf50; color: white; cursor: pointer;">
+      Log in with Discord
+    </button>
+  </form>
+
+
+
+  <p style="margin-top: 10px; font-size: 13px; color: #666;">
+    By continuing, you agree to our
+    <a href="/privacy" target="_blank" style="color: #007acc;">Privacy Policy</a>.
+  </p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div style="background: #ffe0e0; color: #b00000; padding: 10px; margin: 20px auto; width: 90%; border: 1px solid #f44336; border-radius: 8px;">
+      {% for category, message in messages %}
+        <p style="margin: 0;">{{ message }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+</main>
+
+
+  {% include "footer.html" %}
+
+</body>
+</html>

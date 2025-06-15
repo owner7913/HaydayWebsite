@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .background-blur {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('https://supercell.com/images/0d5b2928a3997cd65503a1a3f170590b/og_hayday.7177b929.jpg') center center / cover no-repeat;
+      filter: blur(4px) brightness(0.65); /* reduced blur */
+      z-index: -2;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: -1;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 100px 20px 60px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+    }
+
+    .hero h1 {
+      font-size: 2.8rem;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto;
+      color: #ddd;
+    }
+
+    .widget-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      padding: 0 10px;
+    }
+
+    .widget {
+      backdrop-filter: blur(4px);
+      background-color: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 24px;
+      color: white;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+
+    .widget h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+    }
+
+    .widget p {
+      font-size: 0.95rem;
+      color: #eee;
+    }
+
+    footer {
+      margin-top: auto;
+    }
+
+    @media (max-width: 600px) {
+      .hero h1 {
+        font-size: 2rem;
+      }
+    }
+  .giveaway-scroll {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 4px;
+    scrollbar-width: none;
+    padding: 0 24px 10px;
+  }
+
+  /* Hide scrollbar (Chrome, Edge, Safari) */
+  .giveaway-scroll::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+  }
+
+  /* Full-width footer link */
+  .giveaway-footer {
+    display: block;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    color: #aaddff;
+    text-decoration: none;
+    border-radius: 0 0 14px 14px;
+  }
+
+  .giveaway-footer:hover {
+    background: rgba(255, 255, 255, 0.2);
+    text-decoration: underline;
+  }
+.giveaway-widget {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.giveaway-widget h2 {
+  padding: 16px 24px 0;
+}
+.giveaway-entry {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.giveaway-entry.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
+  </style>
+</head>
+<body class="light">
+
+  <div class="background-blur"></div>
+  <div class="overlay"></div>
+
+  {% include 'header.html' %}
+
+  <main>
+    <section class="hero">
+      <h1>🌾 Welcome to HayDay 🍀</h1>
+      <p>Your trusted community hub for auctions and giveaways.</p>
+    </section>
+
+    <section class="widget-grid">
+      <div class="widget giveaway-widget">
+        <h2>🎁 Latest Giveaways</h2>
+        <div id="giveaway-feed" class="giveaway-scroll"></div>
+        <a href="/giveaways" class="giveaway-footer">🔗 View all giveaways</a>
+      </div>
+      <div class="widget">
+        <h2>📦 Latest Auction</h2>
+        <p>Auction information will be shown here with live updates soon.</p>
+      </div>
+      <div class="widget">
+        <h2>📰 Latest HayDay News</h2>
+        <div id="news-feed">
+          <p>Loading latest news...</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {% include 'footer.html' %}
+
+  <div id="privacyModal" class="modal-overlay" onclick="overlayClick(event)">
+    <div class="modal-content" id="privacyContentWrapper">
+      <button class="close-button" onclick="closePrivacyModal()">✖</button>
+      <div id="privacyContent">
+        <p>Loading privacy policy...</p>
+      </div>
+    </div>
+  </div>
+<script>
+function formatDate(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+}
+
+function getIcon(source) {
+  switch (source) {
+    case "youtube": return "📺";
+    case "twitter": return "🐦";
+    case "instagram": return "📸";
+    default: return "🌐";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  fetch("/api/news")
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("news-feed");
+      if (!data.length) {
+        container.innerHTML = "<p>No recent news found.</p>";
+        return;
+      }
+
+      container.innerHTML = "";
+      data.forEach(item => {
+        const icon = getIcon(item.source);
+        const date = formatDate(item.timestamp);
+
+        const wrapper = document.createElement("div");
+        wrapper.style.marginBottom = "18px";
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "flex-start";
+        wrapper.style.gap = "12px";
+
+        const thumb = document.createElement("img");
+        thumb.src = item.thumbnail || "https://via.placeholder.com/60x60?text=No+Image";
+        thumb.alt = "Thumbnail";
+        thumb.style.width = "60px";
+        thumb.style.height = "60px";
+        thumb.style.objectFit = "cover";
+        thumb.style.borderRadius = "8px";
+
+        const content = document.createElement("div");
+
+        const link = document.createElement("a");
+        link.href = item.url;
+        link.target = "_blank";
+        link.style.color = "#aaddff";
+        link.style.textDecoration = "underline";
+        link.innerHTML = `${icon} ${item.title}`;
+
+        const meta = document.createElement("div");
+        meta.innerHTML = `🕒 <span style="color:#ccc;">${date}</span>`;
+        meta.style.fontSize = "13px";
+        meta.style.marginTop = "4px";
+
+        content.appendChild(link);
+        content.appendChild(meta);
+        wrapper.appendChild(thumb);
+        wrapper.appendChild(content);
+        container.appendChild(wrapper);
+      });
+    })
+    .catch(err => {
+      document.getElementById("news-feed").innerHTML = "<p>Failed to load news.</p>";
+    });
+});
+</script>
+<script>
+function formatRelativeTime(end_ts) {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = end_ts - now;
+  if (diff <= 0) return "Ended";
+  const mins = Math.floor(diff / 60);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days}d ${hours % 24}h left`;
+  if (hours > 0) return `${hours}h ${mins % 60}m left`;
+  return `${mins} minutes left`;
+}
+
+fetch("/api/live-giveaways")
+  .then(res => res.json())
+  .then(data => {
+    const container = document.getElementById("giveaway-feed");
+    if (!data.length) {
+      container.innerHTML = "<p>No giveaways right now.</p>";
+      return;
+    }
+
+    data.slice(0, 4).forEach((g, i) => {
+      const div = document.createElement("div");
+      div.classList.add("giveaway-entry");
+      div.style.marginBottom = "12px";
+      div.style.fontSize = "0.95rem";
+
+      const host = g.host_display && g.host_display !== "Unknown" ? g.host_display : "Anonymous";
+      const timeLeft = formatRelativeTime(g.end_time_ts);
+
+      const avatarHTML = g.host_avatar
+        ? `<img src="${g.host_avatar}" style="width: 18px; height: 18px; border-radius: 50%; vertical-align: middle; margin-right: 6px;">`
+        : `<span style="margin-right: 6px;">👤</span>`;
+
+      div.innerHTML = `
+        <div style="margin-bottom: 4px;">
+          <strong>🎁 ${g.prize}</strong>
+        </div>
+        <div style="font-size: 0.85rem; color: #ccc; display: flex; align-items: center;">
+          ${avatarHTML}<span>${host}</span>
+          <span style="margin-left: auto;">⏳ ${timeLeft}</span>
+        </div>
+      `;
+
+      container.appendChild(div);
+
+      // Animate in
+      setTimeout(() => {
+        div.classList.add("visible");
+      }, i * 100);
+    });
+  })
+  .catch(err => {
+    document.getElementById("giveaway-feed").innerHTML = "<p>Failed to load giveaways.</p>";
+  });
+
+
+</script>
+
+
+
+</body>
+</html>

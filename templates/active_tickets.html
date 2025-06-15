@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📂 Active Tickets - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      padding: 20px;
+    }
+
+    .ticket-card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .ticket-card h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    .ticket-card p {
+      margin: 4px 0;
+    }
+
+    .nav-button {
+      margin-top: 10px;
+      display: inline-block;
+      padding: 10px 18px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .nav-button:hover {
+      background: #3e9141;
+    }
+
+    body.dark .ticket-card {
+      background-color: #1f1f1f;
+      color: #eee;
+    }
+
+    body.dark .nav-button {
+      background-color: #388e3c;
+    }
+
+    body.dark .nav-button:hover {
+      background-color: #2e7d32;
+    }
+  </style>
+</head>
+<body>
+  <main style="margin-top: 80px;">
+    <h1 style="text-align:center;">📂 Active Tickets</h1>
+    <div class="ticket-grid">
+      {% for ticket in tickets %}
+        <div class="ticket-card">
+          <h3>{{ ticket.username }}</h3>
+          <p><strong>Channel:</strong> {{ ticket.channel_name }}</p>
+          <p><strong>Opened:</strong> {{ ticket.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+          <a class="nav-button" href="/ticket/{{ ticket._id }}">📄 View Conversation</a>
+        </div>
+      {% endfor %}
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Production Guide - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/image_map.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/products_full.js') }}"></script>
+
+  <style>
+    html {
+    position: relative;
+    min-height: 100%;
+    }
+
+    body {
+    margin: 0 0 60px; /* Reserve space for the footer */
+    }
+
+    footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 60px;
+    width: 100%;
+    }
+        
+    .container {
+      max-width: 960px;
+      margin: 100px auto 60px;
+      padding: 32px;
+      background: var(--bg, #fff);
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    body.dark .container {
+      background: #1e1e1e;
+      box-shadow: 0 4px 20px rgba(255,255,255,0.05);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2.2rem;
+      margin-bottom: 32px;
+      transition: color 0.3s ease;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background: #fff;
+      color: #111;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    body.dark .form-group input,
+    body.dark .form-group select {
+      background: #2c2c2c;
+      color: #f0f0f0;
+      border: 1px solid #555;
+    }
+
+    .checkbox-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .checkbox-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+    }
+
+    .generate-btn {
+      display: block;
+      margin: 32px auto 0;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      background-color: #4caf50;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .generate-btn:hover {
+      background-color: #3e9141;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 40px;
+      animation: fadeIn 0.4s ease-in-out;
+    }
+
+    .result-card {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      transition: transform 0.2s ease;
+    }
+
+    .result-card:hover {
+      transform: scale(1.02);
+    }
+
+    .result-card h3 {
+      margin: 0 0 8px;
+    }
+
+    .result-card p {
+      margin: 4px 0;
+      font-size: 14px;
+    }
+
+    body.dark .result-card {
+      background: #2c2c2c;
+      color: #ddd;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .loader {
+      display: none;
+      margin: 40px auto;
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #4caf50;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    body.dark .loader {
+      border: 6px solid #333;
+      border-top: 6px solid #88ff88;
+    }
+    
+    .result-card.boosted {
+      border: 2px solid gold;
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="container">
+    <h1>📊 Production Guide</h1>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="level">Your Hay Day Level:</label>
+        <input type="number" id="level" name="level" min="1" max="200" value="50">
+      </div>
+
+      <div class="form-group">
+        <label for="focus">Focus on:</label>
+        <select id="focus">
+          <option value="profit">Profit</option>
+          <option value="xp">XP</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="unit">Time Unit:</label>
+        <select id="unit">
+          <option value="hour">Per Hour</option>
+          <option value="minute">Per Minute</option>
+          <option value="day">Per Day</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="slots">Available Machine Slots:</label>
+        <input type="number" id="slots" value="2">
+      </div>
+
+      <div class="form-group">
+        <label for="hours">Idle Time (hours):</label>
+        <input type="number" id="hours" value="9">
+      </div>
+    </div>
+
+    <div class="checkbox-row">
+      <label><input type="checkbox" id="starred" checked> ★★★ Machines</label>
+      <label><input type="checkbox" id="raw"> Raw Profit/XP</label>
+      <label><input type="checkbox" id="idle"> Calculate Idle</label>
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="compareBoost"> Compare w/ ★★★ Boost
+      </label>
+    </div>
+
+    <button class="generate-btn" onclick="generateSuggestions()">🔍 Generate Suggestions</button>
+
+    <div id="loader" class="loader"></div>
+    <!-- inside container div, below the loader -->
+<div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+  <select id="sortMode" onchange="generateSuggestions()" style="padding: 8px 12px; border-radius: 6px; font-weight: 500;">
+    <option value="desc">Sort by Value ↓</option>
+    <option value="asc">Sort by Value ↑</option>
+  </select>
+</div>
+<div id="summary" class="summary-box" style="margin-top:20px; text-align:center; font-weight:500; font-size:16px; display:none;"></div>
+
+<script src="{{ url_for('static', filename='js/products_full.js') }}"></script>
+<script>
+  function generateSuggestions() {
+    const machineFilter = document.getElementById("machineFilter").value.toLowerCase();
+    const loader = document.getElementById("loader")
+    const results = document.getElementById("results")
+    const summary = document.getElementById("summary")
+    const sortMode = document.getElementById("sortMode").value
+    const userLevel = parseInt(document.getElementById("level").value)
+    const focus = document.getElementById("focus").value
+    const searchTerm = document.getElementById("searchInput").value.toLowerCase()
+    const unit = document.getElementById("unit").value;
+    const isIdle = document.getElementById("idle").checked;
+    const slots = parseInt(document.getElementById("slots").value);
+    const hours = parseFloat(document.getElementById("hours").value);
+    const maxMinutes = hours * 60;
+    const isTripleStar = document.getElementById("starred").checked;
+    const isCompare = document.getElementById("compareBoost").checked;
+
+    results.innerHTML = ""
+    summary.style.display = "none"
+    loader.style.display = "block"
+
+    setTimeout(() => {
+      loader.style.display = "none"
+
+      let filtered = products.filter(p => p.level <= userLevel)
+      filtered = filtered.filter(p => typeof p.time_min === "number" && !isNaN(p.time_min));
+
+      if (searchTerm) {
+        filtered = filtered.filter(p => p.product.toLowerCase().includes(searchTerm))
+      }
+      if (machineFilter && machineFilter !== "all") {
+        filtered = filtered.filter(p => (p.machine || "").toLowerCase().includes(machineFilter));
+      }
+      if (isIdle) {
+        filtered = filtered.filter(p => p.time_min && p.time_min <= maxMinutes);
+      }
+
+      filtered = filtered.map(p => {
+        const baseXp = p.xp;
+        const baseProfit = p.price;
+
+        const timeNormal = p.time_min;
+        const timeBoosted = isTripleStar ? p.time_min * 0.85 : p.time_min;
+        const timeUsed = timeBoosted;
+
+        const xpPerHour = (baseXp / timeUsed) * 60;
+        const profitPerHour = (baseProfit / timeUsed) * 60;
+
+        const xpPerHourRaw = (baseXp / timeNormal) * 60;
+        const profitPerHourRaw = (baseProfit / timeNormal) * 60;
+
+        let multiplier = unit === "minute" ? 1 / 60 : unit === "day" ? 24 : 1;
+        let value = (focus === "xp" ? xpPerHour : profitPerHour) * multiplier;
+        if (isIdle) value *= slots * hours;
+
+        return {
+          ...p,
+          xpPerHour,
+          profitPerHour,
+          xpPerHourRaw,
+          profitPerHourRaw,
+          timeUsed,
+          value: Math.floor(value),
+          note: isIdle
+            ? `${focus === 'xp' ? 'Total XP' : 'Total Profit'}: ${Math.floor(value).toLocaleString()}`
+            : (focus === 'xp'
+                ? `${Math.floor(xpPerHour * multiplier).toLocaleString()} XP/${unit}`
+                : `${Math.floor(profitPerHour * multiplier).toLocaleString()} coins/${unit}`)
+        };
+      });
+
+
+      filtered = filtered.sort((a, b) => sortMode === 'asc' ? a.value - b.value : b.value - a.value)
+
+      const total = filtered.reduce((sum, p) => sum + p.value, 0)
+      summary.innerHTML = `🧮 Showing ${filtered.length} items — Total ${focus.toUpperCase()}: <strong>${Math.round(total).toLocaleString()}</strong> / ${unit}`;
+      summary.style.display = "block"
+
+      const topValue = filtered[0]?.value || 0
+
+      filtered.forEach(p => {
+        const highlight = p.value === topValue ? '<span style="color:gold;font-weight:bold">⭐ Top</span>' : ''
+
+        const normalized = (p.product || "").toLowerCase().replace(/\s*\(\d+\)/g, '').replace(/[^a-z0-9]/g, '');
+        const productImg = Object.entries(imageMap.products).find(([key]) =>
+          key.toLowerCase().replace(/\s*\(\d+\)/g, '').replace(/[^a-z0-9]/g, '') === normalized
+        )?.[1] || "";
+
+        const rawMachine = p.machine || "";
+        const machineName = rawMachine.toLowerCase().replace(/\s*\(\d+\)/g, '').replace(/[^a-z0-9]/g, '');
+        const machineImg = Object.entries(imageMap.machines).find(([key]) =>
+          key.toLowerCase().replace(/\s*\(\d+\)/g, '').replace(/[^a-z0-9]/g, '') === machineName
+        )?.[1] || "";
+
+        const card = document.createElement("div")
+        card.className = isTripleStar ? "result-card boosted" : "result-card";
+        const xpIcon = focus === 'xp' ? `<img src="${imageMap.xp}" alt="XP" style="width:14px;height:14px;margin-left:6px;">` : ""
+
+        card.innerHTML = `
+          <h3>
+            ${isTripleStar ? `<div style="font-size:14px; color:#ffd700; margin-top:4px;">★★★ Machine Boost Active</div>` : ""}
+            ${productImg ? `<img src="${productImg}" alt="" style="width:22px;height:22px;vertical-align:middle;margin-right:8px;">` : ""}
+            ${p.product}
+          </h3>
+          <p><strong>Level:</strong> ${p.level}</p>
+          <p><strong>${focus.toUpperCase()}:</strong> ${p.value.toLocaleString()} / ${unit} ${xpIcon} ${highlight}</p>
+          ${p.note && (focus === "xp" || isIdle) ? `<p><em>${p.note}</em></p>` : ""}
+          ${machineImg ? `<div><img src="${machineImg}" alt="" style="width:20px;height:20px;margin-top:8px;"> ${isTripleStar ? ' <span style="color:#ffd700;">★★★</span>' : ''}</div>` : ""}
+          <p>⏱ <strong>Time:</strong> ${Math.round(p.timeUsed)} min</p>
+          <p>⭐ <strong>XP:</strong> ${p.xp} — 💰 <strong>Price:</strong> ${p.price} coins</p>
+          <p>📊 <strong>Raw:</strong> 
+            ${Math.floor(p.profitPerHour).toLocaleString()} coins/hr, 
+            ${Math.floor(p.xpPerHour).toLocaleString()} XP/hr
+          </p>
+          ${isCompare ? `
+            <p style="font-size:13px;opacity:0.75;">
+              ⚖️ Base: ${Math.floor(p.profitPerHourRaw).toLocaleString()} c/hr, ${Math.floor(p.xpPerHourRaw).toLocaleString()} XP/hr
+            </p>` : ""}
+        `;
+        results.appendChild(card)
+      })
+    }, 800)
+  }
+</script>
+
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+  const machineSet = new Set(products.map(p => p.machine).filter(Boolean));
+  const machineFilter = document.getElementById("machineFilter");
+
+  Array.from(machineSet)
+    .sort()
+    .forEach(machine => {
+      const opt = document.createElement("option");
+      opt.value = machine.toLowerCase();
+      opt.textContent = machine;
+      machineFilter.appendChild(opt);
+    });
+});
+</script>
+
+<!-- UI Controls -->
+<div style="display:flex; gap:16px; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap">
+  <div>
+  <label for="machineFilter">Machine:</label>
+  <select id="machineFilter" onchange="generateSuggestions()">
+    <option value="all">All Machines</option>
+  </select>
+</div>
+
+  <div>
+    <input id="searchInput" type="text" placeholder="Search product..." oninput="generateSuggestions()" style="padding: 8px 12px; border-radius: 6px;" />
+  </div>
+</div>
+
+
+    <div id="results" class="results-grid"></div>
+  </div>
+
+  {% include 'footer.html' %}
+  <div id="privacyModal" class="modal-overlay" onclick="overlayClick(event)">
+    <div class="modal-content" id="privacyContentWrapper">
+      <button class="close-button" onclick="closePrivacyModal()">✖</button>
+      <div id="privacyContent">
+        <p>Loading privacy policy...</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

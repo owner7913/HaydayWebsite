@@ -1,0 +1,241 @@
+<header class="main-header">
+  <nav class="navbar">
+    <div class="nav-logo">
+      <a href="/">🌾 HayDay 🍀</a>
+    </div>
+
+    <div class="nav-right">
+      <div class="darkmode-wrapper">
+        <button onclick="toggleDarkMode()" title="Toggle Dark Mode" class="darkmode-toggle">
+          🌓 <span id="darkmode-label">Dark Mode</span>
+        </button>
+      </div>
+      <div class="nav-toggle" onclick="toggleMenu()">☰</div>
+    </div>
+
+
+    <ul class="nav-links" id="nav-links">
+      <li class="{% if request.path == '/' %}active{% endif %}"><a href="/">Home</a></li>
+      <li class="{% if request.path.startswith('/guide') %}active{% endif %}"><a href="/production_guide">Production Guide</a></li>
+
+      <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') %}active{% endif %}">
+        <a href="#">Discord Stuff ▾</a>
+        <ul class="dropdown-content">
+          <li><a href="/giveaways">Giveaways</a></li>
+          <li><a href="/auctions">Live Auctions</a></li>
+        </ul>
+      </li>
+
+      <li class="{% if request.path.startswith('/staff') %}active{% endif %}"><a href="/staff">Staff Members</a></li>
+
+    <li class="dropdown {% if request.path.startswith('/profile') %}active{% endif %}">
+      {% if session.get("discord_id") %}
+      <a href="#">Profile ▾</a>
+      <ul class="dropdown-content">
+        {% if session.get("is_staff") %}
+        <li><a href="/staff-panel">Staff Panel</a></li>
+        {% endif %}
+        <li><a href="/profile">My Profile</a></li>
+        <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}">
+          <a href="/profile-directory">Members</a>
+        </li>
+        <li><a href="/shop">Shop</a></li>
+        <li><a href="/logout?next={{ request.path }}">Logout</a></li>
+      </ul>
+      {% else %}
+      <a href="/login?next={{ request.path }}">Login</a>  <!-- ✅ Fix here -->
+      {% endif %}
+    </li>
+
+    </ul>
+  </nav>
+</header>
+
+<style>
+.main-header {
+  background: #2c2c2c;
+  padding: 10px 20px;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.darkmode-toggle span {
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1000;
+}
+.nav-logo a {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #fff;
+  text-decoration: none;
+}
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1001;
+}
+.nav-links {
+  display: flex;
+  list-style: none;
+  gap: 14px;
+  position: relative;
+  z-index: 999;
+}
+
+.nav-links li {
+  position: relative;
+}
+
+.nav-links a {
+  color: #eee;
+  text-decoration: none;
+  padding: 8px 12px;
+  display: block;
+  border-radius: 6px;
+  transition: background 0.3s;
+}
+
+.nav-links a:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.nav-links .active > a {
+  background-color: #4caf50;
+  color: white;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background: #333;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dropdown:hover .dropdown-content,
+.dropdown:focus-within .dropdown-content {
+  display: block;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+
+.dropdown-content li a {
+  padding: 10px 14px;
+}
+
+.nav-toggle {
+  display: none;
+  font-size: 26px;
+  color: white;
+  cursor: pointer;
+}
+
+.darkmode-toggle {
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 1002;
+  position: relative;
+}
+
+
+.darkmode-toggle {
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.darkmode-wrapper, .darkmode-toggle {
+  pointer-events: auto;
+}
+
+
+/* Responsive */
+@media (max-width: 768px) {
+  .nav-links {
+    flex-direction: column;
+    width: 100%;
+    display: none;
+  }
+  .nav-links.show {
+    display: flex;
+  }
+  .dropdown-content {
+    position: relative;
+    top: auto;
+    left: auto;
+    box-shadow: none;
+  }
+  .nav-toggle {
+    display: block;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script>
+  function updateDarkModeLabel() {
+    const label = document.getElementById("darkmode-label");
+    if (label) {
+      const isDark = document.body.classList.contains("dark");
+      label.textContent = isDark ? "Light Mode" : "Dark Mode";
+    }
+  }
+
+  // Apply saved theme before DOM paints
+  (function applySavedTheme() {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark") {
+      document.body.classList.add("dark");
+    }
+  })();
+
+  document.addEventListener("DOMContentLoaded", () => {
+    updateDarkModeLabel();
+  });
+</script>
+

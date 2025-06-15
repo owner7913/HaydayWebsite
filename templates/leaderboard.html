@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Leaderboard - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+  .leaderboard-container {
+    max-width: 700px;
+    margin: 120px auto 60px;
+    background: var(--bg-color);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', sans-serif;
+    color: var(--text-color);
+  }
+
+  .leaderboard-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .rank {
+    font-weight: bold;
+    width: 40px;
+    text-align: center;
+  }
+
+  .user-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+  }
+
+    .username {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2; /* Helps prevent clipping */
+    min-height: 20px;  /* Guarantees room for 16px icon */
+    }
+
+  .level,
+  .xp {
+    width: 80px;
+    text-align: right;
+    font-size: 14px;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .pagination a {
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--button-bg);
+    text-decoration: none;
+    font-weight: 500;
+    color: var(--button-text);
+    transition: background 0.2s ease;
+  }
+
+  .pagination a:hover {
+    background: var(--button-hover);
+  }
+
+  h2 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  /* Theme variables */
+    :root {
+    --bg-color: #ffffff;
+    --text-color: #111111;
+    --border-color: #dddddd;
+    --button-bg: #eeeeee;
+    --button-hover: #dddddd;
+    --button-text: #333333;
+    }
+
+    body.dark {
+    --bg-color: #1e1e1e;
+    --text-color: #eeeeee;
+    --border-color: #444444;
+    --button-bg: #333333;
+    --button-hover: #444444;
+    --button-text: #eeeeee;
+    }
+
+    .leaderboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-color);
+    opacity: 0.6;
+    }
+
+    body.dark .leaderboard-header {
+    color: var(--text-color);
+        }
+
+    .leaderboard-header .user-info {
+    text-align: center;
+    flex: 1;
+    }
+    .leaderboard-container h2 {
+    color: var(--text-color);
+    }
+    body, .leaderboard-container {
+    transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .username {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    line-height: 1.4;
+    }
+
+    .boost-icon {
+    height: 20px;
+    width: auto;
+    margin-left: 4px;
+    display: inline-block;
+    position: relative;
+    top: 2px;
+    }
+
+
+
+</style>
+
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="leaderboard-container">
+    <h2 style="text-align:center;">🏆 Leaderboard</h2>
+        <div class="leaderboard-header">
+        <div class="rank">Rank</div>
+        <div class="user-info">User</div>
+        <div class="level">Level</div>
+        <div class="xp">XP</div>
+        </div>
+    {% for user in users %}
+      <div class="leaderboard-entry">
+        <div class="rank">
+          {% if user.rank == 1 %}🥇{% elif user.rank == 2 %}🥈{% elif user.rank == 3 %}🥉{% else %}#{{ user.rank }}{% endif %}
+        </div>
+        <div class="user-info">
+          <img src="https://cdn.discordapp.com/avatars/{{ user._id }}/{{ user.get('avatar_hash', '0') }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'" class="user-avatar">
+          <span class="username" title="{{ user.get('real_username', '') }}">
+  {{ user.get('username', 'Unknown') }}
+  {% if user.get('is_boosting') %}
+    <img src="{{ url_for('static', filename='img/nitro.png') }}" alt="Booster" class="boost-icon">
+  {% endif %}
+</span>
+
+        </div>
+        <div class="level">Lv {{ user.level }}</div>
+        <div class="xp">{{ user.xp_formatted }}</div>
+      </div>
+    {% endfor %}
+
+    <div class="pagination">
+      {% if page > 1 %}
+        <a href="{{ url_for('leaderboard', page=page-1) }}">⬅ Prev</a>
+      {% endif %}
+      {% if page < total_pages %}
+        <a href="{{ url_for('leaderboard', page=page+1) }}">Next ➡</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% include 'footer.html' %}
+<script>
+function toggleDarkMode() {
+  const body = document.body;
+  const toggleBtn = document.querySelector(".theme-toggle");
+
+  if (body.classList.contains("dark")) {
+    body.classList.remove("dark");
+    body.classList.add("light");
+    localStorage.setItem("theme", "light");
+    toggleBtn.textContent = "🌙 Toggle Dark Mode";
+  } else {
+    body.classList.remove("light");
+    body.classList.add("dark");
+    localStorage.setItem("theme", "dark");
+    toggleBtn.textContent = "☀️ Toggle Light Mode";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedTheme = localStorage.getItem("theme") || "light";
+  document.body.classList.remove("light", "dark");
+  document.body.classList.add(savedTheme);
+
+  const toggleBtn = document.querySelector(".theme-toggle");
+  if (toggleBtn) {
+    toggleBtn.textContent = savedTheme === "dark"
+      ? "☀️ Toggle Light Mode"
+      : "🌙 Toggle Dark Mode";
+    toggleBtn.addEventListener("click", toggleDarkMode);
+  } else {
+    console.warn("No .theme-toggle button found.");
+  }
+});
+</script>
+
+</body>
+</html>

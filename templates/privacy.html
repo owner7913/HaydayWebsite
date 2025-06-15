@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Privacy Policy - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <style>
+    .privacy-container {
+      max-width: 800px;
+      margin: 120px auto 60px;
+      padding: 30px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body.dark .privacy-container {
+      background: #1e1e1e;
+      color: #e0e0e0;
+    }
+
+    .privacy-container h1 {
+      margin-bottom: 20px;
+      font-size: 2rem;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+    }
+
+    .privacy-container h2 {
+      margin-top: 30px;
+      font-size: 1.4rem;
+      color: #4caf50;
+    }
+
+    .privacy-container ul {
+      padding-left: 20px;
+      margin-top: 10px;
+    }
+
+    .privacy-container p {
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+
+    body.dark .privacy-container h2 {
+      color: #7abfff;
+    }
+
+    a {
+      color: #007acc;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    body.dark a {
+      color: #88c6ff;
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="privacy-container">
+    <h1>Privacy Policy</h1>
+    <p><em>Effective date: {{ year }}</em></p>
+
+    <p>
+      At <strong>HayDay 🍀</strong>, we value your privacy. This policy outlines how we handle information when you use our site to link your Discord account with your Hay Day ID.
+    </p>
+
+    <h2>What We Collect</h2>
+    <ul>
+      <li>Your Discord ID and username</li>
+    </ul>
+
+    <h2>Why We Collect This</h2>
+    <p>We collect this data to:</p>
+    <ul>
+      <li>Maintain server integrity and prevent impersonation</li>
+    </ul>
+
+    <h2>How We Use It</h2>
+    <p>
+      We use your information strictly to confirm your identity and enable features related to your verification.
+      We do <strong>not</strong> share, sell, or publicly expose any of this information.
+    </p>
+
+    <h2>Your Rights</h2>
+    <p>You have the right to:</p>
+    <ul>
+      <li>Request deletion of your linked data</li>
+      <li>Unlink your Hay Day ID at any time</li>
+    </ul>
+    <p>
+      To do so, please reach out to us through our Discord support server.
+    </p>
+
+    <h2>Security</h2>
+    <p>
+      All data is securely stored in a private MongoDB database. Only authorized staff have access to this data.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      We may update this policy over time. If we do, we’ll notify users via the site or server.
+    </p>
+
+<h2>Contact</h2>
+<p>
+  For support, questions, or data removal requests, please contact us through our
+  <a href="https://discord.gg/invite/haydayy" target="_blank"><strong>Discord server</strong></a>.<br><br>
+  You may also reach out directly to
+  <a href="https://discord.com/users/154282062973501441" target="_blank"><strong>XavierDK</strong></a> via Discord.
+</p>
+
+  {% include 'footer.html' %}
+</body>
+</html>

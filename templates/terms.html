@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Terms of Service - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <style>
+    .terms-container {
+      max-width: 850px;
+      margin: 120px auto 60px;
+      padding: 30px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      font-family: 'Segoe UI', sans-serif;
+      line-height: 1.7;
+    }
+
+    body.dark .terms-container {
+      background: #1e1e1e;
+      color: #e0e0e0;
+    }
+
+    .terms-container h1 {
+      margin-bottom: 20px;
+      font-size: 2rem;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+    }
+
+    .terms-container h2 {
+      margin-top: 30px;
+      font-size: 1.4rem;
+      color: #4caf50;
+    }
+
+    body.dark .terms-container h2 {
+      color: #7abfff;
+    }
+
+    a {
+      color: #007acc;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    body.dark a {
+      color: #88c6ff;
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="terms-container">
+    <h1>Terms of Service</h1>
+    <p><em>Effective Date: {{ year }}</em></p>
+
+    <h2>1. Acceptance of Terms</h2>
+    <p>
+      By accessing or using the HayDay 🍀 website and its verification or auction systems ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, you may not use the Service.
+    </p>
+
+    <h2>2. Eligibility</h2>
+    <p>
+      You must be at least 13 years old and comply with Discord’s Terms of Service to use this platform. If you are under the age of majority in your country, you must have parental permission to use this site.
+    </p>
+
+    <h2>3. Data Collection</h2>
+    <p>
+      We collect your Discord ID, username, and Hay Day player tag for verification purposes. Use of the Service also implies consent to data processing as outlined in our
+      <a href="/privacy" target="_blank">Privacy Policy</a>.
+    </p>
+
+    <h2>4. User Conduct</h2>
+    <p>While using this Service, you agree that you will not:</p>
+    <ul>
+      <li>Submit false or misleading account information</li>
+      <li>Link accounts that do not belong to you</li>
+      <li>Attempt to exploit, reverse-engineer, or bypass any verification features</li>
+      <li>Engage in abusive, fraudulent, or disruptive behavior toward other users or staff</li>
+    </ul>
+
+    <h2>5. Staff and Moderation</h2>
+    <p>
+      By using this Service, you acknowledge that verified staff members may revoke, suspend, or delete linked accounts at their discretion for reasons including, but not limited to, fraud, impersonation, or abuse.
+    </p>
+
+    <h2>6. Auctions and Linked Systems</h2>
+    <p>
+      If you participate in server-based features such as auctions, giveaways, or automated moderation systems, you agree to abide by the rules posted within those systems or channels. Auction submissions and participation may be moderated or rejected without warning.
+    </p>
+
+    <h2>7. Disclaimer of Warranties</h2>
+    <p>
+      The Service is provided "as is" without warranties of any kind, express or implied. We do not guarantee uptime, data availability, or integration with third-party platforms such as Discord or Supercell.
+    </p>
+
+    <h2>8. Limitation of Liability</h2>
+    <p>
+      To the fullest extent permitted by law, HayDay 🍀, its staff, and developers shall not be liable for any indirect, incidental, or consequential damages resulting from the use or inability to use the Service.
+    </p>
+
+    <h2>9. Termination</h2>
+    <p>
+      We reserve the right to terminate or suspend access to the Service for any reason, without prior notice. You may also request to have your data and linked ID removed at any time.
+    </p>
+
+    <h2>10. Changes to the Terms</h2>
+    <p>
+      We may modify these Terms of Service at any time. Continued use of the Service after changes are posted constitutes acceptance of those changes.
+    </p>
+
+    <h2>11. Contact</h2>
+    <p>
+      For questions or disputes regarding these terms, contact us through our
+      <a href="https://discord.gg/invite/haydayy" target="_blank">Discord server</a>
+      or directly at
+      <a href="https://discord.com/users/154282062973501441" target="_blank"><strong>XavierDK</strong></a>.
+    </p>
+  </div>
+
+  {% include 'footer.html' %}
+</body>
+</html>

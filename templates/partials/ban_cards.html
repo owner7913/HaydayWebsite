@@ -1,0 +1,20 @@
+{% for ban in bans %}
+  <div class="ban-card">
+    <img class="ban-avatar" src="{{ ban.avatar if ban.avatar else 'https://cdn.discordapp.com/embed/avatars/0.png' }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+    <div class="ban-name">{{ ban.name }}</div>
+    <div class="ban-id">
+      ID: {{ ban._id }}
+      <br>
+      <button class="copy-id" onclick="navigator.clipboard.writeText('{{ ban._id }}')">Copy</button>
+    </div>
+    <div class="ban-reason">📝 {{ ban.reason }}</div>
+    {% if session.get("discord_id") and is_staff %}
+      <form action="/mod-action" method="POST" onsubmit="return confirm('Unban {{ ban.name }}?');">
+        <input type="hidden" name="user_input" value="{{ ban._id }}">
+        <input type="hidden" name="action" value="unban">
+        <input type="hidden" name="reason" value="Unbanned via panel">
+        <button class="unban-button" type="submit">Unban</button>
+      </form>
+    {% endif %}
+  </div>
+{% endfor %}
