@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Purchase Log - Admin Panel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .purchases-wrapper {
+      max-width: 1000px;
+      margin: 120px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body.dark .purchases-wrapper {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    form.filter-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+
+    form.filter-form input {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    form.filter-form button,
+    form.filter-form a {
+      padding: 8px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+
+    form.filter-form button {
+      background: #4caf50;
+      color: white;
+    }
+
+    form.filter-form button:hover {
+      background: #3e9141;
+    }
+
+    form.filter-form a {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    body.dark form.filter-form a {
+      background: #333;
+      color: #eee;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    tr:hover {
+      background-color: #f8f8f8;
+    }
+
+    body.dark tr:hover {
+      background-color: #2b2b2b;
+    }
+
+    th {
+      background: #f5f5f5;
+      text-align: left;
+    }
+
+    body.dark th {
+      background: #2a2a2a;
+    }
+
+    .pagination {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    .pagination a {
+      margin: 0 6px;
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      text-decoration: none;
+      color: #333;
+    }
+
+    body.dark .pagination a {
+      color: #eee;
+      border-color: #555;
+    }
+
+    .pagination a.active {
+      background-color: #4caf50;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="purchases-wrapper">
+    <h2>🧾 Recent Purchases</h2>
+
+    <form method="get" class="filter-form">
+      <input type="date" name="start" value="{{ start or '' }}" title="Start Date">
+      <input type="date" name="end" value="{{ end or '' }}" title="End Date">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search by item/user ID">
+      <button type="submit">🔍 Filter</button>
+      <a href="/admin/purchases/export?start={{ start }}&end={{ end }}&q={{ query }}">⬇️ Export CSV</a>
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Item</th>
+          <th>Key</th>
+          <th>Price</th>
+          <th>Time</th>
+          <th style="text-align: center;">Action</th>
+        </tr>
+      </thead>
+    <tbody>
+    {% for p in purchases %}
+    <tr>
+        <td>
+        {% if p.display_name != p.user_id|string %}
+            <a href="/profile/{{ p.user_id }}">{{ p.display_name }}</a>
+        {% else %}
+            {{ p.user_id }}
+        {% endif %}
+        </td>
+        <td>{{ p.name }}</td>
+        <td><code>{{ p.item }}</code></td>
+        <td>{{ p.price }}</td>
+        <td>{{ p.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td style="text-align: center;">
+        {% if p.get("refunded") %}
+            <span style="color: gray; font-weight: bold;">✔ Refunded</span>
+        {% else %}
+            <form method="post" action="/admin/refund" style="display: inline;" onsubmit="return confirm('Refund this purchase?');">
+            <input type="hidden" name="purchase_id" value="{{ p._id }}">
+            <button type="submit" style="background: #d32f2f; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-weight: 600; cursor: pointer;">🗑️ Refund</button>
+            </form>
+        {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+
+    </table>
+
+    <div class="pagination">
+      {% for p in range(1, total_pages + 1) %}
+        <a href="?q={{ query }}&start={{ start }}&end={{ end }}&page={{ p }}" class="{% if page == p %}active{% endif %}">{{ p }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% include 'footer.html' %}
+</body>
+</html>

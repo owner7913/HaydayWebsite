@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>All Users - Admin Panel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .user-list-wrapper {
+      max-width: 1000px;
+      margin: 120px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body.dark .user-list-wrapper {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ccc;
+    }
+
+    body.dark td, body.dark th {
+      border-color: #444;
+    }
+
+    th {
+      background: #f4f4f4;
+    }
+
+    body.dark th {
+      background: #2a2a2a;
+    }
+
+    .search-bar {
+      margin-bottom: 20px;
+    }
+
+    .search-bar input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+
+    .pagination {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .pagination a {
+      margin: 0 6px;
+      padding: 6px 12px;
+      text-decoration: none;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      color: #333;
+    }
+
+    body.dark .pagination a {
+      color: #eee;
+      border-color: #555;
+    }
+
+    .pagination a.active {
+      background-color: #4caf50;
+      color: white;
+    }
+
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="user-list-wrapper">
+    <h2>📋 All Users</h2>
+
+    <form method="get" class="search-bar">
+      <input type="text" name="q" placeholder="Search by username or ID..." value="{{ query }}">
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Discord ID</th>
+          <th>Public</th>
+          <th>Profile</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>{{ user.username }}</td>
+          <td>{{ user._id }}</td>
+          <td>{{ "✅" if user.public_profile else "🔒" }}</td>
+          <td><a href="/profile/{{ user._id }}">🔗 View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="pagination">
+      {% for p in range(1, total_pages + 1) %}
+        <a href="?q={{ query }}&page={{ p }}" class="{% if page == p %}active{% endif %}">{{ p }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% include 'footer.html' %}
+</body>
+</html>

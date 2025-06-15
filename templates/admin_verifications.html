@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Pending Verifications - Admin Panel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .verifications-wrapper {
+      max-width: 1000px;
+      margin: 120px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body.dark .verifications-wrapper {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    details {
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      padding: 14px;
+      background: #f9f9f9;
+    }
+
+    body.dark details {
+      background: #2a2a2a;
+      border-color: #444;
+    }
+
+    summary {
+      font-weight: bold;
+      cursor: pointer;
+      outline: none;
+    }
+
+    summary::marker {
+      font-size: 18px;
+    }
+
+    .screenshot {
+      max-width: 100%;
+      margin-top: 12px;
+      border-radius: 8px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .button-row button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .button-row button[value="approve"] {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .button-row button[value="deny"] {
+      background: #f44336;
+      color: white;
+    }
+
+    .button-row button[value="tag_not_found"] {
+      background: #FFA726;
+      color: white;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    summary {
+    font-weight: 500;
+    font-size: 15px;
+    padding: 6px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    }
+
+    details:hover summary {
+    background-color: rgba(0, 0, 0, 0.04);
+    }
+
+    body.dark details:hover summary {
+    background-color: rgba(255, 255, 255, 0.06);
+    }
+.submitted-data {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  background-color: #f9f9f9;
+}
+
+body.dark .submitted-data {
+  background-color: #1e1e1e;
+  border-color: #444;
+}
+
+.submitted-data p {
+  margin: 6px 0;
+}
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  padding-top: 60px;
+  left: 0; top: 0; width: 100%; height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modal-content {
+  background-color: #fff;
+  margin: auto;
+  padding: 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  text-align: center;
+}
+
+body.dark .modal-content {
+  background-color: #2a2a2a;
+  color: white;
+}
+
+.modal-content img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.close {
+  color: #aaa;
+  float: right;
+  font-size: 26px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: #000;
+}
+.screenshot {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: zoom-in;
+}
+
+.screenshot:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+}
+
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="verifications-wrapper">
+    <h2>📋 Pending Verifications</h2>
+
+    {% for v in verifications %}
+    <details>
+        <summary style="font-weight: 500; font-size: 15px;">
+        <strong>Farm Name:</strong> {{ v['Message content'].splitlines()[2].split(': ')[1] }} / {{ v['Message content'].splitlines()[1].split(': ')[1] }}
+        — <strong>HayDay ID:</strong> {{ v['Message content'].splitlines()[0].split(': ')[1] }}
+        — <strong>User ID:</strong> {{ v['id'] }}
+        <span style="color: gray; font-weight: normal; font-size: 13px;">
+            — Submitted {{ ((now - v['submitted_at']).total_seconds() // 60) | int }} minute{{ 's' if ((now - v['submitted_at']).total_seconds() // 60) | int != 1 else '' }} ago
+            — <a href="https://discord.com/users/{{ v['id'] }}" target="_blank" style="color: #1a73e8; text-decoration: underline;">View Profile</a>
+        </span>
+        </summary>
+        <div class="submitted-data" style="margin-top: 10px; line-height: 1.6;">
+        <p><strong>Farm Name:</strong> {{ v['Message content'].splitlines()[2].split(': ')[1] }}</p>
+        <p><strong>Level:</strong> {{ v['Message content'].splitlines()[1].split(': ')[1] }}</p>
+        <p><strong>HayDay ID:</strong> {{ v['Message content'].splitlines()[0].split(': ')[1] }}</p>
+        <p><strong>Likes One Piece?:</strong> {{ v['Message content'].splitlines()[3].split(': ')[1] }}</p>
+        </div>
+
+
+
+    {% if v.get("screenshot_url") %}
+    <img src="{{ v['screenshot_url'] }}" alt="Screenshot" class="screenshot"
+        onclick='openModal({{ v["screenshot_url"]|tojson }}, {{ v["Message content"].splitlines()[0].split(": ")[1]|tojson }})' />
+    {% endif %}
+
+
+        <form method="post" action="/admin/verify-action" class="button-row" onsubmit="return handleDenySubmit(this)">
+        <input type="hidden" name="user_id" value="{{ v['id'] }}">
+        <input type="hidden" name="action_id" value="{{ v['_id'] }}">
+        <input type="hidden" name="action" value="" class="action-input">
+        <textarea name="reason" class="reason-box" placeholder="Reason for denial (optional)" style="display:none; margin-top: 10px;"></textarea>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" onclick="setActionAndSubmit(this, 'approve')">✅ Approve</button>
+            <button type="button" id="denyBtn" onclick="toggleReasonBox(this)">❌ Deny</button>
+            <button type="submit" id="denySubmitBtn" style="display:none; background:#d32f2f; color:#fff;">Submit Deny</button>
+            <button type="submit" onclick="setAction(this, 'tag_not_found')">🚫 Tag Not Found</button>
+        </div>
+        </form>
+
+    </details>
+
+    {% endfor %}
+  </div>
+
+  {% include 'footer.html' %}
+<div id="imageModal" class="modal" onclick="closeModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img id="modalImage" src="" alt="Enlarged screenshot">
+    <p id="modalHaydayID" style="margin-top: 8px; font-weight: bold;"></p>
+  </div>
+</div>
+<script>
+function openModal(imageUrl, haydayId) {
+  document.getElementById("modalImage").src = imageUrl;
+  document.getElementById("modalHaydayID").textContent = "HayDay ID: " + haydayId;
+  document.getElementById("imageModal").style.display = "block";
+}
+function toggleReasonBox(btn) {
+  const form = btn.closest("form");
+  const textarea = form.querySelector(".reason-box");
+  const input = form.querySelector(".action-input");
+  const submitBtn = form.querySelector("#denySubmitBtn");
+
+  input.value = "deny";
+
+  if (textarea.style.display === "none") {
+    textarea.style.display = "block";
+    submitBtn.style.display = "inline-block";
+    btn.style.display = "none";
+  }
+}
+
+function closeModal() {
+  document.getElementById("imageModal").style.display = "none";
+}
+</script>
+<script>
+function setAction(button, action) {
+  const form = button.closest("form");
+  form.querySelector(".action-input").value = action;
+}
+
+function setActionAndSubmit(button, action) {
+  setAction(button, action);
+  button.closest("form").submit();
+}
+
+function setActionAndToggleReason(button) {
+  const form = button.closest("form");
+  const textarea = form.querySelector(".reason-box");
+  const input = form.querySelector(".action-input");
+  input.value = "deny";
+
+  // Toggle visibility
+  textarea.style.display = textarea.style.display === "none" ? "block" : "none";
+}
+
+function handleDenySubmit(form) {
+  const action = form.querySelector(".action-input").value;
+  if (action !== "deny") return true;
+
+  const reason = form.querySelector(".reason-box").value;
+  return confirm("Are you sure you want to deny this verification?" + (reason ? "\nReason: " + reason : ""));
+}
+</script>
+
+
+</body>
+</html>

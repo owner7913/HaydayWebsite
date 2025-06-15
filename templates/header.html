@@ -37,12 +37,12 @@
 
       <li class="{% if request.path.startswith('/staff') %}active{% endif %}"><a href="/staff">Staff Members</a></li>
 
-    <li class="dropdown {% if request.path.startswith('/profile') %}active{% endif %}">
-      {% if session.get("discord_id") %}
+  <li class="dropdown {% if request.path.startswith('/profile') %}active{% endif %}">
+    {% if session.get("discord_id") %}
       <a href="#">Profile ▾</a>
       <ul class="dropdown-content">
-        {% if session.get("is_staff") %}
-        <li><a href="/staff-panel">Staff Panel</a></li>
+        {% if session.get("staff_role") %}
+          <li><a href="/admin">Admin</a></li>
         {% endif %}
         <li><a href="/profile">My Profile</a></li>
         <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}">
@@ -52,10 +52,11 @@
         <li><a href="/shop">Shop</a></li>
         <li><a href="/logout?next={{ request.path }}">Logout</a></li>
       </ul>
-      {% else %}
-      <a href="/login?next={{ request.path }}">Login</a>  <!-- ✅ Fix here -->
-      {% endif %}
-    </li>
+    {% else %}
+      <a href="/login?next={{ request.path }}">Login</a>
+    {% endif %}
+  </li>
+
 
     </ul>
   </nav>

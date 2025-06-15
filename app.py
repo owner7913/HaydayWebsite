@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages, flash
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages, flash, Response
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, HiddenField
 from wtforms.validators import DataRequired
@@ -14,6 +14,10 @@ from bson import ObjectId
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from shop_data import SHOP_ITEMS
 from markupsafe import escape
+import csv
+from io import StringIO
+import asyncio
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -63,8 +67,12 @@ def parse_duration(duration_str):
         return int(num) * time_map[unit]
     return 600  # fallback: 10m
 
-def is_staff(roles):
-    return any(role_id in STAFF_ROLE_IDS for role_id in roles or [])
+def is_staff():
+    return session.get("staff_role") is not None
+
+def is_admin():
+    return session.get("staff_role") in ["Owner", "Co-Owner", "Head Admin"]
+
 
 def get_mongo_client():
     mongo_uri = os.getenv("MONGO_URI")
@@ -240,6 +248,20 @@ def send_reply():
 
 from datetime import datetime, timezone
 
+@app.route("/admin")
+def admin_panel():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    role = session.get("staff_role")
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        collection = client["log"]["verify"]
+        pending_count = collection.count_documents({"status": "pending"})
+
+    return render_template("admin.html", role=role, pending_count=pending_count)
+
+
 @app.route("/remove-featured-achievement", methods=["POST"])
 def remove_featured_achievement():
     if "discord_id" not in session:
@@ -318,6 +340,69 @@ def friend_status():
         "sent_pending": sent_pending,
         "received_pending": received_pending
     })
+
+@csrf.exempt
+@app.route("/admin/verify-action", methods=["POST"])
+def admin_verify_action():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    user_id = request.form["user_id"]
+    action_id = request.form["action_id"]
+    action = request.form["action"]
+
+    if action not in ["approve", "deny", "tag_not_found"]:
+        return "Invalid action", 400
+
+    # Get message ID from MongoDB
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        collection = client["log"]["verify"]
+        doc = collection.find_one({"_id": ObjectId(action_id)})
+        if not doc:
+            return "Verification entry not found", 404
+        collection.update_one({"_id": ObjectId(action_id)}, {"$set": {"status": action}})
+
+    # Send webhook to bot
+    webhook_url = os.getenv("BOT_WEBHOOK_URL", "http://discord-mega-bot.fly.dev/webhook/verify")
+    reason = request.form.get("reason", None)
+    if action == "deny":
+        if not reason:
+            reason = "No reason provided"
+        else:
+            reason = reason.strip()
+            if len(reason) > 300:
+                reason = reason[:300] + "..."
+    payload = {
+        "user_id": user_id,
+        "message_id": doc.get("discord_message_id"),
+        "action": action,
+        "reason": reason
+    }
+    message_id = doc.get("discord_message_id")
+    if not message_id:
+        print(f"❌ Missing discord_message_id for verification {action_id}")
+        return "Discord message ID missing", 500
+
+    try:
+        r = requests.post(webhook_url, json=payload, timeout=5)
+        print("Webhook response:", r.text)
+    except Exception as e:
+        print("❌ Webhook failed:", e)
+
+    return redirect("/admin/verifications")
+
+
+@app.route("/admin/verifications")
+def admin_verifications():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        collection = client["log"]["verify"]
+        pending = list(collection.find({"status": "pending"}).sort("submitted_at", -1))
+
+    now = datetime.utcnow()
+    return render_template("admin_verifications.html", verifications=pending, now=now)
 
 
 @csrf.exempt
@@ -1394,7 +1479,6 @@ def callback():
         session["discord_id"] = user["id"]
         session["username"] = user["username"] + "#" + user["discriminator"]
         session["avatar_hash"] = user["avatar"]
-
         with MongoClient(os.getenv("MONGO_URI")) as client:
             users_collection = client["Website"]["users"]
 
@@ -1410,6 +1494,10 @@ def callback():
                 }},
                 upsert=True
             )
+            staff_collection = client["Website"]["Staff"]
+            staff_doc = staff_collection.find_one({"_id": user["id"]})
+            session["staff_role"] = staff_doc["role"] if staff_doc else None
+
 
         next_page = session.pop("next_page", url_for("profile"))
         print("User object:", user)  # <- add this too
@@ -1419,6 +1507,160 @@ def callback():
         import traceback
         traceback.print_exc()
         return f"<h1>❌ Error:</h1><pre>{e}</pre>", 500
+
+@app.route("/admin/purchases/export")
+def export_purchases_csv():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    start = request.args.get("start")
+    end = request.args.get("end")
+    query = request.args.get("q", "").strip().lower()
+
+    filter_ = {}
+    if start or end:
+        date_filter = {}
+        if start:
+            date_filter["$gte"] = datetime.fromisoformat(start)
+        if end:
+            date_filter["$lte"] = datetime.fromisoformat(end)
+        filter_["timestamp"] = date_filter
+
+    if query:
+        filter_["$or"] = [
+            {"item": {"$regex": query, "$options": "i"}},
+            {"name": {"$regex": query, "$options": "i"}},
+            {"user_id": {"$regex": query}}
+        ]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        purchases = list(
+            client["Economy"]["Purchases"]
+            .find(filter_)
+            .sort("timestamp", -1)
+        )
+
+        user_ids = list({str(p["user_id"]) for p in purchases})
+        users = client["Website"]["users"].find({"_id": {"$in": user_ids}})
+        user_map = {u["_id"]: u for u in users}
+
+    # Prepare CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["User ID", "Display Name", "Item", "Key", "Price", "Timestamp"])
+
+    for p in purchases:
+        uid = str(p["user_id"])
+        user = user_map.get(uid)
+        display_name = user.get("display_name") or user.get("username") if user else uid
+
+        writer.writerow([
+            uid,
+            display_name,
+            p.get("name", ""),
+            p.get("item", ""),
+            p.get("price", ""),
+            p.get("timestamp").strftime("%Y-%m-%d %H:%M")
+        ])
+
+    output.seek(0)
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=purchases.csv"}
+    )
+
+@app.route("/admin/users")
+def admin_users():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    page = int(request.args.get("page", 1))
+    query = request.args.get("q", "").strip().lower()
+    per_page = 15
+    search_filter = {}
+
+    if query:
+        search_filter["$or"] = [
+            {"username": {"$regex": query, "$options": "i"}},
+            {"_id": {"$regex": query}}
+        ]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users_collection = client["Website"]["users"]
+
+        total = users_collection.count_documents(search_filter)
+        users = list(
+            users_collection.find(search_filter)
+            .sort("username", 1)
+            .skip((page - 1) * per_page)
+            .limit(per_page)
+        )
+
+    return render_template(
+        "admin_users.html",
+        users=users,
+        query=query,
+        page=page,
+        total_pages=(total + per_page - 1) // per_page
+    )
+
+@csrf.exempt
+@app.route("/admin/update-bio", methods=["POST"])
+@csrf.exempt
+def update_user_bio():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    user_id = request.form.get("user_id")
+    is_clear = request.form.get("clear") == "1"
+    new_bio = request.form.get("bio", "").strip()
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users = client["Website"]["users"]
+        if is_clear:
+            users.update_one({"_id": user_id}, {"$unset": {"bio": ""}})
+        elif new_bio:
+            users.update_one({"_id": user_id}, {"$set": {"bio": new_bio}})
+
+    return redirect(url_for("moderate_bios"))
+
+
+
+
+@app.route("/admin/bios", methods=["GET", "POST"])
+def moderate_bios():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    query = request.args.get("q", "").strip().lower()
+    page = int(request.args.get("page", 1))
+    per_page = 12
+    filter_ = {"bio": {"$exists": True, "$ne": ""}}
+
+    if query:
+        filter_["$or"] = [
+            {"username": {"$regex": query, "$options": "i"}},
+            {"_id": {"$regex": query}}
+        ]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users_col = client["Website"]["users"]
+        total = users_col.count_documents(filter_)
+        users = list(
+            users_col.find(filter_)
+            .sort("username", 1)
+            .skip((page - 1) * per_page)
+            .limit(per_page)
+        )
+
+    return render_template(
+        "admin_bios.html",
+        users=users,
+        query=query,
+        page=page,
+        total_pages=(total + per_page - 1) // per_page
+    )
 
 @app.route("/directory")
 def public_directory():
@@ -1447,6 +1689,7 @@ def public_directory():
                            page=page,
                            total_pages=(total // page_size) + 1,
                            query=query)
+
 
 @app.route("/profile-directory")
 def profile_directory():
@@ -1612,25 +1855,37 @@ def buy_item():
         return redirect(url_for("login"))
 
     item_id = request.form.get("item_id")
-
     if not item_id or item_id not in SHOP_ITEMS:
         flash("❌ Unknown item.", "error")
-        return redirect(url_for("shop_page"))
+        return redirect(url_for("shop"))
 
     user_id = int(session["discord_id"])
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        eco = client["Economy"]["Users"]
-        user = eco.find_one({"_id": user_id}) or {}
+    item = SHOP_ITEMS[item_id]
+    price = item["price"]
 
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        eco_col = client["Economy"]["Users"]
+        web_col = client["Website"]["users"]
+
+        # Fetch user from Economy DB
+        user = eco_col.find_one({"_id": user_id}) or {}
         coins = user.get("coins", 0)
-        item = SHOP_ITEMS[item_id]
-        price = item["price"]
 
         if coins < price:
             flash("❌ You don't have enough coins for that.", "error")
-            return redirect(url_for("shop_page"))
+            return redirect(url_for("shop"))
 
-        eco.update_one({"_id": user_id}, {"$inc": {"coins": -price}})
+        # Deduct coins from both databases
+        eco_col.update_one({"_id": user_id}, {"$inc": {"coins": -price}})
+        web_col.update_one({"_id": str(user_id)}, {"$inc": {"coins": -price}}, upsert=True)
+
+        # Inventory logic (Discord bot will check this)
+        if item_id in ["mute_other_20m", "ping_storm", "ghost_ping", "lore_post"]:
+            eco_col.update_one({"_id": user_id}, {"$inc": {f"{item_id}_used": 1}}, upsert=True)
+        elif item_id in ["trivia_hint", "double_daily", "boosted_trivia", "mute_immunity"]:
+            eco_col.update_one({"_id": user_id}, {"$set": {item_id: True}}, upsert=True)
+
+        # Purchase log (optional)
         client["Economy"]["Purchases"].insert_one({
             "user_id": user_id,
             "item": item_id,
@@ -1640,7 +1895,113 @@ def buy_item():
         })
 
     flash(f"✅ You bought {item['name']} for {price:,} coins!", "success")
-    return redirect(url_for("shop_page"))
+    return redirect(url_for("shop"))
+
+@app.route("/admin/purchases")
+def view_purchases():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    query = request.args.get("q", "").strip().lower()
+    start = request.args.get("start")
+    end = request.args.get("end")
+    page = int(request.args.get("page", 1))
+    per_page = 20
+    filter_ = {}
+
+    # Handle date range
+    if start or end:
+        date_filter = {}
+        if start:
+            date_filter["$gte"] = datetime.fromisoformat(start)
+        if end:
+            date_filter["$lte"] = datetime.fromisoformat(end)
+        filter_["timestamp"] = date_filter
+
+    if query:
+        filter_["$or"] = [
+            {"item": {"$regex": query, "$options": "i"}},
+            {"name": {"$regex": query, "$options": "i"}},
+            {"user_id": {"$regex": query}}
+        ]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        purchases_col = client["Economy"]["Purchases"]
+        user_col = client["Website"]["users"]
+
+        total = purchases_col.count_documents(filter_)
+        purchases = list(
+            purchases_col.find(filter_)
+            .sort("timestamp", -1)
+            .skip((page - 1) * per_page)
+            .limit(per_page)
+        )
+
+        user_ids = list({str(p["user_id"]) for p in purchases})
+        users = list(user_col.find({"_id": {"$in": user_ids}}))
+        user_map = {u["_id"]: u for u in users}
+
+        for p in purchases:
+            uid = str(p["user_id"])
+            user = user_map.get(uid)
+            p["display_name"] = user.get("display_name") or user.get("username") if user else uid
+
+    return render_template(
+        "admin_purchases.html",
+        purchases=purchases,
+        query=query,
+        start=start,
+        end=end,
+        page=page,
+        total_pages=(total + per_page - 1) // per_page
+    )
+
+@app.route("/admin/refund", methods=["POST"])
+@csrf.exempt
+def refund_purchase():
+    if not is_admin():  # optionally require stricter access than is_staff()
+        return "Unauthorized", 403
+
+    purchase_id = request.form.get("purchase_id")
+    if not purchase_id:
+        return "Invalid request", 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        purchases_col = client["Economy"]["Purchases"]
+        eco_col = client["Economy"]["Users"]
+
+        purchase = purchases_col.find_one({"_id": ObjectId(purchase_id)})
+        if not purchase or purchase.get("refunded"):
+            return "Already refunded or not found", 400
+
+        # Refund coins
+        eco_col.update_one(
+            {"_id": int(purchase["user_id"])},
+            {"$inc": {"coins": purchase["price"]}}
+        )
+
+        # Revert item usage if tracked
+        item_id = purchase["item"]
+        if item_id in ["mute_other_20m", "ping_storm", "ghost_ping", "lore_post"]:
+            eco_col.update_one(
+                {"_id": int(purchase["user_id"])},
+                {"$inc": {f"{item_id}_used": -1}}
+            )
+        elif item_id in ["trivia_hint", "double_daily", "boosted_trivia", "mute_immunity"]:
+            eco_col.update_one(
+                {"_id": int(purchase["user_id"])},
+                {"$set": {item_id: False}}
+            )
+
+        purchases_col.update_one(
+            {"_id": ObjectId(purchase_id)},
+            {"$set": {"refunded": True, "refunded_at": datetime.utcnow()}}
+        )
+
+    flash("✅ Purchase refunded successfully.", "success")
+    return redirect(url_for("view_purchases"))
+
+
 
 @app.route("/logout")
 def logout():

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Moderate Bios - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .bios-container {
+      max-width: 1000px;
+      margin: 120px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      font-family: 'Segoe UI', sans-serif;
+    }
+    body.dark .bios-container {
+      background: #1e1e1e;
+      color: #eee;
+    }
+    textarea {
+      width: 100%;
+      height: 80px;
+      padding: 8px;
+      border-radius: 6px;
+      resize: vertical;
+      font-size: 14px;
+    }
+    form {
+      margin-bottom: 30px;
+    }
+    .user-block {
+      border-bottom: 1px solid #ccc;
+      padding: 10px 0;
+    }
+    .user-block:last-child {
+      border: none;
+    }
+    .user-block h4 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    button {
+      margin-top: 6px;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #4caf50;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3e9141;
+    }
+    .search-bar {
+      margin-bottom: 20px;
+    }
+    .pagination {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .pagination a {
+      margin: 0 6px;
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      text-decoration: none;
+      color: #333;
+    }
+    .pagination a.active {
+      background: #4caf50;
+      color: white;
+    }
+    body.dark .pagination a {
+      color: #eee;
+      border-color: #555;
+    }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="bios-container">
+    <h2>📝 Moderate User Bios</h2>
+
+    <form method="get" class="search-bar">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search by username or ID..." style="width: 100%; padding: 10px; font-size: 16px; border-radius: 8px;">
+    </form>
+
+    {% for user in users %}
+      <div class="user-block">
+        <h4>{{ user.username }} <small style="color: gray;">({{ user._id }})</small></h4>
+        <form method="POST" action="/admin/update-bio">
+          <input type="hidden" name="user_id" value="{{ user._id }}">
+          <textarea name="bio">{{ user.bio }}</textarea>
+          <div>
+            <button type="submit">💾 Save</button>
+            <button type="submit" name="clear" value="1">🗑️ Clear</button>
+          </div>
+        </form>
+      </div>
+    {% endfor %}
+
+    <div class="pagination">
+      {% for p in range(1, total_pages + 1) %}
+        <a href="?q={{ query }}&page={{ p }}" class="{% if page == p %}active{% endif %}">{{ p }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% include 'footer.html' %}
+</body>
+</html>

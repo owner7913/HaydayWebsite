@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .admin-wrapper {
+      max-width: 800px;
+      margin: 120px auto 60px;
+      padding: 30px;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body.dark .admin-wrapper {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    .admin-wrapper h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .admin-wrapper ul {
+      list-style: none;
+      padding: 0;
+      font-size: 16px;
+    }
+
+    .admin-wrapper li {
+      margin: 10px 0;
+    }
+
+    .admin-wrapper a {
+      text-decoration: none;
+      color: #4caf50;
+      font-weight: 600;
+    }
+
+    body.dark .admin-wrapper a {
+      color: #90ee90;
+    }
+
+    .admin-wrapper a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  {% include 'header.html' %}
+
+  <div class="admin-wrapper">
+    <h1>🛠️ Admin Panel</h1>
+    <p style="text-align:center;">Logged in as: <strong>{{ role }}</strong></p>
+
+    <ul>
+      <li><a href="/admin/users">📋 View All Users</a></li>
+      <li><a href="/admin/bios">📝 Moderate Bios</a></li>
+      <li><a href="/admin/purchases">🧾 View Shop Log</a></li>
+      <!--<li><a href="/consent-log">🧾 View Consent Logs</a></li> -->
+        <li>
+        <a href="/admin/verifications">
+            ✅ Review Verifications
+            {% if pending_count > 0 %}
+            (<strong>{{ pending_count }}</strong>)
+            {% endif %}
+        </a>
+        </li>
+
+    </ul>
+  </div>
+
+  {% include 'footer.html' %}
+</body>
+</html>
