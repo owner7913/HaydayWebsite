@@ -523,6 +523,48 @@ body.dark .simple-button:hover {
   background: #2a2a2a;
   border-color: #888;
 }
+.bio-box {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px 18px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #333;
+  white-space: pre-line;
+  line-height: 1.5;
+  margin: 12px auto;
+  max-width: 550px;
+  font-style: italic;
+  display: flex;
+  align-items: center; /* centers vertically */
+}
+
+body.dark .bio-box {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f1f1;
+}
+
+
+
+
+dialog.styled-modal {
+  max-width: 700px;
+  width: 90vw;
+  padding: 25px 30px;
+  border-radius: 12px;
+  background: #f4f4f4;
+  color: #111;
+  border: none;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.3s ease-in-out;
+}
+body.dark dialog.styled-modal {
+  background: #1e1e1e;
+  color: white;
+}
+dialog.styled-modal::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
 
 
   </style>
@@ -576,9 +618,20 @@ body.dark .simple-button:hover {
         {% endif %}
       </div>
     {% endif %}
+    {% if is_owner %}
+      <div class="featured-badge-actions">
+        <button class="simple-button" onclick="document.getElementById('bioModal').showModal()">📝 Edit Bio</button>
+      </div>
+    {% endif %}
+
       
     <div class="discord-tag">👤 {{ user.display_name }}</div>
     <div class="discord-id">Discord ID: {{ discord_id }}</div>
+      {% if user.bio %}
+        <div class="bio-box">{{ user.bio | replace('\r\n', '\n') | trim }}</div>
+      {% endif %}
+
+    
       {% if staff_badges %}
         <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;">
           {% for badge in staff_badges %}
@@ -763,9 +816,25 @@ document.addEventListener("DOMContentLoaded", () => {
         </button>
       {% endfor %}
     </div>
-    <button type="button" class="close-btn" onclick="document.getElementById('badgeModal').close()">✖</button
+    <button type="button" class="close-btn" onclick="document.getElementById('badgeModal').close()">✖</button>
   </form>
 </dialog>
+<dialog id="bioModal" class="styled-modal">
+  <form method="POST" action="/update-bio">
+    <h3 style="margin-top: 0;">📝 Edit Your Bio</h3>
+    <textarea name="bio"
+              rows="6"
+              maxlength="300"
+              placeholder="Write something about yourself..."
+              style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; resize: vertical;">{{ user.bio or "" }}</textarea>
+    <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="submit" class="simple-button">💾 Save</button>
+      <button type="button" class="simple-button" onclick="document.getElementById('bioModal').close()">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+
 
 <script>
   function selectFeaturedBadge(label) {
@@ -789,6 +858,13 @@ document.addEventListener("DOMContentLoaded", () => {
       e.clientY < rect.top || e.clientY > rect.bottom
     ) {
       badgeModal.close();
+    }
+  });
+</script>
+<script>
+  document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+      document.getElementById("bioModal")?.close();
     }
   });
 </script>

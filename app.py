@@ -13,7 +13,7 @@ import time
 from bson import ObjectId
 from flask_wtf.csrf import CSRFError
 from shop_data import SHOP_ITEMS
-
+from markupsafe import escape
 load_dotenv()
 
 app = Flask(__name__)
@@ -253,6 +253,30 @@ def remove_featured_achievement():
         )
 
     return redirect("/profile")
+
+
+@csrf.exempt
+@app.route("/update-bio", methods=["POST"])
+def update_bio():
+    if "discord_id" not in session:
+        return redirect(url_for("login"))
+
+    new_bio = request.form.get("bio", "").strip()
+    if len(new_bio) > 300:
+        flash("❌ Bio must be under 300 characters.", "error")
+        return redirect(url_for("profile"))
+
+    safe_bio = escape(new_bio)  # prevent injection
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users = client["Website"]["users"]
+        users.update_one(
+            {"_id": session["discord_id"]},
+            {"$set": {"bio": safe_bio}}
+        )
+
+    flash("✅ Bio updated successfully!", "success")
+    return redirect(url_for("profile"))
 
 
 @csrf.exempt
