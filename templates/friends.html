@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Friends - HayDay 🍀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    h2 {
+      margin-top: 40px;
+      font-size: 20px;
+      text-align: center;
+    }
+
+    .friends-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 500px; /* shrink max width */
+    margin: 0 auto;
+    }
+
+    .friend-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1a1a1a;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    max-width: 100%;
+    }
+
+    .friend-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: inherit;
+    text-decoration: none;
+    flex-grow: 1;
+    overflow: hidden;
+    }
+
+    .friend-main:hover .name {
+      text-decoration: underline;
+    }
+
+    .avatar-sm {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    }
+
+    .info {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+
+    .name {
+    font-weight: bold;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+    }
+
+    .sub {
+    font-size: 11px;
+    color: #aaa;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    }
+
+    .level {
+    background: #4caf50;
+    padding: 1px 6px;
+    border-radius: 6px;
+    color: white;
+    font-size: 11px;
+    white-space: nowrap;
+    }
+
+    .staff {
+    background: #f39c12;
+    padding: 1px 6px;
+    border-radius: 6px;
+    color: white;
+    font-size: 11px;
+    white-space: nowrap;
+    }
+
+    .friend-buttons {
+    display: flex;
+    gap: 4px;
+    }
+    .friend-buttons button {
+    background: transparent;
+    border: 1px solid #444;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    }
+    </style>
+</head>
+<body>
+{% include 'header.html' %}
+<div class="directory-container">
+  <h1 class="directory-header">👥 Manage Friends</h1>
+
+  <!-- Friends -->
+  <h2>🤝 Friends</h2>
+  <div class="friends-list">
+    {% for user in friend_users %}
+      <div class="friend-line">
+        <a class="friend-main" href="/profile/{{ user._id }}">
+          <img class="avatar-sm" src="https://cdn.discordapp.com/avatars/{{ user._id }}/{{ user.avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+          <div class="info">
+            <div class="name">{{ user.display_name or user.username }}</div>
+            <div class="sub">
+              <span>{{ user.username }}</span>
+              {% if user.level %}<span class="level">Lv {{ user.level }}</span>{% endif %}
+              {% if user.staff_badges %}<span class="staff">{{ user.staff_badges[0] }}</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        <form method="POST" action="/api/friend-action" class="friend-buttons">
+          <input type="hidden" name="target_id" value="{{ user._id }}">
+          <input type="hidden" name="action" value="remove">
+          <button>❌</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty-text">No friends yet.</p>
+    {% endfor %}
+  </div>
+
+  <!-- Incoming -->
+  <h2>📩 Incoming Friend Requests</h2>
+  <div class="friends-list">
+    {% for user in pending_users %}
+      <div class="friend-line">
+        <a class="friend-main" href="/profile/{{ user._id }}">
+          <img class="avatar-sm" src="https://cdn.discordapp.com/avatars/{{ user._id }}/{{ user.avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+          <div class="info">
+            <div class="name">{{ user.display_name or user.username }}</div>
+            <div class="sub">
+              <span>{{ user.username }}</span>
+              {% if user.level %}<span class="level">Lv {{ user.level }}</span>{% endif %}
+              {% if user.staff_badges %}<span class="staff">{{ user.staff_badges[0] }}</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        <form class="friend-buttons" data-id="{{ user._id }}">
+        <button type="button" data-action="accept">✅</button>
+        <button type="button" data-action="reject">❌</button>
+        <button type="button" data-action="block">🚫</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty-text">No incoming requests.</p>
+    {% endfor %}
+  </div>
+
+  <!-- Sent -->
+  <h2>📤 Sent Requests</h2>
+  <div class="friends-list">
+    {% for user in sent_requests %}
+      <div class="friend-line">
+        <a class="friend-main" href="/profile/{{ user._id }}">
+          <img class="avatar-sm" src="https://cdn.discordapp.com/avatars/{{ user._id }}/{{ user.avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+          <div class="info">
+            <div class="name">{{ user.display_name or user.username }}</div>
+            <div class="sub">
+              <span>{{ user.username }}</span>
+              {% if user.level %}<span class="level">Lv {{ user.level }}</span>{% endif %}
+              {% if user.staff_badges %}<span class="staff">{{ user.staff_badges[0] }}</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        <form class="friend-buttons" data-id="{{ user._id }}">
+        <button type="button" data-action="remove">❌</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty-text">No sent requests.</p>
+    {% endfor %}
+  </div>
+
+  <!-- Blocked -->
+  <h2>🚫 Blocked Users</h2>
+  <div class="friends-list">
+    {% for user in blocked_users %}
+      <div class="friend-line">
+        <a class="friend-main" href="/profile/{{ user._id }}">
+          <img class="avatar-sm" src="https://cdn.discordapp.com/avatars/{{ user._id }}/{{ user.avatar_hash }}.png" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+          <div class="info">
+            <div class="name">{{ user.display_name or user.username }}</div>
+            <div class="sub">
+              <span>{{ user.username }}</span>
+              {% if user.level %}<span class="level">Lv {{ user.level }}</span>{% endif %}
+              {% if user.staff_badges %}<span class="staff">{{ user.staff_badges[0] }}</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        <form class="friend-buttons" data-id="{{ user._id }}">
+        <button type="button" data-action="unblock">🔓</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty-text">No blocked users.</p>
+    {% endfor %}
+  </div>
+</div>
+{% include 'footer.html' %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".friend-buttons button").forEach(button => {
+    button.addEventListener("click", async (e) => {
+      e.preventDefault(); // ✅ stops form from submitting normally
+
+      const form = button.closest(".friend-buttons");
+      const targetId = form.dataset.id;
+      const action = button.dataset.action.trim().toLowerCase();
+
+      button.disabled = true;
+
+      let url = "/api/friend-respond";
+      let payload = {
+        target_id: targetId,
+        action: action
+      };
+
+      if (action === "remove") {
+        url = "/api/friend-action";
+      }
+
+      console.log("Sending:", payload, "to", url); // ✅ log payload and target
+
+      try {  // ✅ <--- YOU FORGOT THIS LINE
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: new URLSearchParams(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          form.closest(".friend-line").remove();
+        } else {
+          const error = data.error || "Something went wrong.";
+          alert(error);
+          button.disabled = false;
+        }
+
+      } catch (err) {
+        alert("Error occurred.");
+        console.error(err);
+        button.disabled = false;
+      }
+    });
+  });
+});
+
+
+</script>
+
+
+</body>
+</html>

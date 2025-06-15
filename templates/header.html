@@ -12,6 +12,15 @@
       </div>
       <div class="nav-toggle" onclick="toggleMenu()">☰</div>
     </div>
+    <div style="position: relative;">
+      <button onclick="toggleFriendDropdown()" title="Friend Requests" style="background: none; border: none; font-size: 20px; cursor: pointer;">
+        🔔
+        <span id="friend-alert-count" style="position: absolute; top: -6px; right: -8px; background: red; color: white; border-radius: 50%; font-size: 12px; padding: 2px 6px; display: none;">1</span>
+      </button>
+      <div id="friend-dropdown">
+        <em style="font-size: 13px;">No friend requests</em>
+      </div>
+    </div>
 
 
     <ul class="nav-links" id="nav-links">
@@ -39,6 +48,7 @@
         <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}">
           <a href="/profile-directory">Members</a>
         </li>
+        <li><a href="/friends">Friends</a></li>
         <li><a href="/shop">Shop</a></li>
         <li><a href="/logout?next={{ request.path }}">Logout</a></li>
       </ul>
@@ -215,6 +225,49 @@
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
 }
+#friend-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 32px;
+  background: #fff;
+  color: #111;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 260px;
+  max-width: 340px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 999;
+  font-size: 14px;
+}
+body.dark #friend-dropdown {
+  background: #111;
+  color: white;
+  border: 1px solid #333;
+}
+.friend-request-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.friend-request-entry a {
+  flex-grow: 1;
+  font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.friend-request-entry button {
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
 </style>
 <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 <script>
@@ -237,5 +290,74 @@
   document.addEventListener("DOMContentLoaded", () => {
     updateDarkModeLabel();
   });
+</script>
+<script>
+async function loadGlobalFriendNotifications() {
+  try {
+    const res = await fetch("/api/friends");
+    const data = await res.json();
+
+    const badge = document.getElementById("friend-alert-count");
+    if (badge) {
+      if (data.pending_requests?.length > 0) {
+        badge.textContent = data.pending_requests.length;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+    }
+
+    const dropdown = document.getElementById("friend-dropdown");
+    dropdown.innerHTML = "";
+
+    if (data.pending_requests?.length > 0) {
+      const ids = data.pending_requests;
+      const userRes = await fetch("/api/friend-usernames?" + ids.map(id => "id=" + encodeURIComponent(id)).join("&"));
+      const users = await userRes.json();
+
+      for (const id of ids) {
+        const user = users[id];
+        const display = user ? user.display_name || `${user.username}#${user.discriminator}` : id;
+        const profileLink = user ? `/profile/${id}` : "#";
+
+        const block = document.createElement("div");
+        block.className = "friend-request-entry";
+        block.innerHTML = `
+          <a href="${profileLink}">👤 ${display}</a>
+          <button onclick="respondToFriend('${id}', 'accept')" title="Accept">✅</button>
+          <button onclick="respondToFriend('${id}', 'reject')" title="Reject">❌</button>
+          <button onclick="respondToFriend('${id}', 'block')" title="Block">🚫</button>
+        `;
+        dropdown.appendChild(block);
+
+
+      }
+    } else {
+      dropdown.innerHTML = "<em style='font-size: 13px;'>No pending requests</em>";
+    }
+  } catch (err) {
+    console.error("Failed to load friend notifications:", err);
+  }
+}
+async function respondToFriend(id, action) {
+  await fetch("/api/friend-respond", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `target_id=${encodeURIComponent(id)}&action=${encodeURIComponent(action)}`
+  });
+
+  loadGlobalFriendNotifications(); // reload dropdown
+}
+
+function toggleFriendDropdown() {
+  const dropdown = document.getElementById("friend-dropdown");
+  dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  if ("{{ session.get('discord_id') }}") {
+    loadGlobalFriendNotifications();
+  }
+});
 </script>
 

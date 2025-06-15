@@ -173,6 +173,15 @@
   font-size: inherit;
   font-family: inherit;
 }
+.friend-btn {
+  margin-top: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.search-bar::placeholder {
+  text-align: center;
+}
 
 
   </style>
@@ -183,9 +192,12 @@
 <div class="directory-container">
   <h1 class="directory-header">🍀 Verified Members</h1>
 
-  <form method="get" action="{{ url_for('profile_directory') }}">
-    <input type="text" class="search-bar" name="search" placeholder="Search by name..." value="{{ search or '' }}">
-  </form>
+  <div style="display: flex; justify-content: center;">
+    <form method="get" action="{{ url_for('profile_directory') }}">
+      <input type="text" class="search-bar" name="search" placeholder="Search by name..." value="{{ search or '' }}">
+    </form>
+  </div>
+
 
   <div class="members-grid">
     {% for user in users %}
@@ -225,6 +237,10 @@
             </div>
             <div class="public-badge">🔓 Public</div>
           </a>
+          <div class="friend-button-wrap" data-user-id="{{ user._id }}">
+  <button class="simple-button friend-btn">Loading...</button>
+</div>
+
         </div>
       {% else %}
         <div class="member-card disabled">
@@ -273,5 +289,68 @@
 
 
   {% include 'footer.html' %}
+  <script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const currentUser = "{{ session.get('discord_id', '') }}";
+  const buttons = document.querySelectorAll(".friend-button-wrap");
+
+  for (const wrapper of buttons) {
+    const userId = wrapper.dataset.userId;
+    if (userId === currentUser) {
+      wrapper.remove();  // hide self
+      continue;
+    }
+
+    const btn = wrapper.querySelector(".friend-btn");
+    btn.disabled = true;
+    btn.textContent = "⏳";
+
+    const res = await fetch("/api/friend-status?target=" + encodeURIComponent(userId));
+    const data = await res.json();
+
+    if (data.is_friend) {
+      btn.textContent = "❌ Remove Friend";
+    } else if (data.sent_pending) {
+      btn.textContent = "⏳ Request Sent";
+    } else {
+      btn.textContent = "➕ Add Friend";
+    }
+
+    btn.disabled = false;
+
+    btn.addEventListener("click", async () => {
+      const current = btn.textContent.trim();
+      let action;
+
+      if (current === "❌ Remove Friend" || current === "⏳ Request Sent") {
+        action = "remove";
+      } else {
+        action = "add";
+      }
+
+      btn.disabled = true;
+      btn.textContent = "⏳";
+
+      const result = await fetch("/api/friend-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `target_id=${encodeURIComponent(userId)}&action=${action}`
+      });
+
+      if (result.ok) {
+        if (action === "add") {
+          btn.textContent = "⏳ Request Sent";
+        } else {
+          btn.textContent = "➕ Add Friend";
+        }
+        btn.disabled = false;
+      } else {
+        btn.textContent = "❌ Error";
+      }
+    });
+  }
+});
+</script>
+
 </body>
 </html>

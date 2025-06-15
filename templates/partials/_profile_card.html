@@ -1,0 +1,53 @@
+<div class="member-card">
+  <a href="{{ url_for('public_profile', discord_id=user._id) }}" style="text-decoration: none; color: inherit;">
+    <img class="member-avatar" src="https://cdn.discordapp.com/avatars/{{ user._id }}/{{ user.avatar_hash }}.png"
+         onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+
+    <div class="member-name">
+      {{ (user.display_name or user.username).replace('#', '&#8203;#') | safe }}
+    </div>
+
+    {% if user.staff_badges %}
+    <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;">
+      {% for badge in user.staff_badges %}
+      <span class="role-badge
+        {% if badge == 'Owner' %}role-owner
+        {% elif badge == 'Co-Owner' %}role-coowner
+        {% elif badge == 'Head Admin' %}role-headadmin
+        {% elif badge == 'Moderator' %}role-moderator
+        {% elif badge == 'Trial Moderator' %}role-trialmoderator
+        {% elif badge == 'Verifier' %}role-verifier
+        {% elif badge == 'Giveaway Staff' %}role-giveaway
+        {% endif %}
+      ">
+        {% if badge == 'Owner' %}👑{% elif badge == 'Co-Owner' %}🧭
+        {% elif badge == 'Head Admin' %}📢{% elif badge == 'Moderator' %}🛡️
+        {% elif badge == 'Trial Moderator' %}🧪{% elif badge == 'Verifier' %}✅
+        {% elif badge == 'Giveaway Staff' %}🎁
+        {% endif %}
+        {{ badge }}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="member-tag">{{ user.username.replace('#', '&#8203;#') | safe }}</div>
+
+    {% if user.level %}
+    <div class="xp-progress-container" style="margin-top: 6px;">
+      <div class="xp-bar-wrap">
+        <div class="xp-bar">
+          <div class="xp-fill" data-percent="{{ user.progress_percent }}"></div>
+          <span class="xp-text-overlay">{{ user.current_xp_formatted }} / {{ user.required_xp_formatted }}</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if user.public_profile %}
+      <div class="public-badge">🔓 Public</div>
+    {% else %}
+      <div class="public-badge" style="background: #ffebee; color: #c62828;">🔒 Private</div>
+    {% endif %}
+  </a>
+</div>

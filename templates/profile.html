@@ -290,6 +290,10 @@
       opacity: 0;
     }
   }
+  button#friend-btn:disabled {
+    opacity: 0.7;
+    cursor: pointer;
+  }
 
 
     .xp-rank-link {
@@ -525,7 +529,7 @@ body.dark .simple-button:hover {
 }
 .bio-box {
   background: rgba(0, 0, 0, 0.05);
-  padding: 8px 18px 14px;
+  padding: 10px 18px 14px;
   border-radius: 10px;
   font-size: 15px;
   color: #333;
@@ -534,10 +538,8 @@ body.dark .simple-button:hover {
   margin: 12px auto;
   max-width: 550px;
   font-style: italic;
-  display: flex;
-  align-items: center; /* centers vertically */
+  text-align: center;
 }
-
 body.dark .bio-box {
   background: rgba(255, 255, 255, 0.08);
   color: #f1f1f1;
@@ -626,6 +628,34 @@ dialog.styled-modal::backdrop {
 
       
     <div class="discord-tag">👤 {{ user.display_name }}</div>
+  {% if not is_owner %}
+    <form id="friend-form" onsubmit="return sendFriendAction(event)">
+      <input type="hidden" name="target_id" value="{{ discord_id }}">
+
+      {% if is_friend %}
+        <button type="submit" class="simple-button" data-action="remove">❌ Remove Friend</button>
+
+      {% elif is_pending_received %}
+        <button type="submit" class="simple-button" data-action="accept">✅ Accept</button>
+        <button type="submit" class="simple-button" data-action="reject">❌ Reject</button>
+
+      {% elif is_pending_sent %}
+        <span class="status-text">✅ Friend Request Sent</span>
+        <button type="submit" class="simple-button" data-action="remove">Cancel</button>
+
+      {% elif is_blocked %}
+        <button type="submit" class="simple-button" data-action="unblock">🔓 Unblock</button>
+
+      {% else %}
+        <button type="submit" class="simple-button" id="friend-btn" data-action="add">➕ Add Friend</button>
+      {% endif %}
+
+      <button type="submit" class="simple-button" data-action="block">🚫 Block</button>
+    </form>
+  {% endif %}
+
+
+
     <div class="discord-id">Discord ID: {{ discord_id }}</div>
       {% if user.bio %}
         <div class="bio-box">{{ user.bio | replace('\r\n', '\n') | trim }}</div>
@@ -703,7 +733,14 @@ dialog.styled-modal::backdrop {
             </span>
             <span class="value">{{ coins | format }}</span>
           </div>
-
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Friends</span>
+              <span class="emoji" title="Number of confirmed friends">🤝</span>
+            </span>
+            <span class="value">{{ friend_count }}</span>
+          </div>
+          </div>
       {% endif %}
         {% if xp and level %}
         <div class="xp-progress-container">
@@ -868,6 +905,113 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 </script>
+{% if not is_owner %}
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const btn = document.getElementById("friend-btn");
+  if (!btn) return;
+
+  const form = document.getElementById("friend-form");
+  const targetId = form.target_id.value;
+
+  const res = await fetch("/api/friend-status?target=" + encodeURIComponent(targetId));
+  const data = await res.json();
+
+  if (data.is_friend) {
+    btn.textContent = "❌ Remove Friend";
+  } else if (data.sent_pending) {
+    btn.textContent = "⏳ Request Sent";
+  } else {
+    btn.textContent = "➕ Add Friend";
+  }
+});
+</script>
+{% endif %}
+
+<script>
+async function sendFriendAction(e) {
+  e.preventDefault();
+
+  const form = document.getElementById("friend-form");
+  const button = e.submitter; // ✅ gets clicked button
+  const action = button?.dataset.action?.trim().toLowerCase();
+  const targetId = form.querySelector("input[name='target_id']").value;
+
+  if (!action || !targetId) {
+    alert("Missing target or action.");
+    return false;
+  }
+
+  button.disabled = true;
+
+  const url = ["add", "remove", "block", "unblock"].includes(action)
+    ? "/api/friend-action"
+    : "/api/friend-respond";
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: new URLSearchParams({ target_id: targetId, action })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      location.reload();
+    } else {
+      alert(data.error || "Something went wrong.");
+      button.disabled = false;
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong.");
+    button.disabled = false;
+  }
+
+  return false;
+}
+
+
+
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".friend-buttons button").forEach(button => {
+    button.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const form = button.closest(".friend-buttons");
+      const targetId = form.dataset.id;
+      const action = button.dataset.action.trim().toLowerCase();
+
+      button.disabled = true;
+
+      let url = "/api/friend-respond";
+      if (action === "remove") url = "/api/friend-action";
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: new URLSearchParams({ target_id: targetId, action: action })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        location.reload(); // just refresh to reflect change
+      } else {
+        alert(data.error || "Something went wrong.");
+        button.disabled = false;
+      }
+    });
+  });
+});
+</script>
+
 
 </body>
 </html>

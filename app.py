@@ -11,7 +11,7 @@ import os, requests
 import re
 import time
 from bson import ObjectId
-from flask_wtf.csrf import CSRFError
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from shop_data import SHOP_ITEMS
 from markupsafe import escape
 load_dotenv()
@@ -254,6 +254,71 @@ def remove_featured_achievement():
 
     return redirect("/profile")
 
+@csrf.exempt
+@app.route("/api/friend-action", methods=["POST"])
+def friend_action():
+    if "discord_id" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    user_id = session["discord_id"]
+    target_id = request.form.get("target_id")
+    action = request.form.get("action", "").strip().lower()
+
+    if not target_id or action not in {"add", "remove", "block", "unblock"}:
+        return jsonify({"success": False, "error": "Invalid action"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["FriendRequests"]
+
+        if action == "add":
+            col.update_one({"_id": target_id}, {"$addToSet": {"pending": user_id}}, upsert=True)
+
+        elif action == "remove":
+            col.update_one({"_id": user_id}, {"$pull": {"friends": target_id, "pending": target_id}})
+            col.update_one({"_id": target_id}, {"$pull": {"friends": user_id, "pending": user_id}})
+
+        elif action == "block":
+            col.update_one({"_id": user_id}, {"$addToSet": {"blocked": target_id}}, upsert=True)
+            # remove any existing friendship/pending
+            col.update_one({"_id": user_id}, {"$pull": {"friends": target_id, "pending": target_id}})
+            col.update_one({"_id": target_id}, {"$pull": {"friends": user_id, "pending": user_id}})
+
+        elif action == "unblock":
+            col.update_one({"_id": user_id}, {"$pull": {"blocked": target_id}})
+
+        else:
+            return jsonify({"success": False, "error": "Invalid action"}), 400
+
+    return jsonify(success=True)
+
+
+
+@app.route("/api/friend-status")
+def friend_status():
+    if "discord_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    viewer = session["discord_id"]
+    target = request.args.get("target")
+
+    if not target:
+        return jsonify({"error": "Missing target"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["FriendRequests"]
+        viewer_doc = col.find_one({"_id": viewer}) or {}
+        target_doc = col.find_one({"_id": target}) or {}
+
+        is_friend = target in viewer_doc.get("friends", [])
+        sent_pending = viewer in target_doc.get("pending", [])
+        received_pending = target in viewer_doc.get("pending", [])
+
+    return jsonify({
+        "is_friend": is_friend,
+        "sent_pending": sent_pending,
+        "received_pending": received_pending
+    })
+
 
 @csrf.exempt
 @app.route("/update-bio", methods=["POST"])
@@ -406,6 +471,93 @@ def api_live_giveaways():
             })
 
         return jsonify(giveaways)
+@csrf.exempt
+@app.route("/api/friend-respond", methods=["POST"])
+def friend_respond():
+    if "discord_id" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    user_id = session["discord_id"]
+    target_id = request.form.get("target_id")
+    action = request.form.get("action")  # accept / reject / block / unblock
+
+    if not target_id or action not in {"accept", "reject", "block", "unblock"}:
+        return jsonify({"success": False, "error": "Invalid action"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["FriendRequests"]
+
+        if action == "accept":
+            col.update_one({"_id": user_id}, {
+                "$pull": {"pending": target_id},
+                "$addToSet": {"friends": target_id}
+            }, upsert=True)
+            col.update_one({"_id": target_id}, {
+                "$addToSet": {"friends": user_id}
+            }, upsert=True)
+        elif action == "reject":
+            col.update_one({"_id": user_id}, {"$pull": {"pending": target_id}})
+        elif action == "block":
+            col.update_one({"_id": user_id}, {
+                "$pull": {"pending": target_id, "friends": target_id},
+                "$addToSet": {"blocked": target_id}
+            })
+            col.update_one({"_id": target_id}, {
+                "$pull": {"friends": user_id, "pending": user_id}
+            })
+        elif action == "unblock":
+            col.update_one({"_id": user_id}, {"$pull": {"blocked": target_id}})
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"success": True})
+    else:
+        return redirect("/friends")
+
+
+
+@app.route("/api/friends")
+def api_friends():
+    if "discord_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    discord_id = session["discord_id"]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["FriendRequests"]
+        doc = col.find_one({"_id": discord_id}) or {}
+
+        # 🟡 Get sent pending by finding where this user appears in others' pending
+        sent_pending_ids = [d["_id"] for d in col.find({"pending": discord_id})]
+
+    return jsonify({
+        "pending_requests": doc.get("pending", []),     # received
+        "sent_requests": sent_pending_ids,              # sent
+        "friends": doc.get("friends", []),
+        "blocked": doc.get("blocked", [])
+    })
+
+
+
+@app.route("/api/friend-usernames")
+def api_friend_usernames():
+    ids = request.args.getlist("id")
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        users_col = client["Website"]["users"]
+        results = users_col.find({"_id": {"$in": ids}})
+        users = {
+            doc["_id"]: {
+                "username": doc.get("username", "Unknown"),
+                "discriminator": doc.get("username", "0000").split("#")[1] if "#" in doc.get("username", "") else "0000",
+                "display_name": doc.get("display_name") or doc.get("username")
+            }
+            for doc in results
+        }
+
+    return jsonify(users)
+
+
+
 
 @app.route("/api/live-bids-feed")
 def live_bids_feed():
@@ -440,6 +592,50 @@ def live_bids_feed():
         live_bids_sorted = sorted(live_bids, key=lambda x: x["timestamp"], reverse=True)[:20]
 
         return jsonify(live_bids_sorted)
+
+@app.route("/friends")
+def friends_page():
+    if "discord_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["discord_id"]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["FriendRequests"]
+        users = client["Website"]["users"]
+
+        doc = col.find_one({"_id": user_id}) or {}
+
+        friends = doc.get("friends", [])
+        pending_incoming = doc.get("pending", [])
+        blocked = doc.get("blocked", [])
+
+        # Find users you sent friend requests to
+        pending_sent = [d["_id"] for d in col.find({"pending": user_id})]
+        sent_users = list(users.find({"_id": {"$in": pending_sent}}))
+
+        def enrich_user(u):
+            roles = u.get("roles", [])
+            u["staff_badges"] = [STAFF_ROLES[int(rid)] for rid in roles if int(rid) in STAFF_ROLES]
+            level_doc = client["hayday"]["level"].find_one({"_id": u["_id"]})
+            u["level"] = level_doc.get("level") if level_doc else None
+            return u
+
+        friend_users = [enrich_user(u) for u in users.find({"_id": {"$in": friends}})]
+        pending_users = [enrich_user(u) for u in users.find({"_id": {"$in": pending_incoming}})]
+        blocked_users = [enrich_user(u) for u in users.find({"_id": {"$in": blocked}})]
+        sent_request_users = [enrich_user(u) for u in sent_users]
+
+    return render_template("friends.html",
+        friend_users=friend_users,
+        pending_users=pending_users,
+        blocked_users=blocked_users,
+        sent_requests=sent_request_users,  # ✅ fix this key
+        discord_id=user_id
+    )
+
+
+
 
 @app.route("/api/live-auctions")
 def live_auctions():
@@ -1010,6 +1206,8 @@ def profile():
         mention_count = 0
         mention_col = client["Mentions"]["Amount"]
         mention_doc = mention_col.find_one({"id": int(discord_id)})
+        friend_doc = client["Website"]["FriendRequests"].find_one({"_id": discord_id}) or {}
+        friend_count = len(friend_doc.get("friends", []))
         if mention_doc:
             mention_count = mention_doc.get("Mentions", 0)
 
@@ -1084,7 +1282,8 @@ def profile():
         staff_badges=staff_badges,
         streak=streak,
         coins=coins,
-        achievements=achievements
+        achievements=achievements,
+        friend_count=friend_count
     )
 
 @app.route("/test-flash")
@@ -1303,6 +1502,11 @@ def public_profile(discord_id):
     # Defaults
     level = xp = message_count = boost_time_left = None
     progress_percent = current_xp_formatted = required_xp_formatted = rank = None
+    session_friends = session_pending = session_blocked = []
+    is_friend = is_pending_received = is_pending_sent = is_blocked = False
+
+    viewer_id = session.get("discord_id")
+    is_owner = viewer_id == discord_id
 
     with MongoClient(os.getenv("MONGO_URI")) as client:
         users_collection = client["Website"]["users"]
@@ -1310,6 +1514,27 @@ def public_profile(discord_id):
 
         if not user or not user.get("public_profile", False):
             return "🚫 This profile is private or does not exist.", 404
+
+        # Always fetch target_doc
+        target_doc = client["Website"]["FriendRequests"].find_one({"_id": discord_id}) or {}
+
+        if viewer_id:
+            viewer_doc = client["Website"]["FriendRequests"].find_one({"_id": viewer_id}) or {}
+
+            # ❌ viewer is blocked BY target user
+            if viewer_id in target_doc.get("blocked", []):
+                return "🚫 This user has blocked you.", 403
+
+            session_friends = viewer_doc.get("friends", [])
+            session_pending = viewer_doc.get("pending", [])
+            session_blocked = viewer_doc.get("blocked", [])
+
+            sent_pending = [d["_id"] for d in client["Website"]["FriendRequests"].find({"pending": viewer_id})]
+
+            is_friend = discord_id in session_friends
+            is_pending_received = discord_id in session_pending
+            is_pending_sent = discord_id in sent_pending
+            is_blocked = discord_id in session_blocked
 
         user_roles = user.get("roles", [])
         staff_badges = [STAFF_ROLES[int(rid)] for rid in user_roles if int(rid) in STAFF_ROLES]
@@ -1324,6 +1549,9 @@ def public_profile(discord_id):
         mention_col = client["Mentions"]["Amount"]
         mention_doc = mention_col.find_one({"id": int(discord_id)})
         mention_count = mention_doc.get("Mentions", 0) if mention_doc else 0
+
+        friend_doc = client["Website"]["FriendRequests"].find_one({"_id": discord_id}) or {}
+        friend_count = len(friend_doc.get("friends", []))
 
         if level_doc:
             level = level_doc.get("level", 1)
@@ -1342,7 +1570,6 @@ def public_profile(discord_id):
             current_xp_formatted = f"{current_xp:,}"
             required_xp_formatted = f"{required_xp:,}"
 
-            # ✅ Fix: move rank logic inside the with-block
             all_users = list(level_col.find().sort("xp", -1))
             rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
 
@@ -1350,7 +1577,6 @@ def public_profile(discord_id):
         discord_id=user["_id"],
         display_name=user.get("display_name", "Unknown"),
         avatar_hash=user.get("avatar_hash", ""),
-        is_owner=False,
         user=user,
         staff_badges=staff_badges,
         level=level,
@@ -1365,7 +1591,16 @@ def public_profile(discord_id):
         roles=[],
         highest_role=None,
         coins=coins,
-        streak=streak
+        streak=streak,
+        friend_count=friend_count,
+        session_friends=session_friends,
+        session_pending=session_pending,
+        session_blocked=session_blocked,
+        is_friend=is_friend,
+        is_pending_received=is_pending_received,
+        is_pending_sent=is_pending_sent,
+        is_blocked=is_blocked,
+        is_owner=is_owner
     )
 
 
