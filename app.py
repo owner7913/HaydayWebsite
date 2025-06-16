@@ -17,7 +17,7 @@ from markupsafe import escape
 import csv
 from io import StringIO
 import asyncio
-
+from markupsafe import Markup
 load_dotenv()
 
 app = Flask(__name__)
@@ -1244,7 +1244,127 @@ def login():
         f"&prompt=consent"
     )
 
+@csrf.exempt
+@app.route("/admin/lookup", methods=["GET", "POST"])
+def admin_lookup():
+    if not is_staff():
+        return "Unauthorized", 403
 
+    query_result = []
+    search_term = ""
+    
+    if request.method == "POST":
+        search_term = request.form.get("user_id", "").strip()
+        with MongoClient(os.getenv("MONGO_URI")) as client:
+            verify_col = client["log"]["verify"]
+            if search_term.isdigit():
+                query_result = list(verify_col.find({"id": int(search_term)}))
+            else:
+                query_result = list(verify_col.find({
+                    "User Name": {"$regex": search_term, "$options": "i"}
+                }))
+
+    year = datetime.now(timezone.utc).year
+    return render_template(
+        "admin_lookup.html",
+        query_result=query_result,
+        search_term=search_term,
+        year=year
+    )
+
+@app.route("/api/debug/session")
+def debug_session():
+    return jsonify({
+        "has_roles": "roles" in session,
+        "roles": session.get("roles"),
+        "discord_id": session.get("discord_id")
+    })
+
+
+@app.route("/api/admin/lookup")
+def api_admin_lookup():
+    try:
+        if "roles" not in session or not is_staff():
+            return jsonify({"error": "unauthorized"}), 403
+
+        search = request.args.get("q", "").strip()
+        if not search:
+            return jsonify([])
+
+        normalized_tag = search.upper().strip("#")
+        search_lower = search.lower()
+        pattern = re.escape(search)
+        results = []
+
+        with MongoClient(os.getenv("MONGO_URI")) as client:
+            col = client["log"]["verify"]
+            entries = list(col.find().sort("_id", -1).limit(200))
+            seen = set()
+
+            for entry in entries:
+                _id = str(entry.get("_id"))
+                if _id in seen:
+                    continue
+                seen.add(_id)
+
+                raw_username = entry.get("User Name", "")
+                raw_id = str(entry.get("id", ""))
+                raw_message = entry.get("Message content", "")
+                matched_on = None
+
+                if search_lower in raw_username.lower():
+                    matched_on = "username"
+                elif raw_id.startswith(search):
+                    matched_on = "id"
+                elif re.search(rf"Your HayDay ID:\s*#?{re.escape(normalized_tag)}", raw_message, re.IGNORECASE):
+                    matched_on = "farmtag"
+
+                if matched_on:
+                    # Highlight message
+                    try:
+                        highlighted_message = Markup(re.sub(
+                            pattern,
+                            lambda m: f"<mark>{m.group(0)}</mark>",
+                            raw_message.replace("\n", "<br>"),
+                            flags=re.IGNORECASE
+                        ))
+                    except:
+                        highlighted_message = Markup(raw_message.replace("\n", "<br>"))
+
+                    # Highlight username
+                    try:
+                        highlighted_username = Markup(re.sub(
+                            pattern,
+                            lambda m: f"<mark>{m.group(0)}</mark>",
+                            raw_username,
+                            flags=re.IGNORECASE
+                        ))
+                    except:
+                        highlighted_username = raw_username
+
+                    # Highlight ID
+                    try:
+                        highlighted_id = Markup(re.sub(
+                            pattern,
+                            lambda m: f"<mark>{m.group(0)}</mark>",
+                            raw_id,
+                            flags=re.IGNORECASE
+                        ))
+                    except:
+                        highlighted_id = raw_id
+
+                    results.append({
+                        "user_name": highlighted_username,
+                        "id": highlighted_id,
+                        "message": highlighted_message,
+                        "matched_on": matched_on
+                    })
+
+        return jsonify(results[:20])
+
+    except Exception as e:
+        print("🔥 Lookup crash:", e)
+        return jsonify({"error": "server error", "details": str(e)}), 500
 
 
 
@@ -1496,7 +1616,10 @@ def callback():
             )
             staff_collection = client["Website"]["Staff"]
             staff_doc = staff_collection.find_one({"_id": user["id"]})
-            session["staff_role"] = staff_doc["role"] if staff_doc else None
+            if staff_doc:
+                session["staff_role"] = staff_doc.get("role", None)  # Use .get safely
+            else:
+                session["staff_role"] = None
 
 
         next_page = session.pop("next_page", url_for("profile"))

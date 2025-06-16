@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Lookup - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .admin-wrapper {
+    max-width: 900px;
+    margin: 120px auto 60px;
+    padding: 30px 30px 120px; /* ⬅ bottom padding increased */
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', sans-serif;
+    }
+
+
+    body.dark .admin-wrapper {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    .admin-wrapper h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+
+    form {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+
+    input[type="text"] {
+      padding: 10px 16px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      width: 60%;
+    }
+
+    button.nav-button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background-color: #4caf50;
+      color: white;
+      cursor: pointer;
+    }
+
+    button.nav-button:hover {
+      background-color: #3e9141;
+    }
+
+    .lookup-result {
+      background: rgba(0,0,0,0.03);
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      border-left: 5px solid #4caf50;
+    }
+
+    body.dark .lookup-result {
+      background: #2c2c2c;
+      border-left-color: #81c784;
+    }
+
+    .lookup-result strong {
+      font-size: 17px;
+    }
+
+    .lookup-result small {
+      color: gray;
+      font-size: 14px;
+    }
+
+    .no-results {
+      text-align: center;
+      font-size: 18px;
+      margin-top: 40px;
+      color: red;
+    }
+    input[type="text"] {
+    padding: 10px 16px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    width: 100%;  /* Changed from 60% */
+    }
+    mark {
+    background-color: #ffe568;
+    padding: 0 3px;
+    border-radius: 4px;
+    }
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 60px 40px;
+  margin-top: 20px;   /* ⬆️ more space above the grid */
+  margin-bottom: 20px; /* ⬇️ more space below the grid */
+}
+
+.lookup-result {
+  background: rgba(0, 0, 0, 0.03);
+  padding: 20px;
+  border-radius: 12px;
+  border-left: 5px solid #4caf50;
+  height: 100%;
+  transition: transform 0.2s ease;
+}
+
+.lookup-result:hover {
+  transform: scale(1.02);
+}
+
+body.dark .lookup-result {
+  background: #2c2c2c;
+  border-left-color: #81c784;
+}
+
+.match-badge {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  color: white;
+}
+
+.match-badge.username {
+  background: #2196f3;
+}
+
+.match-badge.id {
+  background: #9c27b0;
+}
+
+.match-badge.farmtag {
+  background: #ff9800;
+}
+
+
+  </style>
+</head>
+<body>
+        {% include 'header.html' %}
+        <div class="admin-wrapper">
+        <h1>🔍 Lookup User Verifications</h1>
+        <input id="lookupInput" type="text" placeholder="Search by Discord ID, Username, or #FarmTag" autocomplete="off">
+        <div id="lookupResults" style="margin-top: 30px;">
+            <div class="no-results">💡 Start typing to see user verification results...</div>
+        </div>
+        </div>
+{% include 'footer.html' %}
+
+<script>
+const input = document.getElementById("lookupInput");
+const resultsDiv = document.getElementById("lookupResults");
+
+let lastQuery = "";
+let debounceTimeout;
+
+input.addEventListener("input", function () {
+  clearTimeout(debounceTimeout);
+  const query = this.value.trim();
+  lastQuery = query;
+
+  debounceTimeout = setTimeout(() => {
+    if (!query || /[\u{1F300}-\u{1FAFF}]/u.test(query)) {
+      resultsDiv.innerHTML = '<div class="no-results">💡 Start typing to see user verification results...</div>';
+      return;
+    }
+
+    fetch(`/api/admin/lookup?q=${encodeURIComponent(query)}`, {
+      credentials: "include"
+    })
+      .then(async res => {
+        if (res.status === 403) {
+          resultsDiv.innerHTML = '<div class="no-results">🚫 You are not authorized. Please re-login.</div>';
+          throw new Error("Unauthorized");
+        }
+        if (res.status === 429) {
+          resultsDiv.innerHTML = '<div class="no-results">⏳ Too many searches. Slow down.</div>';
+          throw new Error("Rate limited");
+        }
+
+        const data = await res.json();
+
+        if (input.value.trim() !== lastQuery) return;
+
+        if (!Array.isArray(data) || data.length === 0) {
+          resultsDiv.innerHTML = '<div class="no-results">❌ No results found.</div>';
+          return;
+        }
+
+        resultsDiv.innerHTML = `
+        <div class="result-grid">
+            ${data.map(entry => {
+            let badge = "";
+            switch (entry.matched_on) {
+                case "username":
+                badge = '<span class="match-badge username">🧑 Username</span>';
+                break;
+                case "id":
+                badge = '<span class="match-badge id">🆔 Discord ID</span>';
+                break;
+                case "farmtag":
+                badge = '<span class="match-badge farmtag">🏷️ Farm Tag</span>';
+                break;
+            }
+
+            return `
+                <div class="lookup-result">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${entry.user_name}</strong>
+                    ${badge}
+                </div>
+                <small>ID: ${entry.id}</small><br><br>
+                ${entry.message}
+                </div>
+            `;
+            }).join("")}
+        </div>
+        `;
+
+      })
+      .catch(err => {
+        if (err.message !== "Unauthorized" && err.message !== "Rate limited") {
+          resultsDiv.innerHTML = '<div class="no-results">⚠️ Lookup failed. Try again.</div>';
+          console.error("Lookup error:", err);
+        }
+      });
+  }, 300); // wait 300ms after last keypress
+});
+</script>
+
+
+
+
+
+
+</body>
+</html>
