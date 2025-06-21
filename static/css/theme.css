@@ -432,4 +432,141 @@ body.dark .home-container::before {
   background-color: #EF5350;
   box-shadow: 0 0 8px #EF5350;
 }
+#discord-winglet {
+  position: fixed;
+  left: -400px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #2f3136; /* Discord dark grey */
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 4px 0 12px rgba(0,0,0,0.2);
+  font-size: 15px;
+  line-height: 1.4;
+  transition: left 0.6s ease;
+  z-index: 9999;
+  max-width: 360px;
+}
 
+#discord-winglet.show {
+  left: 0;
+}
+
+#discord-winglet .discord-icon {
+  width: 40px;
+  height: 40px;
+}
+
+#discord-winglet .discord-text a {
+  color: #ffffff;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+#friend-list {
+  position: fixed;
+  bottom: 0;
+  right: 20px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 0 8px rgba(0,0,0,0.2);
+  width: 200px;
+  font-size: 14px;
+  z-index: 999;
+}
+
+#friend-list .friend {
+  cursor: pointer;
+  padding: 6px;
+  border-bottom: 1px solid #eee;
+}
+
+#friend-list .friend:hover {
+  background: #f0f0f0;
+}
+
+#chat-dock {
+  position: fixed;
+  bottom: 0;
+  right: 240px;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.chat-window {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px 8px 0 0;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+}
+
+.chat-header {
+  background: #4caf50;
+  color: white;
+  padding: 6px 10px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.chat-input {
+  display: flex;
+  border-top: 1px solid #ddd;
+}
+
+.chat-input input {
+  flex: 1;
+  border: none;
+  padding: 8px;
+}
+
+.chat-input button {
+  border: none;
+  background: #4caf50;
+  color: white;
+  padding: 8px;
+}
+
+body.dark #friend-list,
+body.dark .chat-window {
+  background: #1e1e1e;
+  color: #eee;
+}
+
+body.dark .chat-header {
+  background: #388e3c;
+}
+
+.friend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.friend img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}

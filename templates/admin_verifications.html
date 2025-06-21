@@ -165,6 +165,13 @@ body.dark .modal-content {
   transform: scale(1.02);
   box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
 }
+.scam-warning {
+  border-left: 6px solid red !important;
+}
+
+.dupe-warning {
+  border-left: 6px solid orange !important;
+}
 
   </style>
 </head>
@@ -173,12 +180,19 @@ body.dark .modal-content {
 
   <div class="verifications-wrapper">
     <h2>📋 Pending Verifications</h2>
-
     {% for v in verifications %}
     <details>
         <summary style="font-weight: 500; font-size: 15px;">
         <strong>Farm Name:</strong> {{ v['Message content'].splitlines()[2].split(': ')[1] }} / {{ v['Message content'].splitlines()[1].split(': ')[1] }}
-        — <strong>HayDay ID:</strong> {{ v['Message content'].splitlines()[0].split(': ')[1] }}
+        — <strong>HayDay ID:</strong> {{ v.hayday_id }}
+{% if v.is_blacklisted %}
+  <span style="color:red; font-weight:bold;">[⚠ SCAM]</span>
+{% endif %}
+{% if v.is_duplicate %}
+  <span style="color:orange; font-weight:bold;">[⚠ DUPLICATE]</span>
+{% endif %}
+
+
         — <strong>User ID:</strong> {{ v['id'] }}
         <span style="color: gray; font-weight: normal; font-size: 13px;">
             — Submitted {{ ((now - v['submitted_at']).total_seconds() // 60) | int }} minute{{ 's' if ((now - v['submitted_at']).total_seconds() // 60) | int != 1 else '' }} ago
@@ -188,7 +202,15 @@ body.dark .modal-content {
         <div class="submitted-data" style="margin-top: 10px; line-height: 1.6;">
         <p><strong>Farm Name:</strong> {{ v['Message content'].splitlines()[2].split(': ')[1] }}</p>
         <p><strong>Level:</strong> {{ v['Message content'].splitlines()[1].split(': ')[1] }}</p>
-        <p><strong>HayDay ID:</strong> {{ v['Message content'].splitlines()[0].split(': ')[1] }}</p>
+        <p><strong>HayDay ID:</strong> {{ v.hayday_id }}
+{% if v.is_blacklisted %}
+  <span style="color:red; font-weight:bold;">[⚠ SCAM]</span>
+{% endif %}
+{% if v.is_duplicate %}
+  <span style="color:orange; font-weight:bold;">[⚠ DUPLICATE]</span>
+{% endif %}
+
+        </p>
         <p><strong>Likes One Piece?:</strong> {{ v['Message content'].splitlines()[3].split(': ')[1] }}</p>
         </div>
 

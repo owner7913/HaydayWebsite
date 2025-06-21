@@ -368,22 +368,6 @@
   }
 </script>
 
-<script>
-window.addEventListener("DOMContentLoaded", () => {
-  const machineSet = new Set(products.map(p => p.machine).filter(Boolean));
-  const machineFilter = document.getElementById("machineFilter");
-
-  Array.from(machineSet)
-    .sort()
-    .forEach(machine => {
-      const opt = document.createElement("option");
-      opt.value = machine.toLowerCase();
-      opt.textContent = machine;
-      machineFilter.appendChild(opt);
-    });
-});
-</script>
-
 <!-- UI Controls -->
 <div style="display:flex; gap:16px; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap">
   <div>

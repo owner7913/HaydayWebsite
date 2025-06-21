@@ -117,7 +117,51 @@
     background: #444;
     color: #eee;
     }
+  .verify-warning {
+    background: #fff3f3;
+    color: #a94442;
+    border: 1px solid #f5c6cb;
+    padding: 12px;
+    margin-top: 12px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 15px;
+  }
 
+  .verify-warning a {
+    color: #a94442;
+    text-decoration: underline;
+  }
+
+  body.dark .verify-warning {
+    background: #2c1f1f;
+    color: #f28a8a;
+    border-color: #a94442;
+  }
+
+.refresh-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background-color: #007bff;
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.refresh-btn:hover {
+  background-color: #0056b3;
+}
+
+body.dark .refresh-btn {
+  background-color: #3390ff;
+}
+
+body.dark .refresh-btn:hover {
+  background-color: #1a73e8;
+}
 
 
   </style>
@@ -164,12 +208,30 @@
             <div class="info"><em>No bids yet</em></div>
         {% endif %}
 
-        {% if discord_id %}
-            <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id }}')">
-            <input type="text" name="amount" placeholder="Enter your bid" min="1" required>
-            <button type="submit">Place Bid</button>
-            </form>
-        {% endif %}
+      {% if discord_id %}
+          {% set user_roles = session.get('roles', []) %}
+            {% if '959238651999567893' in user_roles %}
+              <div class="verify-warning">
+                🔒 You must be <a href="https://discord.gg/haydayy" target="_blank">verified in our Discord</a> to bid.
+                <br>
+                <small>If you were just verified, please refresh your login:</small><br>
+                <a href="/logout?next=/login?next=/auctions" class="refresh-btn">↻ Refresh Login</a>
+              </div>
+            {% elif '959220051469279296' not in user_roles %}
+              <div class="verify-warning">
+                🔒 Please <a href="https://discord.gg/haydayy" target="_blank">join our Discord server</a> to participate in auctions.
+                <br>
+                <small>If you recently joined, please refresh your login:</small><br>
+                <a href="/logout?next=/login?next=/auctions" class="refresh-btn">↻ Refresh Login</a>
+              </div>
+          {% else %}
+              <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id }}')">
+                  <input type="text" name="amount" placeholder="Enter your bid" min="1" required>
+                  <button type="submit">Place Bid</button>
+              </form>
+          {% endif %}
+      {% endif %}
+
         </div>
 
       {% endfor %}

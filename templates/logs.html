@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Discord Logs - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+    .log-section {
+    margin: 60px auto 40px;
+    max-width: 1000px;
+    padding: 20px;
+    }
+
+    .log-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px 40px; /* row-gap column-gap */
+    padding: 0 10px;
+    }
+
+
+    .log-card {
+    width: 100%;
+    background: rgba(0,0,0,0.03);
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    font-size: 14px;
+    }
+
+
+
+    body.dark .log-card {
+    background-color: #1f1f1f;
+    border-left-color: #7abfff;
+    color: #eee;
+    width: 100%;
+    padding: 10px 12px;
+    }
+
+    body.dark .log-card .small {
+    color: #aaa;
+    }
+    .small {
+    font-size: 12px;
+    color: #666;
+    }
+
+    .log-card img {
+        max-width: 160px;
+        margin-top: 6px;
+        border-radius: 6px;
+        display: inline-block;
+    }
+
+    .log-card p {
+        margin: 4px 0;
+    }
+
+
+    .jump-link {
+      color: #0077cc;
+      text-decoration: none;
+    }
+
+    .jump-link:hover {
+      text-decoration: underline;
+    }
+
+    .log-section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    padding-bottom: 4px;
+    margin: 40px auto 16px;
+    border-bottom: 2px solid #ccc;
+    color: #333;
+    text-align: center; /* centered */
+    width: 100%;
+    max-width: 100%;
+    }
+
+    body.dark .log-section h2 {
+    border-bottom: 2px solid #444;
+    color: #eee;
+    }
+
+    .log-section h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 30px;
+    margin-top: 25px;
+    border-bottom: 3px solid #4caf50;
+    padding-bottom: 8px;
+    text-align: center; /* centered now */
+    width: 100%;
+    }
+
+    body.dark .log-section h1 {
+    border-bottom-color: #7abfff;
+    color: #fff;
+    }
+
+    .log-card:hover {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+    transition: 0.2s ease;
+    }
+
+
+@media (max-width: 900px) {
+  .log-section {
+    padding: 10px;
+  }
+
+  .log-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .log-card img {
+    max-width: 100%;
+  }
+}
+.nav-button {
+  margin: 6px;
+  padding: 10px 18px;
+  border-radius: 6px;
+  background-color: #4caf50;
+  color: white;
+  text-decoration: none;
+  display: inline-block;
+}
+.nav-button:hover {
+  background-color: #3e9141;
+}
+.pagination {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.page {
+  display: inline-block;
+  padding: 8px 14px;
+  margin: 0 4px;
+  border-radius: 6px;
+  background-color: #f0f0f0;
+  color: #333;
+  font-size: 14px;
+  text-decoration: none;
+  min-width: 32px;
+  text-align: center;
+  transition: background-color 0.2s ease;
+}
+
+.page:hover {
+  background-color: #e0e0e0;
+}
+
+.page.active {
+  background-color: #4caf50;
+  color: white;
+  font-weight: 600;
+}
+
+body.dark .page {
+  background-color: #2a2a2a;
+  color: #ccc;
+}
+
+body.dark .page:hover {
+  background-color: #3a3a3a;
+}
+
+body.dark .page.active {
+  background-color: #7abfff;
+  color: #000;
+}
+/* Lightbox overlay */
+#lightbox-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+
+#lightbox-overlay img {
+  max-width: 90%;
+  max-height: 90%;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+.jump-input {
+  width: 60px;
+  text-align: center;
+  font-size: 14px;
+  padding: 6px 10px;
+  margin: 0 4px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+    
+  </style>
+</head>
+<body>
+{% include 'header.html' %}
+
+<div class="log-section">
+  <h1>Discord Logs</h1>
+<form method="GET" action="/admin/logs/export" style="margin-bottom: 30px; text-align: center;">
+  <label style="margin-right: 10px;">From:
+    <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+  </label>
+  <label style="margin-right: 10px;">To:
+    <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+  </label>
+  <select name="type" style="padding: 6px 10px; margin-right: 10px;">
+    <option value="">All Types</option>
+    <option value="message_delete">Deleted</option>
+    <option value="message_edit">Edited</option>
+  </select>
+  <button type="submit" class="nav-button">📄 Export CSV</button>
+</form>
+
+<form method="POST" style="margin-bottom: 30px; text-align: center;">
+  <input type="text" name="search" placeholder="Search by name or ID..." value="{{ search_term }}"
+         style="padding: 10px; width: 250px; border-radius: 6px; border: 1px solid #ccc;">
+
+  <select name="channel_filter" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+    <option value="">All Channels</option>
+    {% for channel in channels %}
+      <option value="{{ channel }}" {% if channel == selected_channel %}selected{% endif %}>#{{ channel }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="preset" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+    <option value="">Custom Range</option>
+    <option value="24h" {% if preset == '24h' %}selected{% endif %}>Last 24 Hours</option>
+    <option value="7d" {% if preset == '7d' %}selected{% endif %}>Past 7 Days</option>
+    <option value="this_week" {% if preset == 'this_week' %}selected{% endif %}>This Week</option>
+  </select>
+
+  <button type="submit" style="padding: 10px 20px; border-radius: 6px; background-color: #4caf50; color: white; border: none;">
+    Filter
+  </button>
+</form>
+
+
+
+    </form>
+    <h2>Deleted Messages</h2>
+    <div class="log-grid">
+    {% for log in deleted_logs %}
+        <div class="log-card">
+        <p><strong>{{ log.author.name }}</strong> in <em>#{{ log.channel_name }}</em></p>
+        <p><strong>Message:</strong> {{ log.content or "No content" }}</p>
+        {% if log.images %}
+            {% for img in log.images %}
+            <img src="{{ img }}" alt="attachment" onclick="showLightbox(this.src)" style="cursor: zoom-in;">
+            {% endfor %}
+        {% endif %}
+        <p class="small">🕒 {{ log.timestamp }}</p>
+        </div>
+    {% endfor %}
+    </div>
+
+{% set total_pages = (deleted_total // per_page) + (1 if deleted_total % per_page else 0) %}
+{% set current_page = deleted_page %}
+{% set page_range = 2 %} {# how many before/after current to show #}
+
+<div class="pagination">
+
+  {# Prev button #}
+  {% if current_page > 1 %}
+    <a class="page" href="?deleted_page={{ current_page - 1 }}&edited_page={{ edited_page }}&search={{ search_term }}&channel_filter={{ selected_channel }}">«</a>
+  {% endif %}
+
+  {# Always show first page #}
+<!-- First Ellipsis (before sliding range) -->
+{% if current_page > page_range + 2 %}
+  <a class="page" href="?deleted_page={{ deleted_page }}&edited_page=1&search={{ search_term }}&channel_filter={{ selected_channel }}">1</a>
+  <span class="page jump-ellipsis" data-page-type="deleted" data-max="{{ total_pages }}" onclick="toggleJumpInput(this)">…</span>
+{% endif %}
+
+  {# Sliding window #}
+  {% for page in range(current_page - page_range, current_page + page_range + 1) %}
+    {% if 1 <= page <= total_pages %}
+      {% if page == current_page %}
+        <span class="page active">{{ page }}</span>
+      {% else %}
+        <a class="page" href="?deleted_page={{ page }}&edited_page={{ edited_page }}&search={{ search_term }}&channel_filter={{ selected_channel }}">{{ page }}</a>
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {# Ellipsis and last page #}
+<!-- Second Ellipsis (after sliding range) -->
+{% if current_page < total_pages - page_range - 1 %}
+  <span class="page jump-ellipsis" data-page-type="deleted" data-max="{{ total_pages }}" onclick="toggleJumpInput(this)">…</span>
+  <a class="page" href="?deleted_page={{ deleted_page }}&edited_page={{ total_pages }}&search={{ search_term }}&channel_filter={{ selected_channel }}">{{ total_pages }}</a>
+{% endif %}
+
+  {# Next button #}
+  {% if current_page < total_pages %}
+    <a class="page" href="?deleted_page={{ current_page + 1 }}&edited_page={{ edited_page }}&search={{ search_term }}&channel_filter={{ selected_channel }}">»</a>
+  {% endif %}
+</div>
+
+
+
+
+    <h2>Edited Messages</h2>
+    <div class="log-grid">
+    {% for log in edited_logs %}
+        <div class="log-card">
+        <p><strong>{{ log.author.name }}</strong> in <em>#{{ log.channel_name }}</em></p>
+        <p><strong>Before:</strong> {{ log.before }}</p>
+        <p><strong>After:</strong> {{ log.after }}</p>
+        {% if log.jump_url %}
+            <p><a class="jump-link" href="{{ log.jump_url }}" target="_blank">🔗 Jump to Message</a></p>
+        {% endif %}
+        <p class="small">🕒 {{ log.timestamp }}</p>
+        </div>
+    {% endfor %}
+    </div>
+{% set total_pages = (edited_total // per_page) + (1 if edited_total % per_page else 0) %}
+{% set current_page = edited_page %}
+{% set page_range = 2 %}
+
+<div class="pagination">
+
+  {# Prev button #}
+  {% if current_page > 1 %}
+    <a class="page" href="?deleted_page={{ deleted_page }}&edited_page={{ current_page - 1 }}&search={{ search_term }}&channel_filter={{ selected_channel }}">«</a>
+  {% endif %}
+
+<!-- First Ellipsis (before sliding range) -->
+{% if current_page > page_range + 2 %}
+  <a class="page" href="?deleted_page={{ deleted_page }}&edited_page=1&search={{ search_term }}&channel_filter={{ selected_channel }}">1</a>
+  <span class="page jump-ellipsis" data-page-type="edited" data-max="{{ total_pages }}" onclick="toggleJumpInput(this)">…</span>
+{% endif %}
+
+  {# Sliding window #}
+  {% for page in range(current_page - page_range, current_page + page_range + 1) %}
+    {% if 1 <= page <= total_pages %}
+      {% if page == current_page %}
+        <span class="page active">{{ page }}</span>
+      {% else %}
+        <a class="page" href="?deleted_page={{ deleted_page }}&edited_page={{ page }}&search={{ search_term }}&channel_filter={{ selected_channel }}">{{ page }}</a>
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+<!-- Second Ellipsis (after sliding range) -->
+{% if current_page < total_pages - page_range - 1 %}
+  <span class="page jump-ellipsis" data-page-type="edited" data-max="{{ total_pages }}" onclick="toggleJumpInput(this)">…</span>
+  <a class="page" href="?deleted_page={{ deleted_page }}&edited_page={{ total_pages }}&search={{ search_term }}&channel_filter={{ selected_channel }}">{{ total_pages }}</a>
+{% endif %}
+
+  {# Next button #}
+  {% if current_page < total_pages %}
+    <a class="page" href="?deleted_page={{ deleted_page }}&edited_page={{ current_page + 1 }}&search={{ search_term }}&channel_filter={{ selected_channel }}">»</a>
+  {% endif %}
+</div>
+
+
+
+
+
+  {% include 'footer.html' %}
+<div id="lightbox-overlay" onclick="hideLightbox()">
+  <img id="lightbox-img" src="" alt="enlarged image">
+</div>
+
+<script>
+  function showLightbox(src) {
+    const overlay = document.getElementById("lightbox-overlay");
+    const img = document.getElementById("lightbox-img");
+    img.src = src;
+    overlay.style.display = "flex";
+  }
+
+  function hideLightbox() {
+    document.getElementById("lightbox-overlay").style.display = "none";
+  }
+</script>
+
+<script>
+  function toggleJumpInput(ellipsisElement) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = 1;
+    input.max = parseInt(ellipsisElement.dataset.max || 1);
+    input.placeholder = "Page #";
+    input.className = "page jump-input";
+    const pageType = ellipsisElement.dataset.pageType;
+
+    function revertInput() {
+      const span = document.createElement("span");
+      span.className = "page jump-ellipsis";
+      span.textContent = "…";
+      span.dataset.pageType = pageType;
+      span.dataset.max = input.max;
+      span.onclick = function () {
+        toggleJumpInput(span);
+      };
+      input.replaceWith(span);
+    }
+
+    input.onkeydown = function (e) {
+      if (e.key === "Enter") {
+        const page = parseInt(input.value);
+        if (page >= 1 && page <= input.max) {
+          const params = new URLSearchParams(window.location.search);
+          if (pageType === "deleted") {
+            params.set("deleted_page", page);
+          } else if (pageType === "edited") {
+            params.set("edited_page", page);
+          }
+          window.location.search = params.toString();
+        }
+      } else if (e.key === "Escape") {
+        revertInput();
+      }
+    };
+
+    input.onblur = revertInput;
+
+    ellipsisElement.replaceWith(input);
+    input.focus();
+  }
+</script>
+
+
+
+</body>
+</html>

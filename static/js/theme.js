@@ -22,3 +22,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const label = document.getElementById("darkmode-label");
   if (label) label.textContent = isDark ? "Light Mode" : "Dark Mode";
 });
+document.addEventListener("DOMContentLoaded", () => {
+  const winglet = document.getElementById("discord-winglet");
+
+  if (winglet) {
+    const LAST_SHOWN_KEY = "wingletLastShown";
+    const now = Date.now();
+    const cooldown = 10 * 60 * 1000; // 10 minutes
+
+    const lastShown = parseInt(sessionStorage.getItem(LAST_SHOWN_KEY), 10);
+
+    // Only show if it's been more than 10 minutes
+    if (!lastShown || (now - lastShown > cooldown)) {
+      function toggleWinglet() {
+        winglet.classList.add("show");
+        setTimeout(() => winglet.classList.remove("show"), 12000); // visible 12s
+        sessionStorage.setItem(LAST_SHOWN_KEY, Date.now().toString());
+      }
+
+      setTimeout(toggleWinglet, 20000); // show after 20s
+    }
+  }
+});
+
+
+

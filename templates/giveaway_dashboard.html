@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Giveaway Dashboard - HayDay 🍀</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .dashboard-wrapper {
+      display: flex;
+      min-height: 100vh;
+      margin-top: 60px;
+    }
+
+    .sidebar {
+      width: 240px;
+      background-color: #222;
+      color: white;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+
+    .sidebar h2 {
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .sidebar a {
+      display: block;
+      color: white;
+      text-decoration: none;
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .sidebar a:hover {
+      background-color: #333;
+    }
+
+    .dashboard-content {
+      flex-grow: 1;
+      padding: 40px;
+      background-color: #f4f4f4;
+    }
+
+    body.dark .dashboard-content {
+      background-color: #1e1e1e;
+    }
+
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+
+    body.dark .card {
+      background: #2b2b2b;
+      color: white;
+    }
+
+    .giveaway-box {
+      margin-bottom: 12px;
+      padding: 12px;
+      background-color: #eee;
+      border-radius: 8px;
+    }
+
+    body.dark .giveaway-box {
+      background-color: #1a1a1a;
+    }
+
+    .giveaway-box strong {
+      font-size: 16px;
+    }
+
+    .giveaway-controls {
+      margin-top: 8px;
+    }
+
+    .giveaway-controls button {
+      margin-right: 10px;
+    }
+    .card .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    }
+
+    .giveaway-box {
+    flex: 1 1 calc(33.333% - 16px); /* 3 per row, with gap */
+    min-width: 280px;
+    box-sizing: border-box;
+    }
+
+
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+  <div class="dashboard-wrapper">
+    <aside class="sidebar">
+      <h2>Dashboard</h2>
+      <a href="/dashboard">⚙ Bot Settings</a>
+      <a href="/giveaway-dashboard">🎉 Giveaways</a>
+      <a href="#">✅ Verifications</a>
+      <a href="#">📦 Auctions</a>
+      <a href="#">🛡 Moderation</a>
+      <a href="#">🌟 Starboard</a>
+    </aside>
+
+    <main class="dashboard-content">
+      <div class="card">
+        <h2>🎁 Active Giveaways</h2>
+        <div id="giveaway-list" class="grid">
+        <p>Loading giveaways...</p>
+        </div>
+
+      </div>
+        <div class="card">
+        <h2>🕒 Recently Ended Giveaways</h2>
+        <div id="recent-giveaway-list" class="grid"></div>
+        <div style="text-align:center; margin-top: 10px;">
+        <button onclick="prevPage()">⬅ Prev</button>
+        <button onclick="nextPage()">Next ➡</button>
+        </div>
+        </div>
+
+
+      <div class="card">
+        <h2>➕ Create New Giveaway</h2>
+        <form id="create-giveaway-form" onsubmit="createGiveaway(event)">
+          <label>Prize: <input type="text" name="prize" required></label><br><br>
+          <label>Winner(s): <input type="number" name="winners" value="1" min="1"></label><br><br>
+          <label>Duration (minutes): <input type="number" name="duration" value="60" min="1"></label><br><br>
+          <button type="submit">Start Giveaway</button>
+          <p id="create-status" style="margin-top: 8px; font-weight: bold;"></p>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script>
+  let currentPage = 1;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    loadGiveaways();
+    loadRecentGiveaways(currentPage);
+  });
+
+  async function createGiveaway(e) {
+    e.preventDefault();
+    const form = document.getElementById("create-giveaway-form");
+    const data = {
+      prize: form.prize.value,
+      winners: parseInt(form.winners.value),
+      duration: parseInt(form.duration.value)
+    };
+
+    const status = document.getElementById("create-status");
+    status.textContent = "⏳ Creating giveaway...";
+    status.style.color = "black";
+
+    try {
+      const res = await fetch("/api/giveaways/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include"
+      });
+
+      const result = await res.json();
+      if (res.ok) {
+        status.textContent = "✅ Giveaway created!";
+        status.style.color = "green";
+        loadGiveaways();
+      } else {
+        status.textContent = "❌ " + result.error;
+        status.style.color = "red";
+      }
+    } catch (err) {
+      status.textContent = "❌ Failed to create giveaway.";
+      status.style.color = "red";
+    }
+
+    setTimeout(() => status.textContent = "", 4000);
+  }
+
+  async function loadGiveaways() {
+    const activeContainer = document.getElementById("giveaway-list");
+    const endedContainer = document.getElementById("recent-giveaway-list");
+
+    try {
+      const res = await fetch("/api/giveaways", { credentials: "include" });
+      const data = await res.json();
+
+      // === ACTIVE ===
+      const active = data.active || [];
+      activeContainer.innerHTML = "";
+      if (!active.length) {
+        activeContainer.innerHTML = "<p>No active giveaways found.</p>";
+      } else {
+        active.forEach(g => {
+          const messageId = String(g.message_id);
+          const box = document.createElement("div");
+          box.className = "giveaway-box";
+          box.innerHTML = `
+            <strong>${g.prize}</strong><br>
+            🧍 ${g.winners} winner(s)<br>
+            ⏳ Ends in ${g.ends_in}
+            <div class="giveaway-controls">
+                <button onclick="endGiveaway('${messageId}', this)">✅ End</button>
+            </div>
+          `;
+          activeContainer.appendChild(box);
+        });
+      }
+
+      // === ENDED ===
+      const ended = data.ended || [];
+      endedContainer.innerHTML = "";
+      if (!ended.length) {
+        endedContainer.innerHTML = "<p>No recently ended giveaways.</p>";
+      } else {
+        ended.forEach(g => {
+          const messageId = String(g.message_id);
+          const box = document.createElement("div");
+          box.className = "giveaway-box";
+          box.innerHTML = `
+            <strong>${g.prize}</strong><br>
+            🧍 ${g.winners} winner(s)<br>
+            🕒 Ended at ${g.ended_at}
+            <div class="giveaway-controls">
+              <button onclick="rerollGiveaway('${messageId}')">🔁 Reroll</button>
+            </div>
+          `;
+          endedContainer.appendChild(box);
+        });
+      }
+
+    } catch (err) {
+      activeContainer.innerHTML = "<p>Error loading giveaways.</p>";
+      endedContainer.innerHTML = "<p>Error loading ended giveaways.</p>";
+    }
+  }
+
+  async function rerollGiveaway(id) {
+    console.log("Rerolling giveaway ID:", id, typeof id);
+    if (!confirm("Reroll this giveaway?")) return;
+
+    const res = await fetch("/api/giveaways/reroll", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message_id: id,
+        action: "reroll"
+      }),
+      credentials: "include"
+    });
+
+
+    const result = await res.json();
+
+    if (res.ok) {
+      alert("🔁 Rerolled.");
+    } else {
+      alert("❌ " + (result?.error || "Unknown error"));
+      console.error("Reroll error:", result);
+    }
+  }
+
+  function endGiveaway(messageId, button) {
+    if (!confirm("Are you sure you want to end this giveaway?")) return;
+
+    button.disabled = true;
+    const originalText = button.innerText;
+    button.innerText = "⏳ Ending...";
+
+    fetch(`/api/giveaways/end/${messageId}`, {
+      method: "POST",
+      credentials: "include"
+    })
+
+      .then(res => res.json())
+      .then(data => {
+        if (data.message) {
+          alert("✅ Giveaway ended.");
+          location.reload();
+        } else {
+          alert("❌ Error: " + data.error);
+          button.disabled = false;
+          button.innerText = originalText;
+        }
+      })
+      .catch(err => {
+        alert("❌ Failed to contact bot.");
+        console.error(err);
+        button.disabled = false;
+        button.innerText = originalText;
+      });
+  }
+
+  async function loadRecentGiveaways(page = 1) {
+    const container = document.getElementById("recent-giveaway-list");
+    const limit = 9;
+    const skip = (page - 1) * limit;
+
+    try {
+      const res = await fetch(`/api/giveaways/recent?skip=${skip}&limit=${limit}`, {
+        credentials: "include"
+      });
+
+      const data = await res.json();
+      container.innerHTML = "";
+
+      if (!data.length) {
+        container.innerHTML = "<p>No ended giveaways found.</p>";
+        return;
+      }
+
+      data.forEach(g => {
+        const messageId = String(g.message_id);
+        const box = document.createElement("div");
+        box.className = "giveaway-box";
+        box.innerHTML = `
+          <strong>${g.prize}</strong><br>
+          🧍 ${g.winners} winners<br>
+          🕓 Ended at ${g.ended_at}
+          <div class="giveaway-controls">
+            <button onclick="rerollGiveaway('${messageId}')">🔁 Reroll</button>
+          </div>
+        `;
+        container.appendChild(box);
+      });
+
+    } catch (err) {
+      container.innerHTML = "<p>Error loading ended giveaways.</p>";
+    }
+  }
+
+  function nextPage() {
+    currentPage++;
+    loadRecentGiveaways(currentPage);
+  }
+
+  function prevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      loadRecentGiveaways(currentPage);
+    }
+  }
+</script>
+
+</body>
+</html>

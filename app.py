@@ -16,15 +16,18 @@ from shop_data import SHOP_ITEMS
 from markupsafe import escape
 import csv
 from io import StringIO
-import asyncio
 from markupsafe import Markup
+from pytz import timezone as pytz_timezone
+from functools import lru_cache
+import httpx
+import nest_asyncio
+nest_asyncio.apply()
+import aiohttp
+import asyncio
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
-
-# MongoDB
-
 
 # Discord
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
@@ -51,6 +54,12 @@ csrf = CSRFProtect(app)
 # Session lifetime
 app.permanent_session_lifetime = timedelta(days=7)
 
+GUILD_ID = 959220051427340379  # your server ID
+UNVERIFIED_ROLE_ID = 959238651999567893
+MEMBER_ROLE_ID = 959220051469279296
+
+COPENHAGEN_TZ = pytz_timezone("Europe/Copenhagen")
+
 
 STAFF_ROLE_IDS = {"1307838468788846652"}
 ROLE_ID_TO_NAME = {
@@ -59,6 +68,7 @@ ROLE_ID_TO_NAME = {
     "345678901234567890": "Booster",
     # Add your role ID to name mappings here
 }
+
 def parse_duration(duration_str):
     time_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     match = re.match(r"(\d+)([smhd])", duration_str.strip().lower())
@@ -376,7 +386,9 @@ def admin_verify_action():
         "user_id": user_id,
         "message_id": doc.get("discord_message_id"),
         "action": action,
-        "reason": reason
+        "reason": reason,
+        "mod_username": session.get("username"),
+        "mod_id": session.get("discord_id")
     }
     message_id = doc.get("discord_message_id")
     if not message_id:
@@ -397,12 +409,74 @@ def admin_verifications():
     if not is_staff():
         return "Unauthorized", 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        collection = client["log"]["verify"]
-        pending = list(collection.find({"status": "pending"}).sort("submitted_at", -1))
-
+    filtered = []
     now = datetime.utcnow()
-    return render_template("admin_verifications.html", verifications=pending, now=now)
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        verify_col = client["log"]["verify"]
+        scam_col = client["Scam"]["Banned"]
+        trusted_ids = {doc["_id"] for doc in client["Website"]["super_trusted"].find({}, {"_id": 1})}
+
+        # Gather and normalize blacklisted IDs
+        raw_blacklist_ids = []
+        for doc in scam_col.find():
+            ids = doc.get("id", [])
+            if isinstance(ids, list):
+                raw_blacklist_ids.extend(ids)
+            else:
+                raw_blacklist_ids.append(ids)
+        blacklisted_ids = {str(id_).strip().upper() for id_ in raw_blacklist_ids}
+
+        def is_member_or_left(user_id):
+            try:
+                url = f"https://discord.com/api/guilds/{GUILD_ID}/members/{user_id}"
+                headers = {"Authorization": f"Bot {BOT_TOKEN}"}
+                res = requests.get(url, headers=headers)
+                if res.status_code == 404:
+                    return True
+                if res.status_code != 200:
+                    return False
+                data = res.json()
+                return str(MEMBER_ROLE_ID) in data.get("roles", [])
+            except Exception:
+                return False
+
+        for v in verify_col.find({"status": "pending"}).sort("submitted_at", -1):
+            uid = str(v["id"])
+
+            if uid in trusted_ids:
+                continue
+
+            if is_member_or_left(uid):
+                continue
+
+            try:
+                lines = v["Message content"].splitlines()
+                hayday_id_raw = lines[0].split(": ")[1].strip()
+            except Exception:
+                hayday_id_raw = "UNKNOWN"
+
+            normalized_hayday_id = hayday_id_raw.upper()
+            if not normalized_hayday_id.startswith("#"):
+                normalized_hayday_id = "#" + normalized_hayday_id
+
+            # Check blacklist membership
+            is_blacklisted = normalized_hayday_id in blacklisted_ids
+
+            # Check duplicate submission (excluding this user)
+            duplicate = verify_col.find_one({
+                "Message content": {"$regex": f"Your HayDay ID: {re.escape(normalized_hayday_id)}"},
+                "id": {"$ne": int(uid)}
+            })
+            is_duplicate = duplicate is not None
+
+            v["hayday_id"] = normalized_hayday_id
+            v["is_blacklisted"] = is_blacklisted
+            v["is_duplicate"] = is_duplicate
+
+            filtered.append(v)
+
+    return render_template("admin_verifications.html", verifications=filtered, now=now)
 
 
 @csrf.exempt
@@ -467,7 +541,8 @@ def giveaways_page():
         user_map = {str(u["_id"]): u for u in users}
 
         giveaways = []
-        now = datetime.now(timezone.utc)
+        now_ts = time.time()
+        now = datetime.now(COPENHAGEN_TZ)
 
         for g in raw_giveaways:
             end = g.get("end_time")
@@ -475,11 +550,19 @@ def giveaways_page():
                 continue
             if end.tzinfo is None:
                 end = end.replace(tzinfo=timezone.utc)
+            end_local = end.astimezone(COPENHAGEN_TZ)
 
-            # ✅ Skip if the end time has already passed
-            if end < now:
+            # ✅ Skip expired
+            if end_local.timestamp() < now_ts:
                 continue
 
+            # ✅ Precise time remaining
+            diff = int(end.timestamp() - now_ts)
+            hours = diff // 3600
+            minutes = (diff % 3600) // 60
+            g["time_remaining"] = f"{hours}h {minutes}m"
+
+            g["end_time"] = end_local
             g["end_time_str"] = f"<t:{int(end.timestamp())}:R>"
             g["end_time_ts"] = int(end.timestamp())
             g["entry_count"] = sum(g.get("participants", {}).values())
@@ -489,7 +572,10 @@ def giveaways_page():
             host_id = str(g.get("host_id"))
             host = user_map.get(host_id)
             g["host_display"] = host.get("username") if host else f"User {host_id}"
-            g["host_avatar"] = f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png" if host and host.get("avatar_hash") else None
+            g["host_avatar"] = (
+                f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
+                if host and host.get("avatar_hash") else None
+            )
 
             total_entries = g["entry_count"]
             for uid, count in g.get("participants", {}).items():
@@ -517,45 +603,57 @@ def giveaways_page():
             "giveaways.html",
             giveaways=giveaways,
             discord_id=session.get("discord_id"),
-            year=datetime.now().year
+            year=now.year
         )
+
+
     
 @app.route("/api/live-giveaways")
 def api_live_giveaways():
+    from pytz import timezone as pytz_timezone
+    import time
+    COPENHAGEN_TZ = pytz_timezone("Europe/Copenhagen")
+    now_ts = time.time()
+
     with MongoClient(os.getenv("MONGO_URI")) as client:
         db = client["Giveaway"]
         user_db = client["hayday"]["level"]
-
         raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
 
-        # Gather all unique user IDs for host lookup
-        user_ids = {str(g.get("host_id")) for g in raw_giveaways if "host_id" in g}
-        user_map = {str(u["_id"]): u for u in user_db.find({"_id": {"$in": list(user_ids)}})}
+        user_ids = set()
+        for g in raw_giveaways:
+            user_ids.update(g.get("participants", {}).keys())
+            if "host_id" in g:
+                user_ids.add(str(g["host_id"]))
 
-        giveaways = []
-        now = datetime.utcnow()
+        users = user_db.find({"_id": {"$in": list(user_ids)}})
+        user_map = {str(u["_id"]): u for u in users}
+
+        output = []
 
         for g in raw_giveaways:
             end = g.get("end_time")
-            if not end or end < now:
+            if not end:
+                continue
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            end_ts = end.timestamp()
+            if end_ts < now_ts:
                 continue
 
             host_id = str(g.get("host_id"))
-            host_doc = user_map.get(host_id, {})
-            host_display = host_doc.get("username", "Anonymous")
-            avatar_url = (
-                f"https://cdn.discordapp.com/avatars/{host_id}/{host_doc.get('avatar_hash')}.png"
-                if host_doc.get("avatar_hash") else None
-            )
+            host = user_map.get(host_id)
 
-            giveaways.append({
-                "prize": g.get("prize", "Unknown"),
-                "host_display": host_display,
-                "host_avatar": avatar_url,
-                "end_time_ts": int(end.timestamp()),
+            output.append({
+                "prize": g.get("prize"),
+                "end_time_ts": int(end_ts),
+                "host_display": host.get("username") if host else f"User {host_id}",
+                "host_avatar": f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
+                    if host and host.get("avatar_hash") else None
             })
 
-        return jsonify(giveaways)
+        return jsonify(output)
+
 @csrf.exempt
 @app.route("/api/friend-respond", methods=["POST"])
 def friend_respond():
@@ -643,7 +741,6 @@ def api_friend_usernames():
 
 
 
-
 @app.route("/api/live-bids-feed")
 def live_bids_feed():
     with MongoClient(os.getenv("MONGO_URI")) as client:
@@ -720,23 +817,85 @@ def friends_page():
     )
 
 
+@app.route("/api/production-data")
+def api_production_data():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["hayday"]["ProductionGuide"]
+        data = list(col.find({}, {"_id": 0}))  # Exclude _id for frontend use
+    return jsonify(data)
+
+
+@csrf.exempt
+@app.route("/admin/production", methods=["GET", "POST"])
+def admin_production():
+    if "discord_id" not in session:
+        return redirect("/login")
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["hayday"]["ProductionGuide"]
+
+        if request.method == "POST":
+            if "delete_product" in request.form:
+                to_delete = request.form.get("delete_product")
+                col.delete_one({"product": to_delete})
+            else:
+                product = request.form.get("product").strip()
+                machine = request.form.get("machine").strip()
+                xp = int(request.form.get("xp"))
+                price = int(request.form.get("price"))
+                time_min = float(request.form.get("time_min"))
+                level = int(request.form.get("level"))
+
+                # Save image if uploaded
+                image = request.files.get("image")
+                if image and image.filename:
+                    filename = product.lower().replace(" ", "_") + ".png"
+                    image_path = os.path.join("static/img/hayday/products", filename)
+                    image.save(image_path)
+                    
+                machine_image = request.files.get("machine_image")
+                if machine_image and machine_image.filename:
+                    filename = machine.lower().replace(" ", "_") + ".png"
+                    image_path = os.path.join("static/img/hayday/machines", filename)
+                    machine_image.save(image_path)
+
+                col.update_one(
+                    {"product": product},
+                    {"$set": {
+                        "machine": machine,
+                        "xp": xp,
+                        "price": price,
+                        "time_min": time_min,
+                        "level": level
+                    }},
+                    upsert=True
+                )
+
+
+            return redirect("/admin/production")
+
+
+        all_items = list(col.find().sort("level", 1))
+
+    return render_template("admin_production.html", products=all_items, year=datetime.now().year)
+
+
 
 
 @app.route("/api/live-auctions")
 def live_auctions():
     with MongoClient(os.getenv("MONGO_URI")) as client:
         db = client["hayday"]
+        now = datetime.now(timezone.utc)
         auctions = list(db["auctions"].find({
-        "status": "active",
-        "current_bid": {"$exists": True, "$gt": 0},
-        "last_bid": {"$exists": True}
+            "status": "active",
+            "end_time": {"$gt": now}
         }))
-        user_cache = db.database["UserCache"]  # or wherever you store user data
+        user_cache = db["Website"]["UserCache"]
 
         results = []
         for auction in auctions:
             data = serialize_auction(auction)
-            # Lookup bidder display name/tag from user_cache if available
             bidder_id = data.get("highest_bidder")
             if bidder_id:
                 user_doc = user_cache.find_one({"user_id": bidder_id})
@@ -746,6 +905,7 @@ def live_auctions():
             results.append(data)
 
     return jsonify(results)
+
 
 @csrf.exempt
 @app.route("/api/bid", methods=["POST"])
@@ -759,6 +919,19 @@ def api_bid():
     user_id = session.get("discord_id")
     if not user_id:
         return jsonify({"success": False, "message": "Not logged in via Discord"}), 401
+    user_roles = session.get("roles", [])
+
+    if not user_roles or str(UNVERIFIED_ROLE_ID) in user_roles:
+        return jsonify({
+            "success": False,
+            "message": "❌ You must be a verified member of the Discord to bid. Join here: https://discord.gg/hayday"
+        }), 403
+
+    if str(MEMBER_ROLE_ID) not in user_roles:
+        return jsonify({
+            "success": False,
+            "message": "❌ You must be a member of the Discord server to place bids. Join here: https://discord.gg/hayday"
+        }), 403
 
     try:
         data = request.get_json(force=True)
@@ -903,14 +1076,18 @@ def auctions_page():
         owner_ids = {str(a['owner_id']) for a in auctions}
         # Optionally, fetch missing users and add to user_map if needed
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(pytz_timezone("Europe/Copenhagen"))  # local time
+
     for auc in auctions:
-        end_time = auc.get("end_time")
-        if not end_time:
-            continue
-        if end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=timezone.utc)
-        auc["time_remaining"] = str(end_time - now).split(".")[0]
+        end = auc.get("end_time")
+        if end:
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            end = end.astimezone(COPENHAGEN_TZ)
+            auc["end_time"] = end  # update for HTML countdown
+            auc["time_remaining"] = str(end - now).split(".")[0]
+        else:
+            auc["time_remaining"] = "Unknown"
 
         bidder_id = str(auc.get("highest_bidder"))
         user_info = user_map.get(bidder_id, {})
@@ -918,16 +1095,16 @@ def auctions_page():
         auc["display_name"] = user_info.get("display_name")
         auc["avatar"] = user_info.get("avatar")
 
-        # Also add owner user info for Jinja
+        # Owner info for Jinja
         owner_id = str(auc.get("owner_id"))
         owner_info = user_map.get(owner_id, {})
         auc["owner_display_name"] = owner_info.get("display_name")
         auc["owner_tag"] = owner_info.get("tag")
         auc["owner_avatar"] = owner_info.get("avatar")
 
-
-    discord_id = session.get("discord_id")  # ✅ Add this
+    discord_id = session.get("discord_id")
     return render_template("auctions.html", auctions=auctions, year=now.year, discord_id=discord_id)
+
 
 
 @app.route("/send-ticket-message", methods=["POST"])
@@ -1244,6 +1421,131 @@ def login():
         f"&prompt=consent"
     )
 
+@app.route("/admin/logs/export")
+def export_logs():
+    if not is_staff():
+        return "Unauthorized", 403
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+    log_type = request.args.get("type")
+
+    query = {"timestamp": {"$exists": True}}
+    if log_type:
+        query["type"] = log_type
+
+    # Date filtering
+    if start_date_str:
+        query["timestamp"] = query.get("timestamp", {})
+        query["timestamp"]["$gte"] = start_date_str  # "YYYY-MM-DD"
+
+    if end_date_str:
+        try:
+            end_dt = datetime.strptime(end_date_str, "%Y-%m-%d") + timedelta(days=1)
+            query["timestamp"]["$lt"] = end_dt.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        logs = list(client["Website"]["Logs"].find(query).sort("timestamp", -1))
+
+    # Build CSV
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["Type", "Author", "Channel", "Timestamp", "Content", "Images"])
+
+    for log in logs:
+        images = ", ".join(log.get("images", [])) if "images" in log else ""
+        if log["type"] == "message_edit":
+            content = f"Before: {log.get('before', '')} | After: {log.get('after', '')}"
+        else:
+            content = log.get("content", "")
+        writer.writerow([
+            log.get("type"),
+            log.get("author", {}).get("name", ""),
+            log.get("channel_name", ""),
+            log.get("timestamp", ""),
+            content,
+            images
+        ])
+
+    output = si.getvalue()
+    si.close()
+
+    filename = f"discord_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(output, mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={filename}"})
+
+@csrf.exempt
+@app.route("/admin/logs", methods=["GET", "POST"])
+def view_logs():
+    if not is_staff():
+        return "Unauthorized", 403
+
+    from datetime import timezone
+    year = datetime.now(timezone.utc).year
+    now = datetime.now(timezone.utc)
+
+    search_term = request.form.get("search", "").strip() if request.method == "POST" else request.args.get("search", "").strip()
+    selected_channel = request.form.get("channel_filter", "") if request.method == "POST" else request.args.get("channel_filter", "").strip()
+    preset = request.args.get("preset", "").strip()
+
+    deleted_page = int(request.args.get("deleted_page", 1))
+    edited_page = int(request.args.get("edited_page", 1))
+    per_page = 6  # 👈 adjust to how many logs per page you want
+
+    query = {"timestamp": {"$exists": True}}
+
+    if search_term:
+        query["$or"] = [
+            {"author.name": {"$regex": search_term, "$options": "i"}},
+            {"author.id": search_term}
+        ]
+
+    if selected_channel:
+        query["channel_name"] = selected_channel
+
+    # ✅ Preset date filter logic
+    if preset == "24h":
+        query["timestamp"]["$gte"] = now - timedelta(hours=24)
+    elif preset == "7d":
+        query["timestamp"]["$gte"] = now - timedelta(days=7)
+    elif preset == "this_week":
+        start_of_week = now - timedelta(days=now.weekday())
+        query["timestamp"]["$gte"] = datetime(start_of_week.year, start_of_week.month, start_of_week.day, tzinfo=timezone.utc)
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        logs_collection = client["Website"]["Logs"]
+        all_logs = list(logs_collection.find(query).sort("timestamp", -1))
+
+        deleted_logs = [log for log in all_logs if log.get("type") == "message_delete"]
+        edited_logs = [log for log in all_logs if log.get("type") == "message_edit"]
+
+        deleted_total = len(deleted_logs)
+        edited_total = len(edited_logs)
+        deleted_logs = deleted_logs[(deleted_page-1)*per_page : deleted_page*per_page]
+        edited_logs = edited_logs[(edited_page-1)*per_page : edited_page*per_page]
+
+        channels = logs_collection.distinct("channel_name", {"channel_name": {"$ne": None}})
+
+    return render_template(
+        "logs.html",
+        deleted_logs=deleted_logs,
+        edited_logs=edited_logs,
+        deleted_page=deleted_page,
+        deleted_total=deleted_total,
+        edited_page=edited_page,
+        edited_total=edited_total,
+        per_page=per_page,
+        search_term=search_term,
+        selected_channel=selected_channel,
+        preset=preset,
+        channels=sorted(channels),
+        year=year
+    )
+
+
+
+
 @csrf.exempt
 @app.route("/admin/lookup", methods=["GET", "POST"])
 def admin_lookup():
@@ -1434,7 +1736,7 @@ def profile():
         # XP Boost
         boost_until = level_doc.get("xp_boost_until")
         if boost_until:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             boost_until = boost_until if isinstance(boost_until, datetime) else boost_until.to_datetime()
             if boost_until > now:
                 boost_time_left = str(boost_until - now).split(".")[0]
@@ -2186,6 +2488,202 @@ def staff_panel():
     year = datetime.now(timezone.utc).year
     return render_template("staff.html", staff=staff, year=year)
 
+@app.route("/dashboard")
+def dashboard():
+    if "discord_id" not in session:
+        return redirect("/login-page")
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        settings_col = client["Website"]["bot_settings"]
+        settings = settings_col.find_one({"_id": "settings"}) or {}
+
+    return render_template(
+        "dashboard.html",
+        year=datetime.now().year,
+        username=session.get("username", "Unknown"),
+        prefix=settings.get("prefix", "!")
+    )
+
+@csrf.exempt
+@app.route("/api/update-setting", methods=["POST"])
+def update_setting():
+    if "discord_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json(force=True)
+    key = data.get("key")
+    value = data.get("value")
+
+    if key != "prefix":
+        return jsonify({"error": "Invalid setting"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        settings_col = client["Website"]["bot_settings"]
+        settings_col.update_one({"_id": "settings"}, {"$set": {key: value}}, upsert=True)
+
+    return jsonify({"message": "Prefix updated successfully!"})
+
+@app.route("/giveaway-dashboard")
+def giveaway_dashboard():
+    if "discord_id" not in session:
+        return redirect("/login-page")
+
+    return render_template(
+        "giveaway_dashboard.html",
+        BOT_WEBHOOK_KEY=os.getenv("BOT_WEBHOOK_KEY"),
+        username=session.get("username", "Unknown"),
+        year=datetime.now().year
+    )
+
+@csrf.exempt
+@app.route("/api/giveaways", methods=["GET"])
+def get_giveaways():
+    if "discord_id" not in session:
+        return jsonify([])
+
+    now_ts = time.time()
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Giveaway"]
+        giveaways = []
+
+        for g in db["current_giveaways"].find({"ended": False}):
+            end = g.get("end_time")
+            if not end:
+                continue
+            if end.timestamp() < now_ts:
+                continue  # Expired
+
+            delta = int(end.timestamp() - now_ts)
+            minutes = (delta % 3600) // 60
+            ends_in = f"{delta // 3600}h {minutes}m"
+
+            giveaways.append({
+                "prize": g.get("prize", "N/A"),
+                "winners": g.get("winners_count", 1),
+                "message_id": str(g.get("message_id")),  # <-- this line is key
+                "participants": sum(g.get("participants", {}).values()),
+                "ends_in": ends_in
+            })
+            recently_ended = list(
+                db["current_giveaways"]
+                .find({"ended": True})
+                .sort("end_time", -1)
+                .limit(10)
+            )
+
+            ended_giveaways = []
+            for g in recently_ended:
+                ended_giveaways.append({
+                    "prize": g.get("prize", "N/A"),
+                    "winners": g.get("winners_count", 1),
+                    "message_id": str(g.get("message_id")),
+                    "ended_at": g.get("end_time").strftime("%Y-%m-%d %H:%M")
+                })
+
+    return jsonify({
+        "active": giveaways,
+        "ended": ended_giveaways
+    })
+
+@csrf.exempt
+@app.route("/api/giveaways/recent", methods=["GET"])
+def recent_giveaways():
+    if "discord_id" not in session:
+        return jsonify([])
+
+    skip = int(request.args.get("skip", 0))
+    limit = int(request.args.get("limit", 9))
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Giveaway"]
+        results = []
+
+        for g in db["current_giveaways"].find({"ended": True}).sort("end_time", -1).skip(skip).limit(limit):
+            results.append({
+                "prize": g.get("prize", "N/A"),
+                "winners": g.get("winners_count", 1),
+                "message_id": str(g.get("message_id")),
+                "ended_at": g.get("end_time").strftime("%Y-%m-%d %H:%M")
+            })
+
+    return jsonify(results)
+
+@csrf.exempt
+@app.route("/api/giveaways/end/<message_id>", methods=["POST"])
+def dashboard_end_giveaway(message_id):
+    if "discord_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    bot_url = os.getenv("BOT_WEBHOOK_URL")
+
+    try:
+        print("👉 BOT_WEBHOOK_URL =", bot_url)
+        res = requests.post(
+            bot_url,
+            json={"message_id": message_id},
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+        )
+        return res.json(), res.status_code
+    except Exception as e:
+        return jsonify({"error": f"Request failed: {e}"}), 500
+
+
+@csrf.exempt
+@app.route("/api/giveaways/reroll/<message_id>", methods=["POST"])
+def reroll_giveaway(message_id):
+    if "discord_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    bot_url = os.getenv("BOT_WEBHOOK_URL")
+
+    try:
+        res = requests.post(
+            bot_url,
+            json={
+                "action": "reroll",
+                "message_id": int(message_id)
+            },
+            headers={
+                "Authorization": os.getenv("BOT_WEBHOOK_KEY")
+            }
+        )
+        print("✅ Bot webhook response:", res.status_code, res.text)
+        return res.json(), res.status_code
+    except Exception as e:
+        return jsonify({"error": f"Request failed: {e}"}), 500
+
+
+@csrf.exempt
+@app.route("/api/giveaways/reroll", methods=["POST"])
+def reroll_giveaway_post():
+    if "discord_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        data = request.get_json(force=True)
+        message_id = int(data.get("message_id"))
+        action = data.get("action", "reroll")
+    except Exception as e:
+        return jsonify({"error": f"Invalid input: {e}"}), 400
+
+    bot_url = os.getenv("BOT_WEBHOOK_URL")
+    auth_header = os.getenv("BOT_WEBHOOK_KEY")
+
+    try:
+        res = requests.post(
+            bot_url,
+            json={"message_id": message_id, "action": action},
+            headers={"Authorization": auth_header}
+        )
+        print("✅ Forwarded reroll to bot:", res.status_code, res.text)
+        return res.json(), res.status_code
+    except Exception as e:
+        print("❌ Failed to contact bot:", e)
+        return jsonify({"error": f"Request failed: {e}"}), 500
+
+
+
 
 
 @app.route('/consent-log')
@@ -2197,6 +2695,7 @@ def consent_log():
         html += f"<li>Discord ID: {user['_id']} | Hay Day ID: {user['hay_day_id']} | IP: {user['ip']} | Fingerprint: {user['fingerprint']} | Date: {user['submitted_at']}</li>"
     html += "</ul>"
     return html
+
 
 if __name__ == "__main__":
     import os
@@ -2218,3 +2717,4 @@ if __name__ == "__main__":
     else:
         # Production for Fly.io
         app.run(host="0.0.0.0", port=port)
+
