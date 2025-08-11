@@ -240,6 +240,7 @@ img.booster-avatar {
             </div>
             </div>
             <form method="POST" action="/booster-dashboard">
+              {{ csrf_token() }}
             <input type="hidden" name="target_id" value="{{ b.user_id }}">
 
             <div class="form-group">

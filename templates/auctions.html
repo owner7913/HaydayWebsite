@@ -393,10 +393,13 @@ function submitBid(e, auctionId) {
     }
     return;
   }
-
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   fetch("/api/bid", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
     body: JSON.stringify({
       auction_id: auctionId,
       amount: parseInt(amount.replace(/,/g, ''))

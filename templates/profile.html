@@ -663,12 +663,12 @@ dialog.styled-modal::backdrop {
             🔒 <span style="color: #f44336;">Private Profile</span>
           {% endif %}
         </div>
-          <form method="POST" action="/toggle-privacy" style="display: inline-block;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="toggle-privacy">
-              {% if user.public_profile %}Make Private{% else %}Make Public{% endif %}
-            </button>
-          </form>
+        <form method="POST" action="/toggle-privacy" style="display: inline-block;">
+          {{ csrf_token() }}
+          <button class="toggle-privacy">
+            {% if user.public_profile %}Make Private{% else %}Make Public{% endif %}
+          </button>
+        </form>
       </div>
     {% endif %}
 
@@ -678,7 +678,7 @@ dialog.styled-modal::backdrop {
         <button class="simple-button" onclick="document.getElementById('badgeModal').showModal()">🎖️ Select Featured Achievement</button>
         {% if user.featured_achievement %}
           <form method="POST" action="/remove-featured-achievement" style="display:inline;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {{ csrf_token() }}
             <button class="simple-button" type="submit">❌ Remove Badge</button>
           </form>
         {% endif %}
@@ -882,6 +882,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </dialog>
 <dialog id="bioModal" class="styled-modal">
   <form method="POST" action="/update-bio">
+    {{ csrf_token() }}
     <h3 style="margin-top: 0;">📝 Edit Your Bio</h3>
     <textarea name="bio"
               rows="6"
@@ -899,10 +900,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 <script>
   function selectFeaturedBadge(label) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     fetch("/set-featured-achievement", {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": csrfToken 
       },
       body: `badge=${encodeURIComponent(label)}`
     }).then(res => {
@@ -952,11 +955,13 @@ async function sendFriendAction(e) {
     : "/api/friend-respond";
 
   try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "X-Requested-With": "XMLHttpRequest"
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": csrfToken 
       },
       body: new URLSearchParams({ target_id: targetId, action })
     });
@@ -993,12 +998,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let url = "/api/friend-respond";
       if (action === "remove") url = "/api/friend-action";
-
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "X-Requested-With": "XMLHttpRequest"
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrfToken 
         },
         body: new URLSearchParams({ target_id: targetId, action: action })
       });

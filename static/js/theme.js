@@ -17,11 +17,13 @@ document.addEventListener("click", (event) => {
   logInteraction(action, { text, href });
 });
 function logInteraction(action, details = {}) {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   fetch("/log-interaction", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
-    },
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken
+    }
     body: JSON.stringify({ action, details })
   }).catch(err => console.warn("Logging failed:", err));
 }

@@ -34,6 +34,7 @@ from collections import defaultdict
 load_dotenv()
 import flask_limiter
 import unicodedata
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
@@ -54,6 +55,8 @@ limiter = Limiter(
     default_limits=["50 per minute"]
 )
 limiter.init_app(app)
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 # Discord
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
@@ -289,6 +292,20 @@ def calculate_achievements(xp, message_count, coins, streak, auctions_won=0, top
 
     return achievements
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template("errors/404.html"), 404
+
+@app.errorhandler(500)
+def server_error(e):
+    return render_template("errors/500.html"), 500
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    if request.path.startswith(('/api/', '/admin/')):
+        return {"error": "CSRF validation failed"}, 400
+    return render_template("errors/csrf.html", reason=e.description), 400
+
 
 @app.route("/admin/ip-watch")
 def ip_watch():
@@ -488,9 +505,6 @@ def admin_lookup(id):
 
 
 
-
-
-@csrf.exempt
 @app.route("/api/moderation/mute", methods=["POST"])
 def api_mute_user():
     if "discord_id" not in session or not is_staff():
@@ -580,7 +594,7 @@ def api_mute_user():
         print("[/api/moderation/mute] Error:", e)
         return jsonify({"error": str(e)}), 500
 
-@csrf.exempt
+
 @app.route("/api/moderation/kick", methods=["POST"])
 def api_kick_user():
     if "discord_id" not in session or not is_staff():
@@ -606,7 +620,7 @@ def api_kick_user():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@csrf.exempt
+
 @app.route("/api/moderation/scam", methods=["POST"])
 def api_scam_action():
     if "discord_id" not in session or not is_staff():
@@ -638,7 +652,7 @@ def api_scam_action():
         return jsonify({"error": str(e)}), 500
 
 
-@csrf.exempt
+@limiter.limit("5/minute")
 @app.route("/api/moderation/ban", methods=["POST"])
 def api_ban_user():
     if "discord_id" not in session or not is_staff():
@@ -708,7 +722,7 @@ def remove_featured_achievement():
 
     return redirect("/profile")
 
-@csrf.exempt
+
 @app.route("/booster-dashboard", methods=["GET", "POST"])
 def booster_dashboard():
     if not is_staff():
@@ -832,7 +846,6 @@ def set_featured_achievement():
     
 
 @app.route("/api/button-toggles", methods=["GET", "POST"])
-@csrf.exempt
 def button_toggles():
     if not is_staff():
         return "Unauthorized", 403
@@ -1097,7 +1110,7 @@ def api_production_data():
     return jsonify(data)
 
 
-@csrf.exempt
+
 @app.route("/admin/production", methods=["GET", "POST"])
 def admin_production():
     if not is_staff():
@@ -1179,6 +1192,7 @@ def live_auctions():
     return jsonify(results)
 
 
+@limiter.limit("10/minute")
 @csrf.exempt
 @app.route("/api/bid", methods=["POST"])
 def api_bid():
@@ -1299,15 +1313,24 @@ def api_bid():
 
 @app.after_request
 def apply_security_headers(response):
-    # Hide Flask default server header
     response.headers["Server"] = "hidden"
-
-    # Add recommended security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
+
+    # NEW
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "img-src 'self' data: https://cdn.discordapp.com; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     return response
+
 
 @app.before_request
 def block_dangerous_methods():
@@ -1734,7 +1757,7 @@ def export_logs():
     return Response(output, mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment;filename={filename}"})
 
-@csrf.exempt
+
 @app.route("/admin/logs", methods=["GET", "POST"])
 def view_logs():
     if not is_staff():
@@ -2294,9 +2317,8 @@ def admin_users():
         total_pages=(total + per_page - 1) // per_page
     )
 
-@csrf.exempt
+
 @app.route("/admin/update-bio", methods=["POST"])
-@csrf.exempt
 def update_user_bio():
     if not is_staff():
         return "Unauthorized", 403
@@ -2672,7 +2694,7 @@ def view_purchases():
         total_pages=(total + per_page - 1) // per_page
     )
 
-@csrf.exempt
+
 @app.route("/api/starboard/threshold", methods=["GET"])
 def get_star_threshold():
     if not is_admin():
@@ -2690,7 +2712,7 @@ def get_star_threshold():
     return jsonify({"threshold": threshold})
 
 
-@csrf.exempt
+
 @app.route("/api/starboard/data")
 def starboard_data():
     if not is_admin():
@@ -2825,7 +2847,6 @@ def view_interaction_logs():
     )
 
 
-@csrf.exempt
 @app.route("/api/starboard/delete", methods=["POST"])
 def delete_starboard_message():
     if not is_admin():
@@ -2843,7 +2864,7 @@ def delete_starboard_message():
     else:
         return jsonify({"message": "❌ Message not found."})
     
-@csrf.exempt
+
 @app.route("/starboard-dashboard")
 def starboard_dashboard():
     if not is_admin():  # optionally require stricter access than is_staff()
@@ -2960,7 +2981,7 @@ def auction_dashboard():
         year=datetime.now().year
     )
 
-@csrf.exempt
+
 @app.route("/api/auction/cancel", methods=["POST"])
 def cancel_auction():
     if "discord_id" not in session or not is_staff():
@@ -2994,7 +3015,7 @@ def cancel_auction():
     return redirect("/auction-dashboard")
 
 
-@csrf.exempt
+
 @app.route("/api/auction/<message_id>/bids")
 def get_auction_bids(message_id):
     if not is_staff():
@@ -3027,7 +3048,7 @@ def get_auction_bids(message_id):
         return jsonify(output)
 
     
-@csrf.exempt
+
 @app.route("/api/auction/edit", methods=["POST"])
 def edit_auction():
     if "discord_id" not in session or not is_staff():
@@ -3079,7 +3100,7 @@ def edit_auction():
     except Exception as e:
         return f"Error: {e}", 500
     
-@csrf.exempt   
+ 
 @app.route("/api/auction/remove-buyout", methods=["POST"])
 def remove_buyout():
     if "discord_id" not in session or not is_staff():
@@ -3110,7 +3131,7 @@ def remove_buyout():
 
     return redirect("/auction-dashboard")
 
-@csrf.exempt
+
 @app.route("/api/auction/remove-image", methods=["POST"])
 def remove_auction_image():
     if "discord_id" not in session or not is_staff():
@@ -3139,7 +3160,7 @@ def remove_auction_image():
     return redirect("/auction-dashboard")
 
 
-@csrf.exempt
+
 @app.route("/api/auction/end", methods=["POST"])
 def end_auction_now():
     if "discord_id" not in session or not is_staff():
@@ -3170,7 +3191,7 @@ def end_auction_now():
     return redirect("/auction-dashboard")
 
 
-@csrf.exempt
+
 @app.route("/api/auction/<message_id>/remove-bid", methods=["POST"])
 def remove_auction_bid(message_id):
     if "discord_id" not in session or not is_staff():
@@ -3261,7 +3282,6 @@ def refresh_auction_webhook():
     return "OK", 200
 
 @app.route("/admin/refund", methods=["POST"])
-@csrf.exempt
 def refund_purchase():
     if not is_admin():  # optionally require stricter access than is_staff()
         return "Unauthorized", 403
@@ -3382,7 +3402,7 @@ def dashboard():
     )
 
 
-@csrf.exempt
+
 @app.route("/dashboard/update-support-role", methods=["POST"])
 def update_support_role():
     if "discord_id" not in session or not is_staff():
@@ -3413,7 +3433,6 @@ def update_support_role():
     return redirect("/dashboard")
 
 
-@csrf.exempt
 @app.route("/api/update-setting", methods=["POST"])
 def update_setting():
     if not is_staff():
@@ -3448,7 +3467,7 @@ def giveaway_dashboard():
 
 
 
-@csrf.exempt
+
 @app.route("/api/giveaways/edit/<message_id>", methods=["POST"])
 def edit_giveaway(message_id):
     if not is_staff():
@@ -3595,7 +3614,7 @@ def recent_giveaways():
 
 
 
-@csrf.exempt
+
 @app.route("/api/giveaways/end/<message_id>", methods=["POST"])
 def end_giveaway(message_id):
     if not is_staff():
@@ -3652,7 +3671,6 @@ def get_winners(message_id):
     
 
 @app.route("/api/giveaways/delete", methods=["POST"])
-@csrf.exempt
 def delete_giveaway():
     if not is_staff():
         return "Unauthorized", 403
@@ -3692,7 +3710,7 @@ def delete_giveaway():
         return jsonify({"error": str(e)}), 500
 
     
-@csrf.exempt
+
 @app.route("/api/giveaways/reroll-specific", methods=["POST"])
 def reroll_specific():
     if not is_staff():
@@ -3718,7 +3736,7 @@ def reroll_specific():
 
 
 
-@csrf.exempt
+
 @app.route("/api/giveaways/reroll/<message_id>", methods=["POST"])
 def reroll_giveaway(message_id):
     if not is_staff():
@@ -3846,7 +3864,7 @@ def leave_giveaway_web():
         return jsonify({"success": True})
 
 
-@csrf.exempt
+
 @app.route("/api/giveaways/reroll", methods=["POST"])
 def reroll_giveaway_post():
     if not is_staff():

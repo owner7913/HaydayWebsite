@@ -221,9 +221,13 @@
 
     async function saveStarThreshold() {
       const value = parseInt(document.getElementById("star-threshold").value);
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const res = await fetch("/api/starboard/threshold", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken 
+        },
         body: JSON.stringify({ threshold: value })
       });
       const data = await res.json();
@@ -232,9 +236,13 @@
 
     async function deleteStarboardMessage() {
       const message_id = document.getElementById("delete-id").value;
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const res = await fetch("/api/starboard/delete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken 
+        },
         body: JSON.stringify({ message_id })
       });
       const data = await res.json();

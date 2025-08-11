@@ -143,6 +143,7 @@
       <div class="user-block">
         <h4>{{ user.username }} <small style="color: gray;">({{ user._id }})</small></h4>
         <form method="POST" action="/admin/update-bio">
+          {{ csrf_token() }}
           <input type="hidden" name="user_id" value="{{ user._id }}">
           <textarea name="bio">{{ user.bio }}</textarea>
           <div>

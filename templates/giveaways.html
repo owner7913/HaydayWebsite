@@ -540,12 +540,13 @@ function bindJoinForms() {
         const submitButton = form.querySelector("button[type=submit]");
         submitButton.disabled = true;
         submitButton.textContent = "Joining...";
-
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const res = await fetch('/giveaway/join', {
           method: 'POST',
           body: formData,
           headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            "X-CSRFToken": csrfToken 
           }
         });
 
@@ -594,11 +595,13 @@ function bindLeaveForms() {
       const msgId = formData.get("message_id");
 
       try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const res = await fetch('/giveaway/leave', {
           method: 'POST',
           body: formData,
           headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            "X-CSRFToken": csrfToken 
           }
         });
 

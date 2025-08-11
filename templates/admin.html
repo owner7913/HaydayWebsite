@@ -444,9 +444,13 @@ function scamAction(id, action) {
 
   if (action === "ban" || action === "unban") {
     // Ban API
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     fetch("/api/moderation/ban", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
       body: JSON.stringify({
         user_id: id,
         action: action,
@@ -471,9 +475,13 @@ function scamAction(id, action) {
 
   if (action === "unmute") {
     // Mute API with unmute mode
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     fetch("/api/moderation/mute", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
       body: JSON.stringify({
         user_id: id,
         action: "unmute",
@@ -498,10 +506,13 @@ function scamAction(id, action) {
   if (action === "kick") {
     const reason = prompt("Enter reason for kick:", "No reason provided");
     if (!reason) return;
-
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     fetch("/api/moderation/kick", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
       body: JSON.stringify({
         user_id: id,
         reason,
@@ -822,10 +833,13 @@ function scamConfirm(haydayId, action) {
     : `Remove ${haydayId} from the scam list?`;
 
   if (!confirm(confirmText)) return;
-
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   fetch("/api/moderation/scam", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
     body: JSON.stringify({
       action: action,
       scam_id: haydayId

@@ -330,9 +330,10 @@ button {
   async function rerollGiveaway(id) {
     console.log("Rerolling giveaway ID:", id, typeof id);
     if (!confirm("Reroll this giveaway?")) return;
-
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const res = await fetch(`/api/giveaways/reroll/${id}`, {
       method: "POST",
+      headers: {"X-CSRFToken": csrfToken},
       credentials: "include"
     });
     const result = await res.json();
@@ -351,9 +352,10 @@ button {
     button.disabled = true;
     const originalText = button.innerText;
     button.innerText = "⏳ Ending...";
-
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     fetch(`/api/giveaways/end/${messageId}`, {
       method: "POST",
+      headers: {"X-CSRFToken": csrfToken},
       credentials: "include"
     })
 
@@ -462,10 +464,12 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
     required_role_id: document.getElementById("editRole").value || "",  // force blank if empty
     color: document.getElementById("editColor").value
   };
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   const res = await fetch(`/api/giveaways/edit/${messageId}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
     },
     credentials: "include",
     body: JSON.stringify(data)
@@ -521,9 +525,13 @@ function closeRerollModal() {
 }
 
 function rerollWithUser(messageId, userId) {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   fetch("/api/giveaways/reroll-specific", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
     credentials: "include",
     body: JSON.stringify({ message_id: messageId, user_id: userId })
   })
@@ -542,9 +550,13 @@ async function deleteGiveaway(messageId) {
   if (!confirm("Are you sure you want to permanently delete this giveaway?")) return;
 
   try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const res = await fetch("/api/giveaways/delete", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
       body: JSON.stringify({ message_id: messageId })
     });
 

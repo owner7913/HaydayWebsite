@@ -91,6 +91,7 @@ button:hover {
       <div class="card">
         <h3>Admin Tools</h3>
         <form method="POST" action="/force-logout" onsubmit="return confirm('Are you sure you want to force logout all users?');" style="display:inline-block; margin-right: 20px;">
+          {{ csrf_token() }}
           <button type="submit" style="background:#e74c3c;">🚨 Force Logout All</button>
         </form>
         <a href="/admin/interactions" style="background:#4caf50; color:white; padding:10px 16px; border-radius:6px; text-decoration:none;">📋 View Logs</a>
@@ -142,10 +143,13 @@ function updateSetting(event, key) {
   event.preventDefault();
 
   const value = document.querySelector(`[name="${key}"]`).value;
-
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   fetch('/api/update-setting', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
     body: JSON.stringify({ key, value }),
     credentials: 'include',
     redirect: 'manual'
@@ -221,10 +225,12 @@ function updateSetting(event, key) {
   }
 
   function updateSupportRole(ticketType, roleId) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     fetch("/dashboard/update-support-role", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
       },
       credentials: "include",
       body: JSON.stringify({ ticket_type: ticketType, role_id: roleId })
@@ -239,9 +245,13 @@ function updateSetting(event, key) {
 
 
   async function updateButtonToggle(key, enabled, reason) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     await fetch("/api/button-toggles", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
       body: JSON.stringify({ key, enabled: enabled === "true", reason }),
       credentials: "include"
     });

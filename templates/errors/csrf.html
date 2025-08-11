@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}CSRF Error - HayDay 🍀{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 80px auto; text-align: center;">
+    <h1 style="font-size: 3rem; color: #e74c3c;">⚠️ CSRF Validation Failed</h1>
+    <p style="font-size: 1.2em; color: #555;">
+        {{ reason or "Your form submission could not be verified." }}
+    </p>
+    <p style="color: #777; margin-top: 15px;">
+        This can happen if you left the page open for too long or your session expired.
+    </p>
+    <a href="/" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #4caf50; color: white; border-radius: 6px; text-decoration: none;">
+        🏠 Back to Home
+    </a>
+</div>
+{% endblock %}

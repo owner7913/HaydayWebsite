@@ -393,10 +393,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       btn.disabled = true;
       btn.textContent = "⏳";
-
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const result = await fetch("/api/friend-action", {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded","X-CSRFToken": csrfToken },
         body: `target_id=${encodeURIComponent(userId)}&action=${action}`
       });
 
