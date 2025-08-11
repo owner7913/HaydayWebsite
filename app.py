@@ -42,20 +42,24 @@ print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
 
+# Session & cookie hardening
 app.config["RATELIMIT_STORAGE_URL"] = os.environ["REDIS_URL"]
 app.config["RATELIMIT_DEFAULTS"] = ["50 per minute"]
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=3600  # 1 hour session expiry
 )
 
+# Rate limiting
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["50 per minute"]
 )
 limiter.init_app(app)
 
+# Trust proxy headers (needed for HTTPS on Fly.io)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 # Discord
@@ -1313,23 +1317,35 @@ def api_bid():
 
 @app.after_request
 def apply_security_headers(response):
+    # Hide server details
     response.headers["Server"] = "hidden"
+
+    # Core protections
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
 
-    # NEW
+    # Updated CSP — currently allowing unsafe-inline until nonce migration is ready
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "img-src 'self' data: https://cdn.discordapp.com; "
-        "script-src 'self'; "
+        "img-src 'self' data: https://cdn.discordapp.com https://cdn-icons-png.flaticon.com; "
+        "script-src 'self' 'unsafe-inline' https://api.ipify.org https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline'; "
-        "connect-src 'self'; "
-        "frame-ancestors 'none'"
+        "connect-src 'self' https://api.ipify.org; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
     )
+
+    # Feature policies
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    # Enforce HTTPS for 1 year
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
     return response
+
 
 
 @app.before_request

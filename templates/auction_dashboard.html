@@ -416,7 +416,7 @@ body.dark .edit-modal-box select {
   <button onclick="toggleBids('{{ auc.message_id }}', this)">🔽 Show Bids</button>
 
   <form method="POST" action="/api/auction/end" style="display:inline;">
-    {{ csrf_token() }}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="message_id" value="{{ auc.message_id }}">
     <button class="btn btn-icon">❌ End Now</button>
   </form>
@@ -428,7 +428,7 @@ body.dark .edit-modal-box select {
   <form method="POST" action="/api/auction/cancel"
         onsubmit="return confirmCancelWithReason(this);" 
         style="display:inline;">
-        {{ csrf_token() }}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="message_id" value="{{ auc.message_id }}">
     <input type="hidden" name="reason" value="">
     <button class="btn btn-icon" style="color: red;">❌ Cancel</button>
@@ -441,7 +441,7 @@ body.dark .edit-modal-box select {
     <div style="margin-top: 5px;">
       <img src="{{ auc.image_url }}" alt="Auction Image" style="max-width: 100%; border-radius: 8px;" />
       <form method="POST" action="/api/auction/remove-image" onsubmit="return confirm('Remove image?')" style="display:inline;">
-        {{ csrf_token() }}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="message_id" value="{{ auc.message_id }}">
         <button class="btn btn-sm">🗑 Remove Image</button>
       </form>
@@ -449,7 +449,7 @@ body.dark .edit-modal-box select {
   {% endif %}
 {% if auc.buyout_offer %}
 <form method="POST" action="/api/auction/remove-buyout" onsubmit="return confirm('Remove buyout offer?')">
-  {{ csrf_token() }}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="message_id" value="{{ auc.message_id }}">
   <button class="btn btn-sm" style="background-color:#c0392b;">❌ Remove Buyout</button>
 </form>
@@ -537,7 +537,7 @@ body.dark .edit-modal-box select {
           <img src="{{ user.avatar or 'https://cdn.discordapp.com/embed/avatars/0.png' }}">
           <span>{{ user.display_name or user.username }}</span>
           <form method="POST" action="/api/auction/unban" style="margin:0;">
-            {{ csrf_token() }}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="user_id" value="{{ user._id }}">
             <button type="submit">Unban</button>
           </form>
@@ -563,7 +563,7 @@ body.dark .edit-modal-box select {
   <div class="edit-modal-box dark-mode-box" style="max-height: 90vh; overflow-y: auto;">
     <h3>Edit Auction</h3>
     <form method="POST" action="/api/auction/edit" id="editAuctionForm">
-      {{ csrf_token() }}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="message_id" id="edit-message-id">
 
       <label for="edit-item">Item:</label>
@@ -612,7 +612,7 @@ function toggleBids(messageId, btn) {
             <div>
                 <span>${bid.user_display} - ${bid.amount.toLocaleString()}</span>
                 <form method="POST" action="/api/auction/${messageId}/remove-bid" style="display:inline;">
-                  {{ csrf_token() }}
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="message_id" value="${messageId}">
                   <input type="hidden" name="user_id" value="${bid.user_id}">
                   <button type="submit">Remove</button>
@@ -671,7 +671,7 @@ function openEditAuction(messageId) {
     preview.innerHTML = `
       <img src="${entry.image_url}" alt="Preview" style="max-width:100%; border-radius:8px; margin-top:8px;">
       <form method="POST" action="/api/auction/remove-image" onsubmit="return confirm('Remove image?')" style="margin-top:5px;">
-        {{ csrf_token() }}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="message_id" value="${entry.message_id}">
         <button type="submit" class="btn btn-sm">🗑 Remove Image</button>
       </form>

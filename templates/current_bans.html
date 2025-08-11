@@ -192,7 +192,7 @@ body.dark .copy-id { background: #444; color: white; }
             <div class="ban-reason">📝 {{ ban.reason }}</div>
             {% if session.get("discord_id") and is_staff(session.get("roles", [])) %}
             <form action="/mod-action" method="POST" onsubmit="return confirm('Unban {{ ban.name }}?');">
-              {{ csrf_token() }}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="user_input" value="{{ ban._id }}">
                 <input type="hidden" name="action" value="unban">
                 <input type="hidden" name="reason" value="Unbanned via panel">

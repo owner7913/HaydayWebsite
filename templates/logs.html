@@ -269,7 +269,7 @@ body.dark .page.active {
 </form>
 
 <form method="POST" style="margin-bottom: 30px; text-align: center;">
-  {{ csrf_token() }}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="text" name="search" placeholder="Search by name or ID..." value="{{ search_term }}"
          style="padding: 10px; width: 250px; border-radius: 6px; border: 1px solid #ccc;">
 

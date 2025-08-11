@@ -555,10 +555,11 @@ async function confirmMute() {
     alert("Please provide a duration.");
     return;
   }
-
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   const res = await fetch("/api/moderation/mute", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json","X-CSRFToken": csrfToken 
+    },
     body: JSON.stringify({
       user_id: muteUserId,
       duration,

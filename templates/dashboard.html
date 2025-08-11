@@ -91,7 +91,7 @@ button:hover {
       <div class="card">
         <h3>Admin Tools</h3>
         <form method="POST" action="/force-logout" onsubmit="return confirm('Are you sure you want to force logout all users?');" style="display:inline-block; margin-right: 20px;">
-          {{ csrf_token() }}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" style="background:#e74c3c;">🚨 Force Logout All</button>
         </form>
         <a href="/admin/interactions" style="background:#4caf50; color:white; padding:10px 16px; border-radius:6px; text-decoration:none;">📋 View Logs</a>

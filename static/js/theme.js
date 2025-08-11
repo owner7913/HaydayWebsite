@@ -23,7 +23,8 @@ function logInteraction(action, details = {}) {
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": csrfToken
-    }
+    },
     body: JSON.stringify({ action, details })
   }).catch(err => console.warn("Logging failed:", err));
 }
+

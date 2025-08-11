@@ -204,7 +204,7 @@
               <span style="color: gray; font-weight: bold;">✔ Refunded</span>
             {% else %}
               <form method="post" action="/admin/refund" style="display: inline;" onsubmit="return confirm('Refund this purchase?');">
-                {{ csrf_token() }}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="purchase_id" value="{{ p._id }}">
                 <button type="submit" style="background: #d32f2f; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-weight: 600; cursor: pointer;">🗑️ Refund</button>
               </form>

@@ -131,7 +131,7 @@
         <div style="margin-top: 10px; font-size: 13px; color: #66bb6a;">✅ Already Owned</div>
       {% else %}
         <form method="POST" action="/buy" style="margin-top: 10px;">
-          {{ csrf_token() }}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="item_id" value="{{ key }}">
           <button type="submit" class="buy-button">Buy</button>
         </form>

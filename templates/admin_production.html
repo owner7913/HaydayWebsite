@@ -139,7 +139,7 @@
 
     <!-- Form -->
     <form id="productForm" method="POST" class="form-grid" enctype="multipart/form-data">
-      {{ csrf_token() }}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <!-- Each .form-group is left untouched from your version (clean already) -->
       <!-- ... [unchanged form-group blocks from original go here] ... -->
 
