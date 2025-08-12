@@ -36,10 +36,7 @@
             <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}"><a href="/profile-directory">Members</a></li>
             <li><a href="/shop">Shop</a></li>
             <li>
-              <a href="/logout?next=/" 
-                onclick="localStorage.clear(); sessionStorage.clear(); setTimeout(() => location.reload(true), 50)">
-                Logout
-              </a>
+              <a href="/logout?next=/">Logout</a>
             </li>
           </ul>
         {% else %}

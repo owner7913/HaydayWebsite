@@ -36,6 +36,7 @@ import flask_limiter
 import unicodedata
 from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
+import uuid
 
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
@@ -1359,6 +1360,11 @@ def apply_security_headers(response):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
     return response
+
+@app.before_request
+def ensure_session_id():
+    if "session_id" not in session:
+        session["session_id"] = str(uuid.uuid4())
 
 @app.before_request
 def set_session_lifetime():
@@ -3389,10 +3395,20 @@ def refund_purchase():
 def logout():
     next_page = request.args.get("next", "/")
     session.clear()
+    
+    # Make sure session cookie is deleted
     resp = redirect(next_page)
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"] = "no-cache"
+    resp.set_cookie(
+        key=app.session_cookie_name,
+        value='',
+        expires=0,
+        max_age=0,
+        secure=True,
+        httponly=True,
+        samesite='Lax'
+    )
     return resp
+
 
 
 @app.route("/terms")
