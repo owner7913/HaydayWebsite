@@ -3389,8 +3389,10 @@ def refund_purchase():
 def logout():
     next_page = request.args.get("next", "/")
     session.clear()
-    return redirect(next_page)
-
+    resp = redirect(next_page)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @app.route("/terms")
