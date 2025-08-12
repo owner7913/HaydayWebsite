@@ -2568,15 +2568,20 @@ def public_profile(discord_id):
         if not fallback:
             return "🚫 This profile is private or does not exist.", 404
 
-        # ✅ Always use avatar URL from synced collection
-        avatar_url = fallback.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png")
+        # Get synced info from Website.usernames
         display_name = fallback.get("display_name", fallback.get("username", "Unknown"))
+        avatar_url = fallback.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png")
         roles = fallback.get("roles", [])
 
-        # Check if user has explicitly set public/private preference
+        # Get Website.users doc and force-sync name/avatar
         user = users_collection.find_one({"_id": discord_id}) or {}
+        user["display_name"] = display_name  # ✅ always use latest name from usernames collection
+        user["avatar"] = avatar_url          # ✅ always use latest avatar from usernames collection
+
+        # Public/private check
         if not user.get("public_profile", True) and not is_owner:
             return "🚫 This profile is private or does not exist.", 404
+
 
         # Staff badges from roles
         staff_badges = []
@@ -2624,9 +2629,9 @@ def public_profile(discord_id):
             all_users = list(level_col.find().sort("xp", -1))
             rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
 
-    return render_template("profile.html",
+    return render_template(
+        "profile.html",
         discord_id=discord_id,
-        display_name=display_name,
         avatar_url=avatar_url,
         user=user,
         staff_badges=staff_badges,
@@ -2645,6 +2650,7 @@ def public_profile(discord_id):
         streak=streak,
         is_owner=is_owner
     )
+
 
 
 
@@ -3394,20 +3400,20 @@ def refund_purchase():
 @app.route("/logout")
 def logout():
     next_page = request.args.get("next", "/")
+
+    # Clear all session data
     session.clear()
-    
-    # Make sure session cookie is deleted
+
+    # Create a response to redirect and remove the cookie
     resp = redirect(next_page)
-    resp.set_cookie(
-        key=app.session_cookie_name,
-        value='',
-        expires=0,
-        max_age=0,
-        secure=True,
-        httponly=True,
-        samesite='Lax'
+    resp.delete_cookie(
+        key=app.config["SESSION_COOKIE_NAME"],  # Flask 2.3+ way
+        path="/",
+        domain=None  # or set to your domain if you explicitly set it in config
     )
+
     return resp
+
 
 
 
