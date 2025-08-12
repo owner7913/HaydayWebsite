@@ -296,6 +296,20 @@ def calculate_achievements(xp, message_count, coins, streak, auctions_won=0, top
 
     return achievements
 
+def log_abuse_attempt(action, details=None):
+    """Log a blocked login or callback attempt to the Interaction Logs collection."""
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["InteractionLogs"]
+        col.insert_one({
+            "action": action,
+            "details": details or {},
+            "username": session.get("username"),
+            "discord_id": session.get("discord_id"),
+            "timestamp": datetime.utcnow(),
+            "user_agent": request.headers.get("User-Agent", "Unknown"),
+            "ip": request.headers.get("X-Forwarded-For", request.remote_addr),
+        })
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template("errors/404.html"), 404
@@ -1717,8 +1731,9 @@ def login_page():
     return redirect(url_for("login", next=next_path))
 
 @app.route("/login")
+@limiter.limit("5 per minute",key_func=get_remote_address,error_message="Too many login attempts. Please wait a minute.")
 def login():
-    state = secrets.token_urlsafe(16)  # Generate random state
+    state = secrets.token_urlsafe(16)
     session["oauth_state"] = state
     next_page = request.args.get("next", "/")
     session["next_page"] = next_page
@@ -1731,7 +1746,7 @@ def login():
         f"&scope=identify%20guilds.members.read"
         f"&guild_id=959220051427340379"
         f"&prompt=consent"
-        f"&state={state}"  # ✅ Pass state to Discord
+        f"&state={state}" 
     )
 
 
@@ -2173,12 +2188,18 @@ def leaderboard():
 
 
 @app.route("/callback")
+@limiter.limit("10 per minute", key_func=get_remote_address, error_message="Too many requests to the callback endpoint. Please wait a bit.")
 def callback():
     try:
         state = request.args.get("state")
         if not state or state != session.get("oauth_state"):
+            log_abuse_attempt("OAuth Invalid State", {
+                "state": state,
+                "expected_state": session.get("oauth_state"),
+                "ip": request.headers.get("X-Forwarded-For", request.remote_addr)
+            })
             return "❌ Invalid OAuth state parameter", 400
-        session.pop("oauth_state", None)  # Remove after use
+        session.pop("oauth_state", None)
 
         code = request.args.get("code")
         if not code:
