@@ -35,6 +35,7 @@ load_dotenv()
 import flask_limiter
 import unicodedata
 from werkzeug.middleware.proxy_fix import ProxyFix
+import secrets
 
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
@@ -49,7 +50,6 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    PERMANENT_SESSION_LIFETIME=3600  # 1 hour session expiry
 )
 
 # Rate limiting
@@ -112,7 +112,7 @@ BAN_TIME = 604800  # 7 days in seconds
 csrf = CSRFProtect(app)
 
 # Session lifetime
-app.permanent_session_lifetime = timedelta(days=7)
+app.permanent_session_lifetime = timedelta(hours=12)
 
 GUILD_ID = 959220051427340379  # your server ID
 UNVERIFIED_ROLE_ID = 959238651999567893
@@ -1346,7 +1346,17 @@ def apply_security_headers(response):
 
     return response
 
+@app.before_request
+def set_session_lifetime():
+    session.permanent = True
+    user_roles = session.get("roles", [])
 
+    if any(role in STAFF_ROLES for role in user_roles):
+        # Staff — shorter lifetime
+        app.permanent_session_lifetime = timedelta(hours=3)
+    else:
+        # Normal users — longer lifetime
+        app.permanent_session_lifetime = timedelta(hours=12)
 
 @app.before_request
 def block_dangerous_methods():
@@ -1708,16 +1718,23 @@ def login_page():
 
 @app.route("/login")
 def login():
+    state = secrets.token_urlsafe(16)  # Generate random state
+    session["oauth_state"] = state
     next_page = request.args.get("next", "/")
-    session["next_page"] = next_page  # ✅ good
+    session["next_page"] = next_page
+
     return redirect(
-        f"https://discord.com/oauth2/authorize?client_id={DISCORD_CLIENT_ID}"
+        f"https://discord.com/oauth2/authorize"
+        f"?client_id={DISCORD_CLIENT_ID}"
         f"&redirect_uri={DISCORD_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=identify%20guilds.members.read"
         f"&guild_id=959220051427340379"
         f"&prompt=consent"
+        f"&state={state}"  # ✅ Pass state to Discord
     )
+
+
 
 @app.route("/admin/logs/export")
 def export_logs():
@@ -2155,11 +2172,14 @@ def leaderboard():
     return render_template("leaderboard.html", users=users, page=page, total_pages=total_pages, type=lb_type, viewer_id=viewer_id, is_staff=is_staff)
 
 
-
-
 @app.route("/callback")
 def callback():
     try:
+        state = request.args.get("state")
+        if not state or state != session.get("oauth_state"):
+            return "❌ Invalid OAuth state parameter", 400
+        session.pop("oauth_state", None)  # Remove after use
+
         code = request.args.get("code")
         if not code:
             return "❌ Missing code from Discord redirect", 400
@@ -2194,10 +2214,11 @@ def callback():
         ).json()
         session.permanent = True
         session["guild_name"] = guild_data.get("name", "HayDay 🍀")
+        member_data = {}
         if member_res.status_code == 200:
             member_data = member_res.json()
             session["display_name"] = member_data.get("nick") or user["username"]
-            session["roles"] = member_data.get("roles", [])
+            session["roles"] = [int(r) for r in member_data.get("roles", [])]
         else:
             session["display_name"] = user["username"]
             session["roles"] = []
