@@ -103,6 +103,34 @@
     <div class="stats">
       ✅ Today: <strong>{{ stats.today }}</strong> · Past 7 Days: <strong>{{ stats.week }}</strong> · Anonymous Users: <strong>{{ stats.anon }}</strong>
     </div>
+  <h2 style="margin-top: 24px;">📊 Top Pages (by views)</h2>
+  <div class="log-card" style="overflow-x:auto;">
+    {% if top_pages and total_views %}
+      <table style="width:100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #333;">Path</th>
+            <th style="text-align:right; padding:8px; border-bottom:1px solid #333;">Views</th>
+            <th style="text-align:right; padding:8px; border-bottom:1px solid #333;">% of Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in top_pages %}
+          <tr>
+            <td style="padding:8px; border-bottom:1px solid #222;">{{ p._id }}</td>
+            <td style="padding:8px; text-align:right; border-bottom:1px solid #222;">{{ p.count|default(0) }}</td>
+            <td style="padding:8px; text-align:right; border-bottom:1px solid #222;">
+              {{ "%.2f"|format(((p.count|default(0)) / total_views) * 100) }}%
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="log-meta" style="margin-top:8px;">Total page views recorded: {{ total_views }}</div>
+    {% else %}
+      <div>No page view data yet.</div>
+    {% endif %}
+  </div>
 
     <form class="search-bar" method="get" action="/admin/interactions">
       <input type="text" name="search" placeholder="Search logs..." value="{{ search }}">

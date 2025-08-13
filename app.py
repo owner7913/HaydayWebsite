@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages, flash, Response, make_response, abort, g
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages, flash, Response, make_response, abort, stream_with_context
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, HiddenField
 from wtforms.validators import DataRequired
@@ -19,11 +19,8 @@ from io import StringIO
 from markupsafe import Markup
 from pytz import timezone as pytz_timezone
 from functools import lru_cache
-import httpx
 import nest_asyncio
 nest_asyncio.apply()
-import aiohttp
-import asyncio
 import traceback
 from livereload import Server
 import logging
@@ -37,6 +34,11 @@ import unicodedata
 from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
 import uuid
+from pathlib import Path
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from flask import send_from_directory
+
 
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
@@ -91,7 +93,8 @@ SCANNER_PATHS = [
 
     # Other CMSs and config targets
     "/joomla", "/drupal", "/typo3", "/cms", "/site", "/phpmyadmin", "/pma",
-    "/config.json", "/config.php", "/.env", "/env", "/.git/config", "/admin.php",
+    "/config.json", "/config.php", "/.env", "/.env.dev", "/.env.local", "/env",
+    "/.git/config", "/.git/HEAD", "/admin.php",
 
     # Known vulnerable or backdoor files
     "/shell.php", "/cmd.php", "/upload.php", "/file.php", "/alfa.php", "/ws.php",
@@ -104,11 +107,12 @@ SCANNER_PATHS = [
     "/test", "/test.php", "/temp", "/backup", "/old", "/dev"
 ]
 
+
 banned_ips_loaded = False
 BANNED_IPS = set()
 ip_hits = defaultdict(list)
 SCAN_THRESHOLD = 20  # Max suspicious hits before ban
-BAN_TIME = 604800  # 7 days in seconds
+BAN_TIME = 2592000  # 30 days in seconds
 # CSRF protection
 csrf = CSRFProtect(app)
 
@@ -129,6 +133,130 @@ ROLE_ID_TO_NAME = {
     "345678901234567890": "Booster",
     # Add your role ID to name mappings here
 }
+
+# very simple in-memory cache (restart-safe not required here)
+_API_CACHE = {}   # key -> (expires_ts, bytes, headers_dict)
+_IMG_CACHE = {}   # url -> (expires_ts, bytes, headers_dict)
+_TTL_API  = 6 * 60 * 60     # 6h
+_TTL_IMG  = 24 * 60 * 60    # 24h
+
+
+THUMB_SIZE_DEFAULT = 96
+THUMB_ROOT = Path("static/thumbs")                 # served by Flask static
+THUMB_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Optional title exceptions (expand if you find mismatches)
+TITLE_EXCEPTIONS = {
+    "Tea leaf": "Tea_Leaves",
+    # "Plain Yogurt": "Plain_Yogurt",
+}
+
+def normalize_title(name: str) -> str:
+    """Convert 'Brown Sugar' -> 'Brown_Sugar', apply exceptions."""
+    if not name: return ""
+    base = TITLE_EXCEPTIONS.get(name, name)
+    return "_".join(str(base).strip().split())
+
+def fandom_imageinfo(title_snake: str, size: int):
+    """Ask MediaWiki for a PNG thumb (fallback original) for File:<title>.png or .jpg."""
+    def query(ext):
+        params = {
+            "action": "query",
+            "format": "json",
+            "prop": "imageinfo",
+            "iiprop": "url|mime",
+            "iiurlwidth": str(size),           # ask for thumbnail
+            "titles": f"File:{title_snake}.{ext}",
+        }
+        r = requests.get("https://hayday.fandom.com/api.php", params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
+
+    # try PNG, then JPG
+    for ext in ("png", "jpg"):
+        data = query(ext)
+        pages = data.get("query", {}).get("pages", {})
+        page = next(iter(pages.values()), {})
+        ii = (page.get("imageinfo") or [None])[0]
+        if not ii: 
+            continue
+        raw = ii.get("thumburl") or ii.get("url")
+        if not raw:
+            continue
+        # prefer PNG transparency: force format=png if possible
+        if "format=png" not in raw:
+            sep = "&" if "?" in raw else "?"
+            raw = f"{raw}{sep}format=png"
+        return raw
+    return None
+
+def _snake(title: str) -> str:
+    # "Brown Sugar" -> "Brown_Sugar"
+    return normalize_title(title)
+
+def _all_titles_from_db() -> list[str]:
+    """All product titles to prewarm (distinct)."""
+    try:
+        with MongoClient(os.getenv("MONGO_URI")) as c:
+            col = c["hayday"]["ProductionGuide"]
+            rows = col.find({}, {"product": 1})
+            titles = {_snake(r.get("product", "")) for r in rows if r.get("product")}
+            return sorted(t for t in titles if t)
+    except Exception as e:
+        print("[thumbs] could not read mongo:", e)
+        return []
+
+def _download_one(slug: str, size: int = THUMB_SIZE_DEFAULT) -> str:
+    """
+    slug is already snake-cased (e.g., 'Brown_Sugar').
+    Writes static/thumbs/<slug>.png if missing.
+    Returns status string for logging.
+    """
+    try:
+        path = THUMB_ROOT / f"{slug}.png"
+        if path.exists() and path.stat().st_size > 0:
+            return "hit"
+
+        url = fandom_imageinfo(slug, size)
+        if not url:
+            return "miss"
+
+        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        if r.ok and r.content:
+            path.write_bytes(r.content)
+            return "ok"
+        return f"fail({r.status_code})"
+    except Exception as e:
+        return f"err({e})"
+
+def prewarm_thumbs(size: int = THUMB_SIZE_DEFAULT, max_workers: int = 8):
+    titles = _all_titles_from_db()
+    if not titles:
+        print("[thumbs] no titles to warm")
+        return
+
+    print(f"[thumbs] prewarm start: {len(titles)} items, size={size}")
+    done = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        for status in pool.map(lambda s: _download_one(s, size), titles):
+            done += 1
+            if done % 25 == 0:
+                print(f"[thumbs] {done}/{len(titles)} ({status})")
+    print(f"[thumbs] prewarm complete: {done} files")
+
+
+
+def _get_cached(d, k):
+    v = d.get(k)
+    if not v: return None
+    exp, body, headers = v
+    if exp < time.time():
+        d.pop(k, None)
+        return None
+    return body, headers
+
+def _set_cached(d, k, body, headers, ttl):
+    d[k] = (time.time() + ttl, body, headers)
 
 def parse_duration(duration_str):
     time_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -912,26 +1040,43 @@ def giveaways_page():
         user_db = client["Website"]["usernames"]
         raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
 
-        # Step 1: Collect all unique user + host IDs
+        # --- ensure session roles are present & normalized ---
+        discord_id = session.get("discord_id")
+        session_roles = session.get("roles") or []
+        if not session_roles and discord_id:
+            # fallback: load roles from Website.usernames
+            udoc = user_db.find_one({"_id": str(discord_id)}, {"roles": 1})
+            if udoc:
+                session_roles = [str(r) for r in udoc.get("roles", [])]
+                session["roles"] = session_roles  # cache back into session
+        else:
+            # normalize whatever's in session to strings
+            session_roles = [str(r) for r in session_roles]
+
+        # collect user + host ids (unchanged) ...
         user_ids = set()
         for g in raw_giveaways:
-            user_ids.update(g.get("participants", {}).keys())
+            user_ids.update(map(str, g.get("participants", {}).keys()))
             if "host_id" in g:
                 user_ids.add(str(g["host_id"]))
-
-        # Load all relevant users
         users = user_db.find({"_id": {"$in": list(user_ids)}})
         user_map = {str(u["_id"]): u for u in users}
 
         giveaways = []
         now_ts = time.time()
         now = datetime.now(COPENHAGEN_TZ)
+
         guild_id = "959220051427340379"
         try:
             role_mapping = fetch_role_mapping(guild_id)
         except Exception as e:
             print(f"[Giveaways Page] Failed to fetch roles: {e}")
             role_mapping = {}
+
+        # Make sure these IDs are strings
+        BYPASS_ROLE_ID = "975188431636418681"
+        # Make sure this is your real member role ID:
+        MEMBER_ROLE_ID = "959220051469279296"
 
         for g in raw_giveaways:
             end = g.get("end_time")
@@ -941,11 +1086,9 @@ def giveaways_page():
                 end = end.replace(tzinfo=timezone.utc)
             end_local = end.astimezone(COPENHAGEN_TZ)
 
-            # ✅ Skip expired
             if end_local.timestamp() < now_ts:
                 continue
 
-            # Time setup
             diff = int(end.timestamp() - now_ts)
             hours = diff // 3600
             minutes = (diff % 3600) // 60
@@ -954,24 +1097,21 @@ def giveaways_page():
             g["end_time_str"] = f"<t:{int(end.timestamp())}:R>"
             g["end_time_ts"] = int(end.timestamp())
 
-            # Giveaway info
             g["entry_count"] = sum(g.get("participants", {}).values())
             g["winners"] = g.get("winners_count", 1)
             g["guild_id"] = str(g.get("guild_id", GUILD_ID))
             g["channel_id"] = str(g.get("channel_id", ""))
-            g["participants_percent"] = []
-            g["participant_info"] = []
+
             required_id = str(g.get("required_role_id")) if g.get("required_role_id") else None
             g["required_role_name"] = role_mapping.get(required_id, {}).get("name") if required_id else None
 
-            # Session roles
-            user_roles = session.get("roles", [])
-            bypass_role_id = "975188431636418681"
-            g["has_bypass"] = bypass_role_id in user_roles
-            g["can_join"] = not required_id or required_id in user_roles or g["has_bypass"]
+            # ✅ use normalized session_roles (strings)
+            user_roles = session_roles
+            g["has_bypass"] = BYPASS_ROLE_ID in user_roles
+            g["can_join"] = (not required_id) or (required_id in user_roles) or g["has_bypass"]
             g["not_in_guild"] = str(MEMBER_ROLE_ID) not in user_roles
 
-            # Host info
+            # host info…
             host_id = str(g.get("host_id"))
             host = user_map.get(host_id)
             g["host_display"] = host.get("display_name", f"<@{host_id}>") if host else f"<@{host_id}>"
@@ -980,40 +1120,29 @@ def giveaways_page():
                 if host and host.get("avatar_hash") else None
             )
 
-            # Participants info
+            # participants info…
             total_entries = g["entry_count"]
+            g["participants_percent"] = []
+            g["participant_info"] = []
             for uid, count in g.get("participants", {}).items():
                 uid_str = str(uid)
                 percent = round((count / total_entries) * 100, 2) if total_entries else 0
                 user = user_map.get(uid_str)
                 display_name = user.get("display_name", f"<@{uid_str}>") if user else f"<@{uid_str}>"
-                avatar = (
-                    user.get("avatar")
-                    if user and user.get("avatar")
-                    else "https://cdn.discordapp.com/embed/avatars/0.png"
-                )
+                avatar = user.get("avatar") if user and user.get("avatar") else "https://cdn.discordapp.com/embed/avatars/0.png"
+                g["participants_percent"].append({"id": uid_str, "count": count, "percent": percent})
+                g["participant_info"].append({"id": uid_str, "count": count, "percent": percent, "name": display_name, "avatar": avatar})
 
-                g["participants_percent"].append({
-                    "id": uid_str,
-                    "count": count,
-                    "percent": percent
-                })
-                g["participant_info"].append({
-                    "id": uid_str,
-                    "count": count,
-                    "percent": percent,
-                    "name": display_name,
-                    "avatar": avatar
-                })
             giveaways.append(g)
 
         return render_template(
             "giveaways.html",
             giveaways=giveaways,
-            discord_id=session.get("discord_id"),
-            user_roles=session.get("roles", []),
+            discord_id=discord_id,
+            user_roles=session_roles,
             year=now.year
         )
+
 
 @app.route("/api/giveaways/won")
 def won_giveaways():
@@ -1128,6 +1257,84 @@ def api_production_data():
         data = list(col.find({}, {"_id": 0}))  # Exclude _id for frontend use
     return jsonify(data)
 
+@app.route("/api/fandom-thumbs")
+def fandom_thumbs():
+    qs = request.query_string.decode("utf-8")
+    key = f"/api.php?{qs}"
+    cached = _get_cached(_API_CACHE, key)
+    if cached:
+        body, headers = cached
+        return Response(body, headers=headers)
+
+    url = f"https://hayday.fandom.com/api.php?{qs}"
+    r = requests.get(url, timeout=10)
+    body = r.content
+    headers = {"Content-Type": r.headers.get("Content-Type", "application/json"),
+               "Cache-Control": "public, max-age=86400"}
+    _set_cached(_API_CACHE, key, body, headers, _TTL_API)
+    return Response(body, headers=headers)
+
+@app.route("/api/thumbs")
+def api_thumbs():
+    size = request.args.get("size", "96")
+    titles = request.args.get("titles", "")
+    url = "https://hayday.fandom.com/api.php"
+    params = {
+        "action": "query",
+        "prop": "pageimages",
+        "pithumbsize": size,
+        "titles": titles,
+        "format": "json"
+    }
+    r = requests.get(url, params=params)
+    return jsonify(r.json())
+
+
+# Optional: image proxy if your img-src CSP blocks external images or you hit canvas taint
+@app.route("/img-proxy")
+def img_proxy():
+    url = request.args.get("url", "")
+    # allowlist CDN
+    if not url.startswith("https://static.wikia.nocookie.net/"):
+        return "blocked", 400
+
+    cached = _get_cached(_IMG_CACHE, url)
+    if cached:
+        body, headers = cached
+        return Response(body, headers=headers)
+
+    r = requests.get(url, stream=True, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+    body = r.content
+    headers = {
+        "Content-Type": r.headers.get("Content-Type", "image/png"),
+        "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*",
+    }
+    _set_cached(_IMG_CACHE, url, body, headers, _TTL_IMG)
+    return Response(body, headers=headers)
+
+@app.route("/thumb/<slug>.png")
+def serve_thumb(slug):
+    """
+    slug is already like 'Brown_Sugar'. If the file doesn't exist,
+    fetch once, save, and serve. Frontend can just hit /thumb/<slug>.png.
+    """
+    path = THUMB_ROOT / f"{slug}.png"
+    if not path.exists():
+        # one-shot lazy fill
+        _download_one(slug, THUMB_SIZE_DEFAULT)
+
+    if path.exists():
+        return send_from_directory(THUMB_ROOT, f"{slug}.png",
+                                   mimetype="image/png",
+                                   cache_timeout=_TTL_IMG)
+    # tiny transparent pixel as a last resort (avoids 404 spam)
+    return Response(
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0bIDATx\x9cc``\x00\x00\x00\x02\x00\x01"
+        b"\xe2!\xbc3\x00\x00\x00\x00IEND\xaeB`\x82",
+        headers={"Content-Type": "image/png", "Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.route("/admin/production", methods=["GET", "POST"])
@@ -1362,6 +1569,15 @@ def apply_security_headers(response):
     return response
 
 @app.before_request
+def track_page_views():
+    if request.endpoint not in ("static",):
+        path = request.path
+        with MongoClient(os.getenv("MONGO_URI")) as client:
+            pv_col = client["Website"]["PageViews"]
+            pv_col.update_one({"_id": path}, {"$inc": {"count": 1}}, upsert=True)
+
+
+@app.before_request
 def ensure_session_id():
     if "session_id" not in session:
         session["session_id"] = str(uuid.uuid4())
@@ -1373,10 +1589,10 @@ def set_session_lifetime():
 
     if any(role in STAFF_ROLES for role in user_roles):
         # Staff — shorter lifetime
-        app.permanent_session_lifetime = timedelta(hours=3)
+        app.permanent_session_lifetime = timedelta(days=7)
     else:
         # Normal users — longer lifetime
-        app.permanent_session_lifetime = timedelta(hours=12)
+        app.permanent_session_lifetime = timedelta(days=14)
 
 @app.before_request
 def block_dangerous_methods():
@@ -1390,7 +1606,6 @@ def handle_scanner_protection():
 
     raw_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
     real_ip = raw_ip.split(",")[0].strip()
-
     internal_ip = request.remote_addr
     path = request.path.lower()
     now = time.time()
@@ -1414,9 +1629,14 @@ def handle_scanner_protection():
                     BANNED_IPS.discard(real_ip)
                     app.logger.info(f"[UNBANNED] IP {real_ip} was automatically unbanned after expiry")
                 else:
-                    app.logger.warning(f"[AUTO-BLOCKED] {real_ip} is banned — tried {path} (internal: {internal_ip})")
+                    # 🔄 Extend the ban if they hit again
+                    client["Security"]["banned_ips"].update_one(
+                        {"_id": real_ip},
+                        {"$set": {"banned_at": datetime.utcnow()}},
+                        upsert=True
+                    )
+                    app.logger.warning(f"[AUTO-EXTENDED BAN] {real_ip} tried {path} again — ban extended (internal: {internal_ip})")
                     abort(403)
-
 
     # Check for scanner-like behavior
     matched = next((pattern for pattern in SCANNER_PATHS if pattern in path), None)
@@ -2653,7 +2873,10 @@ def public_profile(discord_id):
 
 
 
-
+@app.route("/builder")
+def builder():
+    year = datetime.now(timezone.utc).year
+    return render_template("builder.html", year=year)
 
 @csrf.exempt
 @app.route("/buy", methods=["POST"])
@@ -2892,7 +3115,7 @@ def view_interaction_logs():
         total = col.count_documents(query)
         logs = list(col.find(query).sort("timestamp", -1).skip(skip).limit(limit))
 
-        # Stats
+        # Stats for the normal interaction logs
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         past_week = today - timedelta(days=6)
 
@@ -2903,6 +3126,18 @@ def view_interaction_logs():
             "actions": col.distinct("action")
         }
 
+        # ✅ Top pages tracking
+        pv_col = client["Website"]["PageViews"]
+        top_pages = list(pv_col.find().sort("count", -1).limit(20))
+        agg = list(pv_col.aggregate([
+            {"$group": {"_id": None, "total": {"$sum": "$count"}}}
+        ]))
+        total_views = agg[0]["total"] if agg else 0
+
+        # Convert MongoDB _id to path string for template
+        for p in top_pages:
+            p["_id"] = str(p.get("_id", ""))
+            
     return render_template(
         "admin_interactions.html",
         logs=logs,
@@ -2913,6 +3148,8 @@ def view_interaction_logs():
         action_filter=action_filter,
         anon_only=anon_only,
         stats=stats,
+        top_pages=top_pages,
+        total_views=total_views,    
         year=datetime.now().year
     )
 
@@ -3978,6 +4215,14 @@ def reroll_giveaway_post():
         return jsonify({"error": f"Request failed: {e}"}), 500
 
 
+
+# Start prewarm in the background (guarded so it runs once per process)
+if os.getenv("WARM_THUMBS", "1") == "1":
+    try:
+        threading.Thread(target=prewarm_thumbs, daemon=True).start()
+        print("[thumbs] background prewarm thread started")
+    except Exception as e:
+        print("[thumbs] failed to start prewarm thread:", e)
 
 
 if __name__ == "__main__":
