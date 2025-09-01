@@ -98,6 +98,42 @@ button:hover {
       </div>
     {% endif %}
 
+  <div class="card">
+    <h3>🛠️ Maintenance Banner</h3>
+    <div class="toggle-row">
+      <label>Enabled</label>
+      <select id="mb-enabled">
+        <option value="true">Enabled</option>
+        <option value="false">Disabled</option>
+      </select>
+      <div></div>
+    </div>
+
+    <div class="toggle-row">
+      <label>Require OK</label>
+      <select id="mb-require">
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+      <div></div>
+    </div>
+
+    <div class="toggle-row">
+      <label>Message</label>
+      <input type="text" id="mb-message" placeholder="Banner text...">
+      <div></div>
+    </div>
+
+    <div class="toggle-row">
+      <label>Version</label>
+      <input type="text" id="mb-version" placeholder="1">
+      <div></div>
+    </div>
+
+    <button type="button" onclick="saveMaintenanceBanner()">Save Banner</button>
+    <p id="mb-status"></p>
+  </div>
+
       <div class="card">
         <h3>🔒 Toggle Feature Buttons</h3>
         <div id="button-settings"></div>
@@ -138,7 +174,55 @@ button:hover {
 {% endblock %}
 
 {% block scripts %}
+
 <script>
+async function loadMaintenanceBanner() {
+  // The banner config is already on every page render via Jinja (maintenance_banner)
+  // But fetch a fresh copy via endpoint if you prefer; otherwise hydrate from template vars.
+  const cfg = {{ maintenance_banner|tojson }};
+  document.getElementById('mb-enabled').value = String(!!cfg.enabled);
+  document.getElementById('mb-require').value = String(!!cfg.require_ack);
+  document.getElementById('mb-message').value = cfg.message || "";
+  document.getElementById('mb-version').value = String(cfg.version || 1);
+}
+async function saveMaintenanceBanner() {
+  const enabled = document.getElementById('mb-enabled').value === "true";
+  const requireAck = document.getElementById('mb-require').value === "true";
+  const message = document.getElementById('mb-message').value.trim();
+  const version = parseInt(document.getElementById('mb-version').value || "1", 10);
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const res = await fetch('/api/update-setting', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      key: 'maintenance_banner',
+      value: {
+        enabled: enabled,
+        message: message,
+        require_ack: requireAck,
+        version: isNaN(version) ? 1 : version
+      }
+    })
+  });
+
+  const p = document.getElementById('mb-status');
+  if (res.ok) {
+    p.textContent = '✅ Saved. If you increased the version, users will be prompted again.';
+    p.style.color = 'green';
+  } else {
+    p.textContent = '❌ Failed to save.';
+    p.style.color = 'red';
+  }
+  setTimeout(()=> p.textContent = '', 4000);
+}
+loadMaintenanceBanner();
+
+
 function updateSetting(event, key) {
   event.preventDefault();
 

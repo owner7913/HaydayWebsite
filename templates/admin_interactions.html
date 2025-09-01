@@ -120,7 +120,7 @@
             <td style="padding:8px; border-bottom:1px solid #222;">{{ p._id }}</td>
             <td style="padding:8px; text-align:right; border-bottom:1px solid #222;">{{ p.count|default(0) }}</td>
             <td style="padding:8px; text-align:right; border-bottom:1px solid #222;">
-              {{ "%.2f"|format(((p.count|default(0)) / total_views) * 100) }}%
+              {{ (((p.count|default(0)) / total_views) * 100) | round(2) }}%
             </td>
           </tr>
           {% endfor %}

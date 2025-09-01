@@ -12,6 +12,56 @@
 <body class="light">
   <div class="background-blur"></div>
   <div class="overlay"></div>
+{% if maintenance_banner.enabled %}
+  <div id="maint-banner" class="maint-banner" hidden>
+    <div class="maint-inner">
+      <span class="maint-text">🛠️ {{ maintenance_banner.message or
+        "We’re performing maintenance. Small connection issues may occur." }}</span>
+      <button id="maint-ok" class="maint-ok">OK</button>
+    </div>
+  </div>
+<script>
+  (function() {
+    const cfg = {
+      requireAck: {{ 'true' if maintenance_banner.require_ack else 'false' }},
+      version: {{ maintenance_banner.version|int }},
+    };
+    const key = "maintenance_ack_v" + cfg.version;
+    const banner = document.getElementById("maint-banner");
+    const okBtn = document.getElementById("maint-ok");
+
+    function show() {
+      banner.hidden = false;
+      // After layout, compute height for push-down
+      requestAnimationFrame(() => {
+        document.documentElement.style.setProperty('--maint-banner-height', banner.offsetHeight + 'px');
+        document.body.classList.add('has-maint-banner');
+      });
+    }
+
+    function hide() {
+      banner.hidden = true;
+      document.body.classList.remove('has-maint-banner');
+      document.documentElement.style.removeProperty('--maint-banner-height');
+    }
+
+    const alreadyAcked = !!localStorage.getItem(key);
+    const shouldShow = cfg.requireAck ? !alreadyAcked : true;
+    if (shouldShow) show();
+
+    okBtn?.addEventListener('click', function() {
+      if (cfg.requireAck) localStorage.setItem(key, String(Date.now()));
+      hide();
+    });
+
+    // Optional: allow Esc to dismiss (non-required mode only)
+    document.addEventListener('keydown', (e) => {
+      if (!cfg.requireAck && e.key === 'Escape') hide();
+    });
+  })();
+</script>
+
+{% endif %}
 
   {% include 'header.html' %}
 

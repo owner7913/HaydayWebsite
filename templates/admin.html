@@ -386,9 +386,9 @@ button:hover {
     <main class="dashboard-content">
     <div class="admin-panel-card">
       <h1 class="admin-title">🛠 Admin Panel</h1>
-      <p class="admin-subtitle">Search for a user using Discord ID </p>
+      <p class="admin-subtitle">Search for a user with Discord ID or #TAG</p>
       <div class="search-bar-wrapper">
-        <input type="text" id="lookupInput" placeholder="🔍 Enter Discord ID..." />
+        <input type="text" id="lookupInput" placeholder="Enter Discord ID or #TAG...">
         <button onclick="performLookup()">Search</button>
       </div>
     </div>
@@ -890,55 +890,70 @@ function renderRowCard(title, contentHTML, footerHTML = "") {
 }
 
 
-  async function performLookup() {
-    const id = document.getElementById("lookupInput").value.trim();
-    if (!id) return alert("Enter a valid ID");
+async function performLookup() {
+  const input = document.getElementById("lookupInput");
+  const id = input.value.trim();
+  if (!id) return alert("Enter a Discord ID or #TAG");
 
-    const res = await fetch(`/api/admin-lookup/${id}`);
-    const data = await res.json();
-    cachedData = data;
+  const btn = document.querySelector('.search-bar-wrapper button');
+  const prevText = btn?.textContent;
+  btn && (btn.disabled = true, btn.textContent = "Searching…");
 
-    const container = document.getElementById("results");
-    container.innerHTML = "";
+  let res, data;
+  try {
+    res = await fetch(`/api/admin-lookup/${encodeURIComponent(id)}`);
+    data = await res.json();
+  } catch (e) {
+    document.getElementById("results").innerHTML =
+      `<p style="color:red;">❌ Network error: ${String(e).slice(0,180)}</p>`;
+    btn && (btn.disabled = false, btn.textContent = prevText);
+    return;
+  }
 
-    if (data.error) {
-      container.innerHTML = `<p style="color: red;">❌ ${data.error}</p>`;
-      return;
-    }
+  cachedData = data;
+  const container = document.getElementById("results");
+  container.innerHTML = "";
 
-    container.innerHTML = `
-      <div class="card-list">
-        ${renderRowCard("👤 User Summary", renderUserSummary(data.user_summary))}
-        ${renderRowCard("🧾 Verification Attempts", renderVerificationEntries(data.linked_data))}
-        <div class="wide-card">
-          <div class="card-header">✏ Message Edits</div>
-          <div class="card-body card-body-edits"></div>
-        </div>
-        <div class="wide-card">
-          <div class="card-header">🗑 Message Deletes</div>
-          <div class="card-body card-body-deletes"></div>
-        </div>
-        <div class="wide-card">
-          <div class="card-header">📛 Name Changes</div>
-          <div class="card-body card-body-names"></div>
-        </div>
-        ${renderRowCard("⌨ Commands", renderCommands(data.commands))}
+  if (!res.ok || data.error) {
+    // 404 from backend -> show a friendly message
+    const msg = data?.error || `HTTP ${res.status}`;
+    container.innerHTML = `<p style="color:red;">❌ ${msg}</p>`;
+    btn && (btn.disabled = false, btn.textContent = prevText);
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card-list">
+      ${renderRowCard("👤 User Summary", renderUserSummary(data.user_summary))}
+      ${renderRowCard("🧾 Verification Attempts", renderVerificationEntries(data.linked_data))}
+      <div class="wide-card">
+        <div class="card-header">✏ Message Edits</div>
+        <div class="card-body card-body-edits"></div>
       </div>
-    `;
+      <div class="wide-card">
+        <div class="card-header">🗑 Message Deletes</div>
+        <div class="card-body card-body-deletes"></div>
+      </div>
+      <div class="wide-card">
+        <div class="card-header">📛 Name Changes</div>
+        <div class="card-body card-body-names"></div>
+      </div>
+      ${renderRowCard("⌨ Commands", renderCommands(data.commands))}
+    </div>
+  `;
 
-    updateCardSection("edits");
-    updateCardSection("deletes");
-    updateCardSection("names");
-  }
+  updateCardSection("edits");
+  updateCardSection("deletes");
+  updateCardSection("names");
 
-let originalMuteModalHTML = "";
+  btn && (btn.disabled = false, btn.textContent = prevText);
+}
 
-document.addEventListener("DOMContentLoaded", () => {
-  const modal = document.querySelector("#muteModal .modal-content");
-  if (modal) {
-    originalMuteModalHTML = modal.innerHTML;
-  }
+// Optional: press Enter to search
+document.getElementById("lookupInput")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") performLookup();
 });
+
 
 
   </script>

@@ -1,0 +1,95 @@
+{# templates/builder.html #}
+{% extends "base.html" %}
+{% block title %}HayDay 🍀 – Builder{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/builder.css') }}">
+<style>
+  /* keep below your fixed site header */
+  .page-builder { padding-top: calc(var(--site-header-h, 64px) + 16px); padding-bottom: 120px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-builder builder-wrap">
+  <div class="topbar">
+    <div class="brand">HayDay 🍀</div>
+    <div class="controls">
+      <label class="row">
+        <span>Items/row</span>
+        <input id="cols" type="range" min="2" max="12" value="6" />
+        <span id="colsVal">6</span>
+      </label>
+      <label class="row">
+        <span>Search</span>
+        <input id="search" type="text" placeholder="wheat, bread, ring..." />
+      </label>
+      <button id="copyImg">Copy image</button>
+      <button id="copyText">Copy text</button>
+    </div>
+  </div>
+
+  <main>
+    <section class="panel add">
+      <h2>➕ Add / Edit item</h2>
+      <label class="row">
+        <span>Name</span>
+        <input id="name" type="text" list="suggestions" autocomplete="off" />
+        <datalist id="suggestions"></datalist>
+      </label>
+      <label class="row">
+        <span>Qty</span>
+        <input id="qty" type="text" value="1" />
+      </label>
+      <label class="row">
+        <span>Price / Mult</span>
+        <input id="price" type="text" placeholder="e.g. 900 or 1.5x or 2k" />
+      </label>
+      <div class="row">
+        <button id="submit">Submit</button>
+        <button id="remove">Remove</button>
+      </div>
+      <p class="hint">Qty supports math (3*4). Use <code>x</code> to multiply max price, or <code>k/m</code> suffixes.</p>
+    </section>
+
+    <section id="shotWrap">
+      <div id="shot">
+        <div class="grid" id="grid"></div>
+        <div class="footer">
+          <div class="total">
+            <div id="totalVal">0</div>
+            <div class="coins" title="Estimated total"></div>
+          </div>
+          <div class="note" contenteditable="true" id="bottomNote">Partials accepted</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<template id="card-tpl">
+  <div class="card">
+    <div class="imgWrap"><img alt="" loading="lazy" /></div>
+    <div class="meta">
+      <div class="name"></div>
+      <div class="row tight">
+        <label>Qty</label><input class="qty" type="number" min="0" />
+      </div>
+      <div class="row tight">
+        <label>Price/Mult</label><input class="porm" type="text" />
+      </div>
+      <div class="sum" title="Item total">—</div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.7.0/math.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js" crossorigin="anonymous"></script>
+<script>
+  window.HD_ITEMS_ENDPOINT = "/api/wiki-products";
+  window.HD_ITEM_IMAGE_BASE = "{{ url_for('static', filename='img') }}/hd";
+</script>
+<script src="{{ url_for('static', filename='js/builder.js') }}"></script>
+{% endblock %}

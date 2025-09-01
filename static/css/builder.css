@@ -1,0 +1,65 @@
+:root{
+  --bg:#0f1512;
+  --panel:#131c18;
+  --card:#0f1915;
+  --border:#1f2a25;
+  --text:#e7f5ed;
+  --muted:#a9c5b5;
+  --accent:#3bd27f;
+  --accent-2:#78f0a7;
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(86,255,153,.12), transparent 70%),
+    radial-gradient(1200px 600px at 120% 10%, rgba(86,255,153,.10), transparent 70%),
+    var(--bg);
+  color:var(--text);
+  font: 16px/1.4 ui-sans-serif,system-ui,Segoe UI,Roboto,Ubuntu,Helvetica,Arial;
+}
+.topbar{
+  position:sticky; top:0; z-index:5;
+  display:flex; gap:24px; align-items:center; justify-content:space-between;
+  padding:12px 20px; background:rgba(15,21,18,.8); backdrop-filter:saturate(140%) blur(6px);
+  border-bottom:1px solid var(--border);
+}
+.brand{font-weight:800; letter-spacing:.3px}
+.controls{display:flex; gap:16px; flex-wrap:wrap; align-items:center}
+.controls .row{display:flex; gap:8px; align-items:center}
+.controls input[type="text"], .controls input[type="range"]{background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px}
+.controls button{border:1px solid var(--border); background:linear-gradient(180deg,var(--accent),var(--accent-2)); color:#072; font-weight:700; padding:10px 12px; border-radius:12px; box-shadow:var(--shadow); cursor:pointer}
+.controls button:active{transform:translateY(1px)}
+
+main{max-width:1100px; margin: 24px auto; padding: 0 16px; display:grid; grid-template-columns: 360px 1fr; gap:24px}
+@media (max-width: 980px){ main{grid-template-columns: 1fr} }
+
+.panel{
+  background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:var(--shadow)
+}
+.panel h2{margin:0 0 10px}
+.panel .row{display:flex; gap:10px; align-items:center; margin:8px 0}
+.panel input[type="text"], .panel input[type="number"]{background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px; width:100%}
+.panel button{background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:12px; padding:10px 12px; cursor:pointer}
+.panel .hint{color:var(--muted); font-size:.9rem}
+
+#shotWrap{display:flex; align-items:center; justify-content:center}
+#shot{--cols:6; width: min(100%, 720px); background:#08120e; border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); overflow:hidden}
+.grid{display:grid; grid-template-columns: repeat(var(--cols), 1fr); gap:8px; padding:16px; background:linear-gradient(180deg,#0b1a14,#0b2017)}
+.card{background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column}
+.imgWrap{aspect-ratio:1/1; display:grid; place-items:center; background:rgba(255,255,255,.02)}
+.imgWrap img{width:92%; height:92%; object-fit:contain; image-rendering: -webkit-optimize-contrast}
+.meta{padding:10px; display:grid; grid-template-columns: 1fr; gap:6px}
+.name{font-weight:700; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.meta .row.tight{grid-template-columns: auto 1fr; display:grid; gap:8px; align-items:center}
+.meta input{padding:6px 8px; font-size:.95rem}
+.sum{margin-top:4px; border-top:1px dashed var(--border); padding-top:6px; color:var(--muted); font-weight:600; font-variant-numeric: tabular-nums}
+
+.footer{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--border); background:linear-gradient(180deg,#0b2017,#08140f)}
+.total{display:flex; align-items:center; gap:10px}
+.total #totalVal{font-size:1.3rem; font-weight:800; letter-spacing:.3px}
+.coins{width:28px; height:28px; background-image: radial-gradient(circle at 30% 30%, #ffd76b, #ffb300 60%, #c78200); border-radius:50%; box-shadow: inset 0 0 0 2px rgba(0,0,0,.25), 0 0 0 1px rgba(0,0,0,.2)}
+.note{flex:1; text-align:right; color:var(--muted); outline:none}
+.note:focus{color:var(--text)}

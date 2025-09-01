@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages, flash, Response, make_response, abort, stream_with_context
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages,send_file, flash, Response, make_response, abort, stream_with_context
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, HiddenField
 from wtforms.validators import DataRequired
@@ -38,7 +38,12 @@ from pathlib import Path
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from flask import send_from_directory
-
+import json, time, re, unicodedata, requests
+from bs4 import BeautifulSoup 
+from concurrent.futures import ThreadPoolExecutor
+import email.utils as eut
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib, mimetypes, os
 
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
@@ -142,14 +147,126 @@ _TTL_IMG  = 24 * 60 * 60    # 24h
 
 
 THUMB_SIZE_DEFAULT = 96
-THUMB_ROOT = Path("static/thumbs")                 # served by Flask static
-THUMB_ROOT.mkdir(parents=True, exist_ok=True)
+THUMB_ROOT = Path(__file__).parent / "static" / "thumbs"  # use pathlib.Path
+GOODS_TITLES_PATH = THUMB_ROOT / "_goods_titles.json"
+GOODS_TITLES_TTL = 7 * 24 * 60 * 60  # refresh weekly
+
+def _title_from_slug(slug: str) -> str:
+    # "Blueberry_Chutney" -> "Blueberry Chutney"
+    return slug.replace("_", " ")
 
 # Optional title exceptions (expand if you find mismatches)
 TITLE_EXCEPTIONS = {
     "Tea leaf": "Tea_Leaves",
     # "Plain Yogurt": "Plain_Yogurt",
 }
+
+def _space(s: str) -> str:
+    return " ".join(str(s or "").strip().split())
+
+def _snake(s: str) -> str:
+    return _space(s).replace(" ", "_")
+
+def fetch_goods_titles(force: bool = False) -> list[str]:
+    # use cached file unless forcing or stale
+    if GOODS_TITLES_PATH.exists() and not force:
+        try:
+            if time.time() - GOODS_TITLES_PATH.stat().st_mtime < GOODS_TITLES_TTL:
+                return json.loads(GOODS_TITLES_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Ask Fandom for rendered HTML of the page
+    params = {"action": "parse", "format": "json", "prop": "text", "page": "Goods_List"}
+    r = requests.get("https://hayday.fandom.com/api.php", params=params, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    html = data.get("parse", {}).get("text", {}).get("*", "")
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+    titles = set()
+
+    # Find the big goods table(s). They’re usually 'wikitable' or 'article-table'.
+    for tbl in soup.select("table.wikitable, table.article-table"):
+        # Expect header includes 'Name'
+        headers = [th.get_text(strip=True).lower() for th in tbl.select("thead th, tr th")]
+        if headers and "name" not in headers[0].lower():
+            # if first col isn't Name, skip
+            pass
+        for row in tbl.select("tr"):
+            cells = row.find_all(["td"])
+            if not cells:
+                continue
+            first = cells[0]
+            a = first.find("a", href=True)
+            if not a:
+                continue
+            # Prefer link title (page title) or text
+            title = a.get("title") or a.get_text(" ", strip=True)
+            title = _space(title)
+            # Filter out non-article links (like 'Image')
+            if not title or title.lower() in {"image"}:
+                continue
+            titles.add(title)
+
+    # Persist
+    out = sorted(titles)
+    GOODS_TITLES_PATH.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def fetch_goods_titles(force: bool = False) -> list[str]:
+    # use cached file unless forcing or stale
+    if GOODS_TITLES_PATH.exists() and not force:
+        try:
+            if time.time() - GOODS_TITLES_PATH.stat().st_mtime < GOODS_TITLES_TTL:
+                return json.loads(GOODS_TITLES_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Ask Fandom for rendered HTML of the page
+    params = {"action": "parse", "format": "json", "prop": "text", "page": "Goods_List"}
+    r = requests.get("https://hayday.fandom.com/api.php", params=params, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    html = data.get("parse", {}).get("text", {}).get("*", "")
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+    titles = set()
+
+    # Find the big goods table(s). They’re usually 'wikitable' or 'article-table'.
+    for tbl in soup.select("table.wikitable, table.article-table"):
+        # Expect header includes 'Name'
+        headers = [th.get_text(strip=True).lower() for th in tbl.select("thead th, tr th")]
+        if headers and "name" not in headers[0].lower():
+            # if first col isn't Name, skip
+            pass
+        for row in tbl.select("tr"):
+            cells = row.find_all(["td"])
+            if not cells:
+                continue
+            first = cells[0]
+            a = first.find("a", href=True)
+            if not a:
+                continue
+            # Prefer link title (page title) or text
+            title = a.get("title") or a.get_text(" ", strip=True)
+            title = _space(title)
+            # Filter out non-article links (like 'Image')
+            if not title or title.lower() in {"image"}:
+                continue
+            titles.add(title)
+
+    # Persist
+    out = sorted(titles)
+    GOODS_TITLES_PATH.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
 
 def normalize_title(name: str) -> str:
     """Convert 'Brown Sugar' -> 'Brown_Sugar', apply exceptions."""
@@ -158,52 +275,48 @@ def normalize_title(name: str) -> str:
     return "_".join(str(base).strip().split())
 
 def fandom_imageinfo(title_snake: str, size: int):
-    """Ask MediaWiki for a PNG thumb (fallback original) for File:<title>.png or .jpg."""
+    """Ask MediaWiki for a PNG thumb (fallback original) for File:<title>.png/.jpg."""
     def query(ext):
         params = {
-            "action": "query",
-            "format": "json",
-            "prop": "imageinfo",
-            "iiprop": "url|mime",
-            "iiurlwidth": str(size),           # ask for thumbnail
+            "action": "query", "format": "json",
+            "prop": "imageinfo", "iiprop": "url|mime",
+            "iiurlwidth": str(size),                 # ask for thumbnail
             "titles": f"File:{title_snake}.{ext}",
         }
         r = requests.get("https://hayday.fandom.com/api.php", params=params, timeout=10)
         r.raise_for_status()
         return r.json()
 
-    # try PNG, then JPG
     for ext in ("png", "jpg"):
-        data = query(ext)
-        pages = data.get("query", {}).get("pages", {})
-        page = next(iter(pages.values()), {})
-        ii = (page.get("imageinfo") or [None])[0]
-        if not ii: 
+        try:
+            data = query(ext)
+            pages = data.get("query", {}).get("pages", {})
+            page  = next(iter(pages.values()), {})
+            ii    = (page.get("imageinfo") or [None])[0]
+            raw   = ii and (ii.get("thumburl") or ii.get("url"))
+            if not raw:
+                continue
+            # prefer PNG output
+            if "format=png" not in raw:
+                raw += ("&" if "?" in raw else "?") + "format=png"
+            return raw
+        except Exception:
             continue
-        raw = ii.get("thumburl") or ii.get("url")
-        if not raw:
-            continue
-        # prefer PNG transparency: force format=png if possible
-        if "format=png" not in raw:
-            sep = "&" if "?" in raw else "?"
-            raw = f"{raw}{sep}format=png"
-        return raw
     return None
+
 
 def _snake(title: str) -> str:
     # "Brown Sugar" -> "Brown_Sugar"
     return normalize_title(title)
 
 def _all_titles_from_db() -> list[str]:
-    """All product titles to prewarm (distinct)."""
     try:
         with MongoClient(os.getenv("MONGO_URI")) as c:
             col = c["hayday"]["ProductionGuide"]
             rows = col.find({}, {"product": 1})
-            titles = {_snake(r.get("product", "")) for r in rows if r.get("product")}
-            return sorted(t for t in titles if t)
+            return sorted({_space(r.get("product", "")) for r in rows if r.get("product")})
     except Exception as e:
-        print("[thumbs] could not read mongo:", e)
+        print("[thumbs] mongo read failed:", e)
         return []
 
 def _download_one(slug: str, size: int = THUMB_SIZE_DEFAULT) -> str:
@@ -230,18 +343,30 @@ def _download_one(slug: str, size: int = THUMB_SIZE_DEFAULT) -> str:
         return f"err({e})"
 
 def prewarm_thumbs(size: int = THUMB_SIZE_DEFAULT, max_workers: int = 8):
-    titles = _all_titles_from_db()
-    if not titles:
+    # gather titles
+    db_titles = _all_titles_from_db()
+    try:
+        goods_titles = fetch_goods_titles(False)  # if you added it; else this excepts
+    except Exception:
+        goods_titles = []
+
+    all_titles = sorted({ _space(t) for t in (db_titles + goods_titles) if t })
+    if not all_titles:
         print("[thumbs] no titles to warm")
         return
 
-    print(f"[thumbs] prewarm start: {len(titles)} items, size={size}")
+    print(f"[thumbs] prewarm start: {len(all_titles)} items, size={size}")
+
+    def resolver(title: str):
+        return _download_one(_snake(title), size)
+
     done = 0
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        for status in pool.map(lambda s: _download_one(s, size), titles):
+        for status in pool.map(resolver, all_titles):
             done += 1
             if done % 25 == 0:
-                print(f"[thumbs] {done}/{len(titles)} ({status})")
+                print(f"[thumbs] {done}/{len(all_titles)} ({status})")
+
     print(f"[thumbs] prewarm complete: {done} files")
 
 
@@ -331,6 +456,339 @@ def fetch_role_mapping(guild_id):
         }
         for role in roles
     }
+
+WIKI_API = "https://hayday.fandom.com/api.php"
+WIKI_USER_AGENT = "HayDay🍀/wiki-products (contact: your-email@example.com)"
+WIKI_CACHE_ID = "wiki_products_v1"
+WIKI_TTL = 60 * 60 * 24  # 24h
+
+
+def _mongo():
+    return MongoClient(os.getenv("MONGO_URI"))
+
+
+
+
+# Any template that contains “Infobox” and is not a navbox/template cruft counts as an item page
+def looks_like_item_templates(templates: list[str]) -> bool:
+    t = " ".join(templates).lower()
+    if "infobox" not in t:
+        return False
+    # exclude common non-item boxes if needed
+    return not ("navbox" in t or "sidebar" in t)
+
+_cache_products = {"data": None, "ts": 0}
+_CACHE_TTL = 300  # seconds
+_CACHE = {"data": None, "ts": 0}
+CACHE_FILE = Path("/tmp/wiki_products.json")
+CACHE_TTL = 60 * 60  # 1 hour
+_build_lock = threading.Lock()
+_build_inflight = False
+
+# retries for wiki
+_session = requests.Session()
+_adapter = requests.adapters.HTTPAdapter(max_retries=3)
+_session.mount("https://", _adapter)
+_session.mount("http://", _adapter)
+
+
+def _wiki_get(params: dict, timeout=8):
+    params = {**params, "format": "json", "redirects": 1}
+    r = _session.get(WIKI_API, params=params, timeout=timeout)
+    r.raise_for_status()
+    return r.json()
+
+
+def _walk_category(root_title: str, max_depth: int = 2):
+    """BFS category walk; collect ns=0 pages; follow subcats to max_depth."""
+    pages = {}
+    seen_cats = set()
+    q = [(root_title, 0)]
+
+    while q:
+        cat, depth = q.pop(0)
+        if cat in seen_cats:
+            continue
+        seen_cats.add(cat)
+
+        cmcontinue = None
+        while True:
+            params = {
+                "action": "query",
+                "list": "categorymembers",
+                "cmtitle": cat,
+                "cmlimit": "max",
+                "cmtype": "page|subcat",
+            }
+            if cmcontinue:
+                params["cmcontinue"] = cmcontinue
+            data = _wiki_get(params)
+
+            for m in data.get("query", {}).get("categorymembers", []):
+                ns = m.get("ns")
+                title = m.get("title", "")
+                if ns == 0:
+                    if title not in HARD_SKIP:
+                        pages[m["pageid"]] = title
+                elif ns == 14 and depth < max_depth:
+                    q.append((title, depth + 1))
+
+            cmcontinue = data.get("continue", {}).get("cmcontinue")
+            if not cmcontinue:
+                break
+
+    return pages  # {pageid: title}
+
+def _get_category_members(category: str):
+    out, cmcontinue = [], None
+    while True:
+        params = {
+            "action": "query", "list": "categorymembers",
+            "cmtitle": category, "cmlimit": "max",
+            "cmtype": "page", "cmnamespace": "0",
+        }
+        if cmcontinue: params["cmcontinue"] = cmcontinue
+        data = _wiki_get(params)
+        out.extend(data.get("query", {}).get("categorymembers", []))
+        cmcontinue = data.get("continue", {}).get("cmcontinue")
+        if not cmcontinue: break
+    return out  # [{pageid, title}]
+
+_SKIP_TITLE_RE = re.compile(r"\b(list|goods list|products?)\b", re.I)
+
+def _pageimages_for(ids, size=96):
+    if not ids:
+        return {}
+    params = {
+        "action": "query", "prop": "pageimages",
+        "pithumbsize": str(size),
+        "pageids": "|".join(str(i) for i in ids),
+    }
+    data = _wiki_get(params)
+    pages = data.get("query", {}).get("pages", {})
+    return {int(pid): pg.get("thumbnail", {}).get("source") for pid, pg in pages.items()}
+
+def _chunk(seq, n):
+    for i in range(0, len(seq), n):
+        yield seq[i:i+n]
+
+def _build_items(depth=2, thumb_size=96):
+    # 1) collect pages
+    pages = {}
+    for root in ROOT_CATEGORIES:
+        try:
+            pages.update(_walk_category(root, max_depth=depth))
+        except Exception as e:
+            app.logger.warning("[wiki] walk failed for %s: %s", root, e)
+
+    pids = list(pages.keys())
+    # 2) thumbnails in parallel (wiki-friendly fanout)
+    thumbs = {}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = [pool.submit(_pageimages_for, chunk, thumb_size) for chunk in _chunk(pids, 50)]
+        for fut in as_completed(futures):
+            try:
+                thumbs.update(fut.result())
+            except Exception as e:
+                app.logger.warning("[wiki] pageimages batch failed: %s", e)
+
+    # 3) assemble
+    items = []
+    for pid in sorted(pids, key=lambda x: pages[x].lower()):
+        title = pages[pid]
+        name = title.replace("_", " ")
+        raw = thumbs.get(pid)
+        img = f"/img-proxy?url={requests.utils.requote_uri(raw)}" if raw else None
+        items.append({
+            "id": name.lower().replace(" ", "_"),
+            "name": name,
+            "title": title,
+            "img": img,
+        })
+    return items
+
+def _templates_for(pageids):
+    """Return {pid: [Template:Name, ...]}"""
+    params = {
+        "action": "query", "prop": "templates",
+        "tllimit": "max",
+        "pageids": "|".join(str(i) for i in pageids),
+    }
+    data = _wiki_get(params)
+    pages = data.get("query", {}).get("pages", {})
+    out = {}
+    for pid, page in pages.items():
+        tmpl_titles = [t.get("title","") for t in page.get("templates", [])]
+        out[int(pid)] = tmpl_titles
+    return out
+
+def _save_cache(items):
+    with _mongo() as m:
+        m["Website"]["cache"].update_one(
+            {"_id": WIKI_CACHE_ID},
+            {"$set": {"items": items, "updated_at": int(time.time())}},
+            upsert=True,
+        )
+
+def _cache_fresh(doc):
+    if not doc or "updated_at" not in doc: return False
+    return (time.time() - doc["updated_at"]) < WIKI_TTL
+
+
+
+def _load_cache():
+    with _mongo() as m:
+        doc = m["Website"]["cache"].find_one({"_id": WIKI_CACHE_ID})
+        return doc
+    
+def _req(params):
+    params = dict(params)
+    params["format"] = "json"
+    headers = {"User-Agent": WIKI_USER_AGENT}
+    r = requests.get(WIKI_API, params=params, headers=headers, timeout=20)
+    r.raise_for_status()
+    return r.json()
+    
+def _list_category_members(category, limit=500):
+    """Yield page dicts: {pageid, title} from a Fandom category."""
+    cmcontinue = None
+    while True:
+        params = {
+            "action": "query",
+            "list": "categorymembers",
+            "cmtitle": f"Category:{category}",
+            "cmlimit": limit,
+            "cmtype": "page",
+        }
+        if cmcontinue:
+            params["cmcontinue"] = cmcontinue
+        data = _req(params)
+        for it in data.get("query", {}).get("categorymembers", []):
+            yield {"pageid": it["pageid"], "title": it["title"]}
+        cmcontinue = data.get("continue", {}).get("cmcontinue")
+        if not cmcontinue:
+            break
+
+def _get_page_thumb_and_wikitext(pageids):
+    """Batch-fetch thumbnails + wikitext."""
+    # 1) thumbs
+    thumbs = {}
+    for i in range(0, len(pageids), 50):
+        batch = pageids[i:i+50]
+        q = _req({
+            "action": "query", "pageids": "|".join(map(str, batch)),
+            "prop": "pageimages", "piprop": "thumbnail|name", "pithumbsize": 256
+        })
+        for pid, page in q.get("query", {}).get("pages", {}).items():
+            thumbs[int(pid)] = page.get("thumbnail", {}).get("source")
+
+    # 2) wikitext
+    wikis = {}
+    for i in range(0, len(pageids), 20):
+        batch = pageids[i:i+20]
+        # action=parse can take pageid one by one; use revisions for batch content
+        q = _req({
+            "action": "query", "pageids": "|".join(map(str, batch)),
+            "prop": "revisions", "rvprop": "content", "rvslots": "main"
+        })
+        for pid, page in q.get("query", {}).get("pages", {}).items():
+            revs = page.get("revisions") or []
+            if revs:
+                # MW 1.33+ stores content in slots
+                slot = revs[0].get("slots", {}).get("main", {})
+                wikis[int(pid)] = slot.get("*") or slot.get("content") or ""
+    return thumbs, wikis
+
+_price_line = re.compile(
+    r"(?i)^\s*\|\s*(?:sell\s*price|max\s*price|price)\s*=\s*([0-9][0-9,\.]*)", re.M)
+_price_anywhere = re.compile(
+    r"(?i)(?:sell|max).{0,8}price[^0-9]{0,8}([0-9][0-9,\.]+)")
+
+def _parse_max_price(wikitext):
+    if not wikitext: return None
+    m = _price_line.search(wikitext)
+    if not m:
+        m = _price_anywhere.search(wikitext)
+    if not m: return None
+    s = m.group(1)
+    s = s.replace(",", "")
+    try:
+        return int(float(s))
+    except:
+        return None
+
+def _title_to_key(title):
+    # "Carrot Cake" -> "Carrot_Cake"
+    return "_".join(p.capitalize() for p in title.replace("_", " ").split())
+
+def _build_wiki_products(depth=2):
+    """
+    depth=1 => Products only
+    depth=2 => Products + important subcats (e.g., Materials, Crops) – tweak as needed
+    """
+    categories = ["Products"]
+    if depth >= 2:
+        categories += ["Crops", "Animal Products", "Materials"]  # add more if you want
+
+    # 1) list pages
+    pages = {}
+    for cat in categories:
+        for p in _list_category_members(cat):
+            pages[p["pageid"]] = p["title"]
+
+    # 2) bulk fetch thumbs + wikitext
+    pageids = list(pages.keys())
+    thumbs, wikis = _get_page_thumb_and_wikitext(pageids)
+
+    # 3) normalize
+    items = []
+    for pid in pageids:
+        title = pages[pid]
+        key = _title_to_key(title)          # builder key
+        price = _parse_max_price(wikis.get(pid, ""))
+        thumb = thumbs.get(pid)
+
+        # If you have an /img-proxy, prefer that to avoid mixed content/CORS:
+        if thumb:
+            thumb = url_for("img_proxy", _external=False) + f"?url={requests.utils.requote_uri(thumb)}" \
+                    if "img_proxy" in {r.rule for r in app.url_map.iter_rules()} else thumb
+
+        items.append({
+            "name": title,           # "Carrot Cake"
+            "key": key,              # "Carrot_Cake"
+            "max_price": price,      # may be None if not found
+            "thumb": thumb
+        })
+    # optional: filter obvious junk
+    items = [it for it in items if not re.search(r"(?i)Category:|Template:", it["name"])]
+    return items
+
+def _kick_build_async(depth):
+    def _do():
+        try:
+            items = _build_wiki_products(depth=depth)
+            _save_cache(items)
+        except Exception as e:
+            app.logger.exception("wiki build failed: %s", e)
+    threading.Thread(target=_do, daemon=True).start()
+
+def _cache(resp: Response, seconds: int = 60*60*24*7):  # default 7 days
+    resp.headers["Cache-Control"] = f"public, max-age={seconds}, immutable"
+    return resp
+
+IMG_CACHE_DIR = Path("/tmp/img_proxy_cache")
+IMG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+def _cache_key_for_url(url: str) -> Path:
+    h = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    # Try to keep an extension for correct content-type
+    ext = os.path.splitext(url.split("?")[0])[1].lower() or ".bin"
+    # sanitize weird query-extensions
+    if len(ext) > 6 or any(ch in ext for ch in ':/\\'):
+        ext = ".bin"
+    return IMG_CACHE_DIR / f"{h}{ext}"
+
+
 
 def calculate_achievements(xp, message_count, coins, streak, auctions_won=0, top_bidder_count=0, mentions=0):
     achievements = []
@@ -439,6 +897,35 @@ def log_abuse_attempt(action, details=None):
             "ip": request.headers.get("X-Forwarded-For", request.remote_addr),
         })
 
+def get_settings_collection(client=None):
+    if client:
+        return client["Website"]["settings"]
+    with MongoClient(os.getenv("MONGO_URI")) as client2:
+        return client2["Website"]["settings"]
+
+def read_maintenance_banner():
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["settings"]
+        doc = col.find_one({"_id": "maintenance_banner"})
+        if not doc:
+            return {"enabled": False, "message": "", "require_ack": False, "version": 1}
+        # Normalize expected fields
+        return {
+            "enabled": bool(doc.get("enabled", False)),
+            "message": doc.get("message", ""),
+            "require_ack": bool(doc.get("require_ack", True)),
+            "version": int(doc.get("version", 1)),
+        }
+
+@app.context_processor
+def inject_maintenance_banner():
+    # Inject into all templates
+    try:
+        banner = read_maintenance_banner()
+    except Exception:
+        banner = {"enabled": False, "message": "", "require_ack": False, "version": 1}
+    return {"maintenance_banner": banner}
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template("errors/404.html"), 404
@@ -522,6 +1009,33 @@ def shop():
 
     return render_template("shop.html", items=SHOP_ITEMS, coins=coins, owned_items=owned_items)
 
+@app.post("/api/update-setting")
+@csrf.exempt
+def api_update_setting():
+    if not is_staff():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    key = data.get("key")
+    value = data.get("value")
+
+    if not key:
+        return jsonify({"error": "Missing key"}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["settings"]
+
+        # If complex object (dict) is passed for maintenance banner, store as-is
+        if key == "maintenance_banner":
+            if not isinstance(value, dict):
+                return jsonify({"error": "maintenance_banner value must be an object"}), 400
+            value["_id"] = "maintenance_banner"
+            col.update_one({"_id": "maintenance_banner"}, {"$set": value}, upsert=True)
+            return jsonify({"message": "Maintenance banner updated"}), 200
+
+        # Fallback for your other scalar settings (e.g., prefix)
+        col.update_one({"_id": key}, {"$set": {"_id": key, "value": value}}, upsert=True)
+        return jsonify({"message": f"{key} updated"}), 200
 
 
 @app.route("/send-reply", methods=["POST"])
@@ -539,33 +1053,108 @@ def send_reply():
     })
     return redirect("/active-tickets")
 
+@app.route("/api/wiki-products-local")
+def api_wiki_products_local():
+    items = []
+    if THUMB_ROOT.exists():
+        for p in THUMB_ROOT.glob("*.png"):
+            slug = p.stem
+            name = slug.replace("_", " ")
+            items.append({
+                "id": slug.lower(),
+                "name": name,
+                "title": name,
+                "img": f"/thumb/{slug}.png"
+            })
+    items.sort(key=lambda x: x["name"].lower())
+    return jsonify(items)
 
-@app.route("/admin")
-def admin_panel():
-    if not is_staff():  # Ensure only staff can access
-        return "Unauthorized", 403
-    return render_template("admin.html", year=datetime.now().year)
+
+@app.get("/img-proxy")
+def img_proxy():
+    url = request.args.get("url")
+    if not url:
+        abort(400, "url required")
+
+    path = _cache_key_for_url(url)
+    if not path.exists():
+        try:
+            r = requests.get(url, timeout=10, stream=True)
+            r.raise_for_status()
+            # Write atomically
+            tmp = path.with_suffix(path.suffix + ".part")
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_content(64 * 1024):
+                    if chunk:
+                        f.write(chunk)
+            tmp.replace(path)
+        except Exception as e:
+            abort(502, f"proxy fetch failed: {e}")
+
+    # Serve the cached file with a good content-type and cache headers
+    mime, _ = mimetypes.guess_type(str(path))
+    resp = make_response(send_file(path, mimetype=mime or "application/octet-stream"))
+    return _cache(resp, 60*60*24*14)  # 14 days
+
+@app.route("/api/wiki-products")
+def api_wiki_products():
+    """Return cached list; refresh in the background when stale or on force=1."""
+    depth = int(request.args.get("depth") or 2)
+    force = request.args.get("force") == "1"
+
+    cache = None if force else _load_cache()
+    if _cache_fresh(cache):
+        return jsonify(cache["items"])
+
+    # stale or missing: kick background build and return ASAP
+    _kick_build_async(depth)
+
+    # Serve stale cache if available; else 202 to tell client to retry
+    if cache and "items" in cache and cache["items"]:
+        return jsonify(cache["items"])  # stale-while-revalidate
+    return jsonify({"status": "building"}), 202
 
 
-
-@app.route("/api/admin-lookup/<id>")
-def admin_lookup(id):
+@app.route("/api/admin-lookup/<identifier>")
+def admin_lookup(identifier):
     # Check if user is staff
     if not is_staff():
         return jsonify({"error": "Unauthorized"}), 403
 
     with MongoClient(os.getenv("MONGO_URI")) as client:
         try:
-            user_id = str(id)
+            import re
+            raw = (identifier or "").strip()
+            user_id = None
+            tag_used = None
 
-            # Get various data from MongoDB
+            # Helper to normalize tags like "pc2rlpypy" -> "#PC2RLPYPY"
+            def normalize_tag(s: str) -> str:
+                core = re.sub(r"[^A-Za-z0-9]", "", (s or "")).upper()
+                return f"#{core}" if core else ""
+
+            # 1) Resolve identifier -> user_id
+            if raw.isdigit() and 15 <= len(raw) <= 20:
+                user_id = raw
+            else:
+                tag_used = normalize_tag(raw)
+                if tag_used:
+                    # Find the first verify log that contains this tag and extract the Discord ID
+                    doc = client["log"]["verify"].find_one({
+                        "Message content": {"$regex": re.escape(tag_used), "$options": "i"}
+                    })
+                    if doc and doc.get("id"):
+                        user_id = str(doc["id"])
+
+            if not user_id:
+                return jsonify({"error": "No matching user found"}), 404
+
+            # 2) Load collections you already rely on
             mentions = client["Mentions"]["Amount"].find_one({"id": int(user_id)})
             birthday = client["Birthdays"]["Users"].find_one({"user_id": user_id})
             scam_records = list(client["Scam"]["Banned"].find({}))
-            scam_ids = set()
-            for rec in scam_records:
-                for val in rec.get("id", []):
-                    scam_ids.add(val.strip().upper())
+            scam_ids = {val.strip().upper() for rec in scam_records for val in rec.get("id", [])}
+
             mute_info = list(client["Moderation"]["mute"].find({"user_id": int(user_id)}))
             mute_count = mute_info[0].get("mute_count", 0) if mute_info else 0
 
@@ -583,7 +1172,7 @@ def admin_lookup(id):
             except Exception as e:
                 print(f"⚠️ Ban check failed: {e}")
 
-            usernames = client["Website"]["usernames"].find_one({"_id": str(user_id)})
+            usernames = client["Website"]["usernames"].find_one({"_id": user_id})
 
             # Find active mute if exists
             active_mute = next(
@@ -593,33 +1182,28 @@ def admin_lookup(id):
 
             # Fetch logs and name changes
             logs = list(client["Website"]["Logs"].find({
-                "$or": [{"author.id": str(user_id)}, {"user_id": str(user_id)}]
+                "$or": [{"author.id": user_id}, {"user_id": user_id}]
             }))
-            name_changes = list(client["log"]["namechange"].find({"user_id": str(user_id)}))
+            name_changes = list(client["log"]["namechange"].find({"user_id": user_id}))
 
             message_edits = [log for log in logs if log.get("type") == "message_edit"]
             message_deletes = [log for log in logs if log.get("type") == "message_delete"]
             commands = [log for log in logs if log.get("type") == "command"]
 
-            # Verifications by Discord ID or HayDay ID in message content
-            verify_query = {
-                "$or": [
-                    {"id": int(id)} if id.isdigit() else {},
-                    {"Message content": {"$regex": re.escape(id), "$options": "i"}}
-                ]
-            }
-            # Clean empty filters if ID wasn't digit
-            verify_query["$or"] = [f for f in verify_query["$or"] if f]
-            linked_data = list(client["log"]["verify"].find(verify_query)) if verify_query["$or"] else []
+            # Verifications: by Discord ID and (if provided) by tag text
+            verify_or = [{"id": int(user_id)}]
+            if tag_used:
+                verify_or.append({"Message content": {"$regex": re.escape(tag_used), "$options": "i"}})
+
+            linked_data = list(client["log"]["verify"].find({"$or": verify_or}))
             for entry in linked_data:
                 message = entry.get("Message content", "")
                 match = re.search(r"HayDay ID:\s*([#A-Z0-9]+)", message, re.I)
                 hayday_id = match.group(1).strip().upper() if match else None
                 entry["hayday_id"] = hayday_id
-                entry["is_scammer"] = hayday_id in scam_ids if hayday_id else False
+                entry["is_scammer"] = (hayday_id in scam_ids) if hayday_id else False
 
-
-            # Prepare response JSON with safe defaults
+            # Prepare response JSON
             response = {
                 "user_summary": {
                     "user_id": user_id,
@@ -649,6 +1233,7 @@ def admin_lookup(id):
 
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
 
 
 
@@ -1102,13 +1687,34 @@ def giveaways_page():
             g["guild_id"] = str(g.get("guild_id", GUILD_ID))
             g["channel_id"] = str(g.get("channel_id", ""))
 
-            required_id = str(g.get("required_role_id")) if g.get("required_role_id") else None
-            g["required_role_name"] = role_mapping.get(required_id, {}).get("name") if required_id else None
+            # --- Required roles (OR + legacy fallback) ---
+            raw_ids = list(g.get("required_role_ids") or [])
+            legacy = g.get("required_role_id")
+            if legacy not in (None, "", 0):
+                raw_ids.append(legacy)
 
-            # ✅ use normalized session_roles (strings)
-            user_roles = session_roles
-            g["has_bypass"] = BYPASS_ROLE_ID in user_roles
-            g["can_join"] = (not required_id) or (required_id in user_roles) or g["has_bypass"]
+            # normalize to strings for display & session compare
+            required_ids = [str(x) for x in raw_ids if x not in (None, "", 0)]
+            g["required_role_ids"] = required_ids  # expose to Jinja
+
+            # names for display (if you fetched role_mapping earlier)
+            required_names = [role_mapping.get(rid, {}).get("name") for rid in required_ids]
+            required_names = [n for n in required_names if n]
+            g["required_role_names"] = required_names
+            g["required_role_display"] = ", ".join(required_names) if required_names else None
+
+            # Eligibility (OR): has at least one of the required roles
+            user_roles = session_roles  # already normalized to strings earlier
+            is_booster = BYPASS_ROLE_ID in user_roles
+            has_required = (len(required_ids) == 0) or any(rid in user_roles for rid in required_ids)
+
+            boosters_bypass = bool(g.get("boosters_bypass", True))
+            can_booster_bypass = is_booster and boosters_bypass
+
+            # checkbox only when they LACK all required roles but ARE a booster (bypass)
+            g["has_bypass"] = (len(required_ids) > 0) and (not has_required) and can_booster_bypass
+            g["can_join"] = has_required or can_booster_bypass
+
             g["not_in_guild"] = str(MEMBER_ROLE_ID) not in user_roles
 
             # host info…
@@ -1276,66 +1882,49 @@ def fandom_thumbs():
 
 @app.route("/api/thumbs")
 def api_thumbs():
+    """
+    Query Fandom pageimages and return a flat {Title: thumbUrl} dict.
+    Titles must be pipe-separated, with underscores already OK.
+    """
     size = request.args.get("size", "96")
-    titles = request.args.get("titles", "")
+    titles = request.args.get("titles", "")  # e.g. "Wheat|Carrot|Brown_Sugar"
+
     url = "https://hayday.fandom.com/api.php"
     params = {
         "action": "query",
         "prop": "pageimages",
         "pithumbsize": size,
         "titles": titles,
-        "format": "json"
+        "format": "json",
     }
-    r = requests.get(url, params=params)
-    return jsonify(r.json())
+    r = requests.get(url, params=params, timeout=10)
+    j = r.json()
+
+    pages = (j.get("query") or {}).get("pages") or {}
+
+    # Build the flat map the frontend expects
+    out = {}
+    for page in pages.values():
+        title = (page.get("title") or "").replace("_", " ").strip()
+        src = ((page.get("thumbnail") or {}).get("source")) or None
+        if title and src:
+            # Frontend keys are normalized to lowercase names
+            out[title.lower()] = src
+
+    # Cache-friendly headers
+    resp = jsonify(out)
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
 
 
-# Optional: image proxy if your img-src CSP blocks external images or you hit canvas taint
-@app.route("/img-proxy")
-def img_proxy():
-    url = request.args.get("url", "")
-    # allowlist CDN
-    if not url.startswith("https://static.wikia.nocookie.net/"):
-        return "blocked", 400
-
-    cached = _get_cached(_IMG_CACHE, url)
-    if cached:
-        body, headers = cached
-        return Response(body, headers=headers)
-
-    r = requests.get(url, stream=True, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-    body = r.content
-    headers = {
-        "Content-Type": r.headers.get("Content-Type", "image/png"),
-        "Cache-Control": "public, max-age=86400",
-        "Access-Control-Allow-Origin": "*",
-    }
-    _set_cached(_IMG_CACHE, url, body, headers, _TTL_IMG)
-    return Response(body, headers=headers)
-
-@app.route("/thumb/<slug>.png")
+@app.get("/thumb/<slug>.png")
 def serve_thumb(slug):
-    """
-    slug is already like 'Brown_Sugar'. If the file doesn't exist,
-    fetch once, save, and serve. Frontend can just hit /thumb/<slug>.png.
-    """
     path = THUMB_ROOT / f"{slug}.png"
     if not path.exists():
-        # one-shot lazy fill
-        _download_one(slug, THUMB_SIZE_DEFAULT)
-
-    if path.exists():
-        return send_from_directory(THUMB_ROOT, f"{slug}.png",
-                                   mimetype="image/png",
-                                   cache_timeout=_TTL_IMG)
-    # tiny transparent pixel as a last resort (avoids 404 spam)
-    return Response(
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0bIDATx\x9cc``\x00\x00\x00\x02\x00\x01"
-        b"\xe2!\xbc3\x00\x00\x00\x00IEND\xaeB`\x82",
-        headers={"Content-Type": "image/png", "Cache-Control": "public, max-age=86400"},
-    )
-
+        abort(404)
+    mime, _ = mimetypes.guess_type(str(path))
+    resp = make_response(send_file(path, mimetype=mime or "image/png"))
+    return _cache(resp)
 
 @app.route("/admin/production", methods=["GET", "POST"])
 def admin_production():
@@ -1391,7 +1980,11 @@ def admin_production():
     return render_template("admin_production.html", products=all_items, year=datetime.now().year)
 
 
-
+@app.route("/admin")
+def admin_panel():
+    if not is_staff():  # Ensure only staff can access
+        return "Unauthorized", 403
+    return render_template("admin.html", year=datetime.now().year)
 
 @app.route("/api/live-auctions")
 def live_auctions():
@@ -1570,11 +2163,25 @@ def apply_security_headers(response):
 
 @app.before_request
 def track_page_views():
-    if request.endpoint not in ("static",):
-        path = request.path
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            pv_col = client["Website"]["PageViews"]
-            pv_col.update_one({"_id": path}, {"$inc": {"count": 1}}, upsert=True)
+    ignore_prefixes = (
+        "/api", "/thumb-file", "/img-proxy", "/log-interaction",
+        "/static", "/assets", "/webhook", "/oauth", "/internal",
+    )
+    ignore_exact = ("/robots.txt", "/favicon.ico", "/callback")  # add more if you like
+    file_exts = (".js",".css",".png",".jpg",".jpeg",".gif",".webp",
+                 ".svg",".ico",".json",".xml",".map",".txt",".csv")
+
+    path = request.path
+
+    if (request.endpoint == "static"
+        or any(path.startswith(p) for p in ignore_prefixes)
+        or path in ignore_exact
+        or any(path.endswith(ext) for ext in file_exts)):
+        return  # don’t count
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        client["Website"]["PageViews"].update_one({"_id": path}, {"$inc": {"count": 1}}, upsert=True)
+
 
 
 @app.before_request
@@ -2417,15 +3024,15 @@ def leaderboard():
 @limiter.limit("10 per minute", key_func=get_remote_address, error_message="Too many requests to the callback endpoint. Please wait a bit.")
 def callback():
     try:
-        state = request.args.get("state")
-        if not state or state != session.get("oauth_state"):
-            log_abuse_attempt("OAuth Invalid State", {
-                "state": state,
-                "expected_state": session.get("oauth_state"),
-                "ip": request.headers.get("X-Forwarded-For", request.remote_addr)
-            })
-            return "❌ Invalid OAuth state parameter", 400
-        session.pop("oauth_state", None)
+        #state = request.args.get("state")
+        #if not state or state != session.get("oauth_state"):
+        #    log_abuse_attempt("OAuth Invalid State", {
+        #        "state": state,
+        #        "expected_state": session.get("oauth_state"),
+        #        "ip": request.headers.get("X-Forwarded-For", request.remote_addr)
+        #    })
+        #    return "❌ Invalid OAuth state parameter", 400
+        #session.pop("oauth_state", None)
 
         code = request.args.get("code")
         if not code:
@@ -2875,8 +3482,9 @@ def public_profile(discord_id):
 
 @app.route("/builder")
 def builder():
-    year = datetime.now(timezone.utc).year
-    return render_template("builder.html", year=year)
+    return render_template("builder.html")
+
+
 
 @csrf.exempt
 @app.route("/buy", methods=["POST"])
@@ -3128,15 +3736,32 @@ def view_interaction_logs():
 
         # ✅ Top pages tracking
         pv_col = client["Website"]["PageViews"]
-        top_pages = list(pv_col.find().sort("count", -1).limit(20))
+
+        match_real_pages = {
+            "$match": {
+                "_id": {
+                    "$regex": r"^(?!/(?:api|thumb-file|img-proxy|log-interaction|static|assets|webhook|oauth|internal)\b)"
+                            r"(?!.*\.(?:js|css|png|jpe?g|gif|webp|svg|ico|json|xml|map|txt|csv)$)"
+                            r"^(?!/(?:robots\.txt|favicon\.ico|callback)$)"
+                }
+            }
+        }
+
+        top_pages = list(pv_col.aggregate([
+            match_real_pages,
+            {"$sort": {"count": -1}},
+            {"$limit": 20}
+        ]))
+
         agg = list(pv_col.aggregate([
+            match_real_pages,
             {"$group": {"_id": None, "total": {"$sum": "$count"}}}
         ]))
         total_views = agg[0]["total"] if agg else 0
 
-        # Convert MongoDB _id to path string for template
         for p in top_pages:
             p["_id"] = str(p.get("_id", ""))
+
             
     return render_template(
         "admin_interactions.html",
@@ -4085,7 +4710,7 @@ def join_giveaway_web():
     discord_id = str(session["discord_id"])
     message_id = request.form.get("message_id")
 
-    # ✅ Rate limiting logic (3s window per user)
+    # rate limit (same as you have)
     now = time.time()
     rate_key = f"join:{discord_id}"
     last_attempt = rate_limit_cache.get(rate_key, 0)
@@ -4096,12 +4721,20 @@ def join_giveaway_web():
         return redirect("/giveaways")
     rate_limit_cache[rate_key] = now
 
-    user_roles = session.get("roles", [])
-    booster_role_id = "975188431636418681"
+    user_roles = [int(r) for r in (session.get("roles") or [])]
+    booster_role_id = 975188431636418681
 
     with MongoClient(os.getenv("MONGO_URI")) as client:
         col = client["Giveaway"]["current_giveaways"]
-        giveaway = col.find_one({"message_id": int(message_id)})
+        try:
+            mid = int(message_id)
+        except (TypeError, ValueError):
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"error": "Invalid message id"}), 400
+            flash("❌ Invalid giveaway link.")
+            return redirect("/giveaways")
+
+        giveaway = col.find_one({"message_id": mid})
 
         if not giveaway or giveaway.get("ended"):
             if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -4109,9 +4742,32 @@ def join_giveaway_web():
             flash("❌ Giveaway not found or has ended.")
             return redirect("/giveaways")
 
-        required_role_id = str(giveaway.get("required_role_id")) if giveaway.get("required_role_id") else None
+        # Support list of required role IDs (OR) with legacy fallback
+        required_ids_raw = list(giveaway.get("required_role_ids") or [])
+        legacy = giveaway.get("required_role_id")
+        if legacy not in (None, "", 0):
+            required_ids_raw.append(legacy)
 
-        if required_role_id and required_role_id not in user_roles and booster_role_id not in user_roles:
+        # compare as ints to match your current session role ints
+        required_ids = [int(x) for x in required_ids_raw if x not in (None, "", 0)]
+
+        # Eligibility (OR)
+        has_required = (len(required_ids) == 0) or any(rid in user_roles for rid in required_ids)
+        has_booster = booster_role_id in user_roles
+
+        boosters_bypass = bool(giveaway.get("boosters_bypass", True))
+        can_booster_bypass = has_booster and boosters_bypass
+
+        # Require confirm only when using booster bypass (i.e., lacking all required but boosters can bypass)
+        requires_confirm = (len(required_ids) > 0) and (not has_required) and can_booster_bypass
+        if requires_confirm and request.form.get("confirm") != "on":
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"error": "Please confirm you understand the extra requirements."}), 400
+            flash("⚠️ Please confirm you understand the extra requirements.")
+            return redirect("/giveaways")
+
+        # Final eligibility
+        if not (has_required or can_booster_bypass):
             if request.headers.get("X-Requested-With") == "XMLHttpRequest":
                 return jsonify({"error": "You don’t have the required role"}), 403
             flash("❌ You don’t have the required role to enter this giveaway.")
@@ -4124,15 +4780,15 @@ def join_giveaway_web():
             flash("❌ You are already entered in this giveaway.")
             return redirect("/giveaways")
 
-        extra_entries = 2 if booster_role_id in user_roles else 1
+        extra_entries = 2 if has_booster else 1
         participants[discord_id] = extra_entries
 
-        col.update_one({"message_id": int(message_id)}, {"$set": {"participants": participants}})
+        col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
 
         try:
             requests.post(
                 os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-giveaway",
-                json={"message_id": int(message_id)},
+                json={"message_id": mid},
                 headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
             )
         except Exception as e:
@@ -4143,10 +4799,6 @@ def join_giveaway_web():
 
         flash("✅ You have joined the giveaway.")
         return redirect("/giveaways")
-
-
-
-
 
 @csrf.exempt
 @app.route("/giveaway/leave", methods=["POST"])
@@ -4159,7 +4811,13 @@ def leave_giveaway_web():
 
     with MongoClient(os.getenv("MONGO_URI")) as client:
         col = client["Giveaway"]["current_giveaways"]
-        giveaway = col.find_one({"message_id": int(message_id)})
+
+        try:
+            mid = int(message_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid message id"}), 400
+
+        giveaway = col.find_one({"message_id": mid})
 
         if not giveaway or giveaway.get("ended"):
             return jsonify({"error": "Giveaway not found or ended"}), 400
@@ -4169,19 +4827,18 @@ def leave_giveaway_web():
             return jsonify({"error": "You’re not in this giveaway."}), 400
 
         del participants[discord_id]
-        col.update_one({"message_id": int(message_id)}, {"$set": {"participants": participants}})
+        col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
 
         try:
             requests.post(
                 os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-giveaway",
-                json={"message_id": int(message_id)},
+                json={"message_id": mid},
                 headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
             )
         except Exception as e:
             print(f"⚠️ Failed to sync with bot: {e}")
 
         return jsonify({"success": True})
-
 
 
 @app.route("/api/giveaways/reroll", methods=["POST"])
@@ -4216,13 +4873,20 @@ def reroll_giveaway_post():
 
 
 
-# Start prewarm in the background (guarded so it runs once per process)
-if os.getenv("WARM_THUMBS", "1") == "1":
+
+# Start prewarm (sync or async based on env flag)
+if os.getenv("WARM_THUMBS_SYNC", "0") == "1":
+    # ✅ block until all thumbs are cached; fastest first paint
+    prewarm_thumbs(size=THUMB_SIZE_DEFAULT, max_workers=12)
+else:
+    # background warm (still fine once app is “hot”)
     try:
-        threading.Thread(target=prewarm_thumbs, daemon=True).start()
+        threading.Thread(target=lambda: prewarm_thumbs(size=THUMB_SIZE_DEFAULT, max_workers=12),
+                         daemon=True).start()
         print("[thumbs] background prewarm thread started")
     except Exception as e:
         print("[thumbs] failed to start prewarm thread:", e)
+
 
 
 if __name__ == "__main__":
@@ -4240,5 +4904,5 @@ if __name__ == "__main__":
         server.serve(host='127.0.0.1', port=port)
     else:
         # Production for Fly.io
-        app.run(host="0.0.0.0", port=port)
+        app.run(host="0.0.0.0", port=port, threaded=True)
 

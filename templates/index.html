@@ -305,10 +305,16 @@ fetch("/api/live-giveaways")
   .then(res => res.json())
   .then(data => {
     const container = document.getElementById("giveaway-feed");
+    const footerLink = document.querySelector('a.giveaway-footer[href="/giveaways"]');
+
     if (!data.length) {
       container.innerHTML = "<p>No giveaways right now.</p>";
+      // Still keep the footer simple if there are none.
+      if (footerLink) footerLink.textContent = "🔗 View all giveaways";
       return;
     }
+
+    const shown = Math.min(8, data.length);
 
     data.slice(0, 8).forEach((g, i) => {
       const div = document.createElement("div");
@@ -340,6 +346,19 @@ fetch("/api/live-giveaways")
         div.classList.add("visible");
       }, i * 100);
     });
+    fetch("/api/giveaways/count")
+      .then(r => r.json())
+      .then(({ active }) => {
+        if (!footerLink) return;
+        const extra = Math.max(0, (active || 0) - shown);
+        footerLink.textContent = extra > 0
+          ? `🔗 View all giveaways (${extra} more)`
+          : "🔗 View all giveaways";
+      })
+      .catch(() => {
+        if (footerLink) footerLink.textContent = "🔗 View all giveaways";
+      });
+
   })
   .catch(err => {
     document.getElementById("giveaway-feed").innerHTML = "<p>Failed to load giveaways.</p>";

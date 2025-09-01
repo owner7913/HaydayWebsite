@@ -8,42 +8,48 @@
      <div class="nav-toggle" id="nav-toggle" onclick="toggleMenu()">☰</div>
      <div class="nav-close" id="nav-close" onclick="toggleMenu()">✖</div>
 
-    <!-- Navigation Links -->
-    <ul class="nav-links" id="nav-links">
-      <li class="{% if request.path == '/' %}active{% endif %}"><a href="/">Home</a></li>
-      <li class="{% if request.path.startswith('/guide') %}active{% endif %}"><a href="/production_guide">Production Guide</a></li>
+      <ul class="nav-links" id="nav-links">
+        <li class="{% if request.path == '/' %}active{% endif %}"><a href="/">Home</a></li>
 
-      <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') %}active{% endif %}">
-        <a href="#">Discord Stuff ▾</a>
-        <ul class="dropdown-content">
-          <li><a href="/giveaways">Giveaways</a></li>
-          <li><a href="/auctions">Live Auctions</a></li>
-          <li><a href="/leaderboard">Leaderboards</a></li>
-        </ul>
-      </li>
-
-      <li class="{% if request.path.startswith('/staff') %}active{% endif %}"><a href="/staff">Staff Members</a></li>
-
-      {% if session.get("staff_role") %}
-      <li class="{% if request.path.startswith('/dashboard') %}active{% endif %}"><a href="/dashboard">Dashboard</a></li>
-      {% endif %}
-
-      <li class="dropdown {% if request.path.startswith('/profile') %}active{% endif %}">
-        {% if session.get("discord_id") %}
-          <a href="#">Profile ▾</a>
+        <!-- NEW: HayDay Tools dropdown -->
+        <li class="dropdown {% if request.path.startswith('/production') or request.path.startswith('/production_guide') or request.path.startswith('/builder') %}active{% endif %}">
+          <a href="#">HayDay Tools ▾</a>
           <ul class="dropdown-content">
-            <li><a href="/profile">My Profile</a></li>
-            <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}"><a href="/profile-directory">Members</a></li>
-            <li><a href="/shop">Shop</a></li>
-            <li>
-              <a href="/logout?next=/">Logout</a>
-            </li>
+            <li><a href="/production_guide">Production</a></li>
+            <li><a href="/#">Builder</a></li>
           </ul>
-        {% else %}
-          <a href="/login?next={{ request.path }}">Login</a>
+        </li>
+
+        <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') %}active{% endif %}">
+          <a href="#">Discord Stuff ▾</a>
+          <ul class="dropdown-content">
+            <li><a href="/giveaways">Giveaways</a></li>
+            <li><a href="/auctions">Live Auctions</a></li>
+            <li><a href="/leaderboard">Leaderboards</a></li>
+          </ul>
+        </li>
+
+        <li class="{% if request.path.startswith('/staff') %}active{% endif %}"><a href="/staff">Staff Members</a></li>
+
+        {% if session.get("staff_role") %}
+        <li class="{% if request.path.startswith('/dashboard') %}active{% endif %}"><a href="/dashboard">Dashboard</a></li>
         {% endif %}
-      </li>
-    </ul>
+
+        <li class="dropdown {% if request.path.startswith('/profile') %}active{% endif %}">
+          {% if session.get("discord_id") %}
+            <a href="#">Profile ▾</a>
+            <ul class="dropdown-content">
+              <li><a href="/profile">My Profile</a></li>
+              <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}"><a href="/profile-directory">Members</a></li>
+              <li><a href="/shop">Shop</a></li>
+              <li><a href="/logout?next=/">Logout</a></li>
+            </ul>
+          {% else %}
+            <a href="/login?next={{ request.path }}">Login</a>
+          {% endif %}
+        </li>
+      </ul>
+
   </nav>
 </header>
 

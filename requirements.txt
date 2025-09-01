@@ -14,3 +14,4 @@ pytz
 pytesseract
 Pillow
 livereload
+beautifulsoup4

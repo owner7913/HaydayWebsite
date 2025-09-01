@@ -319,8 +319,10 @@ input[type="text"] {
     <p><strong>Ends:</strong> <span class="countdown" data-end="{{ g.end_time_ts }}"></span></p>
     <p><strong>Winners:</strong> {{ g.winners }}</p>
     <p><strong>Entries:</strong> <span class="entry-count" data-msgid="{{ g.message_id }}">{{ g.entry_count }}</span></p>
-    {% if g.required_role_name %}
-    <p><strong>Required Role:</strong> <span style="color: #ff6666;">{{ g.required_role_name }}</span></p>
+    {% if g.required_role_display %}
+      <p><strong>Required Roles (OR):</strong>
+        <span style="color:#ff6666;">{{ g.required_role_display }}</span>
+      </p>
     {% endif %}
     <p><strong>Link:</strong> <a href="https://discord.com/channels/{{ g.guild_id }}/{{ g.channel_id }}/{{ g.message_id }}" target="_blank">Jump to Giveaway</a></p>
 
@@ -346,12 +348,12 @@ input[type="text"] {
         <form class="join-form" data-msgid="{{ g.message_id }}" data-has-bypass="{{ '1' if g.has_bypass else '0' }}" style="margin-top: 10px;">
           <input type="hidden" name="message_id" value="{{ g.message_id }}">
 
-          {% if g.has_bypass %}
-          <label style="display:block; margin-top: 8px;">
-            <input type="checkbox" required id="confirm-{{ g.message_id }}">
-            I confirm I’ve read the giveaway title and understand all additional requirements.
-          </label>
-          {% endif %}
+        {% if g.has_bypass %}
+        <label>
+          <input type="checkbox" name="confirm" required id="confirm-{{ g.message_id }}">
+          I confirm I’ve read the giveaway title and understand all additional requirements.
+        </label>form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
+        {% endif %}
 
           <button type="submit"
                   class="view-participants-btn"
@@ -517,6 +519,31 @@ function loadParticipantPage(index, page) {
   }
 }
 
+function updateCountdowns() {
+  document.querySelectorAll(".countdown").forEach(el => {
+    const end = parseInt(el.dataset.end, 10) * 1000; // convert to ms
+    if (!end) {
+      el.textContent = "—";
+      return;
+    }
+    const now = Date.now();
+    let diff = Math.max(0, end - now);
+
+    const hours = Math.floor(diff / 3600000);
+    diff %= 3600000;
+    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+
+    if (end <= now) {
+      el.textContent = "Ended";
+    } else {
+      el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+    }
+  });
+}
+setInterval(updateCountdowns, 1000);
+updateCountdowns();
+
 function bindJoinForms() {
   document.querySelectorAll('.join-form').forEach(form => {
     if (form.dataset.bound) return;
@@ -551,20 +578,21 @@ function bindJoinForms() {
         });
 
         submitButton.disabled = false;
-        submitButton.textContent = "🎉 Join Giveaway"; // or restore original label
-
+        submitButton.textContent = "🎉 Join Giveaway";
 
         if (res.ok) {
+          const data = await res.json();              // ✅ read {"entries": 1|2}
+          const gained = Number(data?.entries) || 1;  // fallback to 1
+
           const entryCountSpan = document.querySelector(`.entry-count[data-msgid="${msgId}"]`);
           if (entryCountSpan) {
             const current = parseInt(entryCountSpan.textContent) || 0;
-            entryCountSpan.textContent = current + 1;
+            entryCountSpan.textContent = current + gained;   // ✅ add 2 for boosters
           }
 
-          // replace the entire wrapper element, not just inside the form
           const wrapper = form.closest(".giveaway-action-wrapper");
           wrapper.innerHTML = `
-            <div class="you-entered">✅ You’ve joined!</div>
+            <div class="you-entered">You’ve joined! (${gained} entries)</div>
             <form class="leave-form" style="margin-top: 10px;">
               <input type="hidden" name="message_id" value="${msgId}">
               <button type="submit" class="view-participants-btn" style="background-color: #d32f2f;">
@@ -572,10 +600,31 @@ function bindJoinForms() {
               </button>
             </form>
           `;
-          bindLeaveForms(); // ✅ bind new leave-form
-        } else {
-          form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
-        }
+          bindLeaveForms();
+          } else {
+            form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
+
+            // ⏳ After 2 seconds, restore the join form
+            setTimeout(() => {
+              const msgId = form.dataset.msgid;
+              const hasBypass = form.dataset.hasBypass === "1";
+
+              form.innerHTML = `
+                <input type="hidden" name="message_id" value="${msgId}">
+                ${hasBypass ? `
+                  <label style="display:block; margin-top: 8px;">
+                    <input type="checkbox" id="confirm-${msgId}">
+                    I confirm I’ve read the giveaway title and understand all additional requirements.
+                  </label>` : ""}
+                <button type="submit" class="view-participants-btn" style="background-color: #4caf50;">
+                  🎉 Join Giveaway
+                </button>
+              `;
+
+              bindJoinForms(); // rebind the event listener
+            }, 1200);
+          }
+
       } catch {
         form.innerHTML = `<div style="color:red;">❌ Network error. Please retry.</div>`;
       }
