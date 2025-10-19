@@ -5,7 +5,10 @@
 {% block head_extra %}
 <style>
   /* ---- Results page scoped styles ---- */
-  .results-page { margin-top: 84px; }
+  .results-page { 
+  margin-top: 104px;   /* was 84px */
+  padding-bottom: 64px;
+  }
   .results-hero {
     display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
     margin-bottom: 12px;
@@ -131,6 +134,46 @@
     background: rgba(0,0,0,.12); color: inherit;
   }
   body.dark .badge-soft { background: rgba(255,255,255,.08); }
+  /* make the hero + podium more compact */
+  .results-hero { margin-bottom: 8px; }
+  .results-hero .title { font-size: clamp(18px, 2.0vw, 24px); }
+
+  /* slightly smaller podium cards */
+  .podium-card { min-height: 260px; }      /* was 320px */
+  .podium .first { transform: translateY(0); } /* remove lift for tighter row */
+
+  /* denser scoreboard */
+  table.leaderboard { font-size: 13px; }   /* was 14px */
+  .cell-preview img { height: 48px; width: 86px; }  /* was 54×96 */
+
+  .leaderboard { width:100%; border-collapse:separate; border-spacing:0 6px; font-size:13px; }
+  .leaderboard td, .leaderboard th { padding:12px 14px; }
+  .cell-preview img { width:86px; height:48px; object-fit:cover; border-radius:8px; }
+  .truncate { max-width: 460px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pager { display:flex; align-items:center; gap:12px; margin:12px 0 24px; }
+  .pager .btn.disabled { pointer-events:none; opacity:.5; }
+  
+  /* Pagination */
+  .pagination {
+    display:flex; align-items:center; gap:8px; margin:12px 0 24px;
+  }
+  .page-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:34px; height:34px; padding:0 12px;
+    border-radius:999px; font-weight:700; font-size:13px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    text-decoration:none; transition: .15s ease;
+  }
+  body:not(.dark) .page-btn {
+    background: rgba(0,0,0,.04);
+    border-color: rgba(0,0,0,.08);
+  }
+  .page-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+  .page-btn.is-active { background: #22c55e; color:#0b1b10; border-color: transparent; }
+  .page-btn.is-disabled { opacity:.45; pointer-events:none; }
+  .page-info { opacity:.7; font-size:12px; margin-left:6px; }
+  
 </style>
 {% endblock %}
 
@@ -201,51 +244,97 @@
 </section>
 
 
-  <!-- Scoreboard -->
-  <section class="score-card">
-    <div class="score-head">
-      <h2 class="score-title">Full scoreboard</h2>
-      <span class="badge-soft">Total entries: {{ ranked|length }}</span>
-    </div>
-    <div class="table-wrap">
-      <table class="leaderboard">
-        <thead>
-          <tr><th class="cell-rank">#</th><th>Preview</th><th>User</th><th>Caption</th><th class="cell-votes">Votes</th></tr>
-        </thead>
-        <tbody>
-          {% for e in ranked %}
-            {% set votes = (counts|default({})).get(e._id|string, 0) %}
-            <tr>
-              <td class="cell-rank">{{ loop.index }}</td>
-              <td class="cell-preview"><img src="{{ e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer"></td>
-              <td class="cell-user">{{ e.username or 'Anonymous' }}</td>
-              <td class="muted" style="max-width:460px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                {{ e.caption }}
-              </td>
-              <td class="cell-votes"><strong>{{ votes }}</strong></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <h2 class="section-title">Full scoreboard</h2>
+
+  <table class="leaderboard">
+    <thead>
+      <tr><th>#</th><th>Preview</th><th>User</th><th>Caption</th><th>Votes</th></tr>
+    </thead>
+    <tbody>
+      {% set base_rank = (score_page - 1) * 10 %}
+      {% for row in score_items %}
+        {% set i = base_rank + loop.index %}
+        {% set votes = (counts|default({})).get(row._id|string, 0) %}
+        {% set preview = row.thumb_url or row.image_url %}
+        <tr>
+          <td class="cell-rank">{{ i }}</td>
+          <td class="cell-preview">
+            <img src="{{ preview }}" alt="preview" loading="lazy" referrerpolicy="no-referrer">
+          </td>
+          <td class="cell-user">{{ row.username or row.user or 'Anonymous' }}</td>
+          <td class="truncate">{{ row.caption or '' }}</td>
+          <td class="cell-votes"><strong>{{ votes }}</strong></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% set pages = range(1, score_pages + 1) %}
+  <nav class="pagination">
+    <a class="page-btn {% if score_page <= 1 %}is-disabled{% endif %}"
+      href="?score_page={{ score_page-1 if score_page>1 else 1 }}&grid_page={{ grid_page }}">Prev</a>
+
+    {# First, window around current, last. Ellipses when gaps appear. #}
+    {% for p in pages %}
+      {% if p == 1 or p == score_pages or (p >= score_page-2 and p <= score_page+2) %}
+        <a class="page-btn {% if p == score_page %}is-active{% endif %}"
+          href="?score_page={{ p }}&grid_page={{ grid_page }}">{{ p }}</a>
+      {% elif p == 2 and score_page > 4 %}
+        <span class="page-info">…</span>
+      {% elif p == score_pages-1 and score_page < score_pages-3 %}
+        <span class="page-info">…</span>
+      {% endif %}
+    {% endfor %}
+
+    <a class="page-btn {% if score_page >= score_pages %}is-disabled{% endif %}"
+      href="?score_page={{ score_page+1 if score_page<score_pages else score_pages }}&grid_page={{ grid_page }}">Next</a>
+
+    <span class="page-info">Page {{ score_page }} / {{ score_pages }} · {{ score_total }} entries</span>
+  </nav>
+
+
 
   <!-- Uniform gallery grid (all entries) -->
   <section>
     <h3 class="section-title" style="margin: 0 0 8px 2px;">All entries</h3>
+
     <div class="grid">
-      {% for e in ranked %}
+      {% for e in grid_items %}
         {% set votes = (counts|default({})).get(e._id|string, 0) %}
         <article class="grid-card">
           <img src="{{ e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
           <div class="grid-meta">
-            <span class="name">{{ e.username or 'Anonymous' }}</span>
+            <span class="name">{{ e.username or e.user or 'Anonymous' }}</span>
             <span class="votes">{{ votes }} votes</span>
           </div>
         </article>
       {% endfor %}
     </div>
+
+    {% set gpages = range(1, grid_pages + 1) %}
+    <nav class="pagination">
+      <a class="page-btn {% if grid_page <= 1 %}is-disabled{% endif %}"
+        href="?score_page={{ score_page }}&grid_page={{ grid_page-1 if grid_page>1 else 1 }}">Prev</a>
+
+      {% for p in gpages %}
+        {% if p == 1 or p == grid_pages or (p >= grid_page-2 and p <= grid_page+2) %}
+          <a class="page-btn {% if p == grid_page %}is-active{% endif %}"
+            href="?score_page={{ score_page }}&grid_page={{ p }}">{{ p }}</a>
+        {% elif p == 2 and grid_page > 4 %}
+          <span class="page-info">…</span>
+        {% elif p == grid_pages-1 and grid_page < grid_pages-3 %}
+          <span class="page-info">…</span>
+        {% endif %}
+      {% endfor %}
+
+      <a class="page-btn {% if grid_page >= grid_pages %}is-disabled{% endif %}"
+        href="?score_page={{ score_page }}&grid_page={{ grid_page+1 if grid_page<grid_pages else grid_pages }}">Next</a>
+
+      <span class="page-info">Page {{ grid_page }} / {{ grid_pages }} · {{ grid_total }} entries</span>
+    </nav>
+
   </section>
+
 
   {% endif %}
 </main>

@@ -54,6 +54,8 @@ import socket as _socket
 from calendar import monthrange
 from zoneinfo import ZoneInfo
 from pymongo.errors import DuplicateKeyError
+from math import ceil
+
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
 R2_PUBLIC_HOST = os.getenv("R2_PUBLIC_HOST", "")  # e.g. img.hayday.info
@@ -578,6 +580,56 @@ def normalize(text):
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = re.sub(r"[^\w\s]", "", text)
     return text.lower().strip()
+
+def normalize(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "", s.lower())
+
+def contains_identifying_text(text: str, display_name: str | None, username_tag: str | None, discord_id: str | None) -> bool:
+    """
+    Returns True if `text` appears to include the submitter's identity:
+    - display name (nick)
+    - username or username#1234
+    - raw Discord ID
+    - mention forms like <@123> or <@!123>
+    """
+    if not text:
+        return False
+
+    raw = text or ""
+    low = raw.lower()
+
+    # 1) Direct mentions like <@123456789012345678> or <@!123...>
+    if re.search(r"<@!?\d{15,20}>", raw):
+        return True
+
+    # 2) Obvious raw Discord ID
+    if discord_id and re.search(rf"\b{re.escape(str(discord_id))}\b", raw):
+        return True
+
+    # 3) Username#1234 (full tag) if you store it in session["username"]
+    if username_tag and username_tag.lower() in low:
+        return True
+
+    # 4) Username without discriminator
+    username_base = (username_tag or "").split("#", 1)[0]
+    if username_base and username_base.lower() in low:
+        return True
+
+    # 5) Display name / nick (normalized to ignore punctuation/accents)
+    norm_text = normalize(raw)
+    if display_name and normalize(display_name) and normalize(display_name) in norm_text:
+        return True
+    if username_base and normalize(username_base) and normalize(username_base) in norm_text:
+        return True
+
+    # 6) Generic tag patterns like "Name #1234" or "Name - 1234"
+    if username_base:
+        if re.search(rf"\b{re.escape(username_base.lower())}\s*[#\-–]\s*\d{{3,5}}\b", low):
+            return True
+
+    return False
+
 
 def get_mongo_client():
     mongo_uri = os.getenv("MONGO_URI")
@@ -1299,7 +1351,6 @@ def admin_lookup(identifier):
 
     with MongoClient(os.getenv("MONGO_URI")) as client:
         try:
-            import re
             raw = (identifier or "").strip()
             user_id = None
             tag_used = None
@@ -2334,14 +2385,15 @@ def apply_security_headers(response):
     # Updated CSP — currently allowing unsafe-inline until nonce migration is ready
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "img-src 'self' data: https://cdn.discordapp.com https://cdn-icons-png.flaticon.com https://hayday-upload.davisandersen16.workers.dev; "
+        "img-src 'self' data: https://cdn.discordapp.com https://cdn-icons-png.flaticon.com "
+        "https://upload.hayday.info https://img.hayday.info https://pub-d697248b8aeb486487aa84c6781bea50.r2.dev "
+        "https://hayday-upload.davisandersen16.workers.dev; "  # TEMP for old images
         "script-src 'self' 'unsafe-inline' https://api.ipify.org https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline'; "
         "connect-src 'self' https://api.ipify.org; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'; "
-        "form-action 'self'"
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     )
+
 
     # Feature policies
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
@@ -5303,6 +5355,21 @@ def competition_submit():
     if ext not in {"png", "jpg", "jpeg"}:
         flash("Invalid file type. Use PNG or JPG.", "error")
         return redirect(url_for("competition_submit"))
+    
+    # Pull user identity from session
+    display_name  = session.get("display_name")        # e.g., server nickname or username
+    username_tag  = session.get("username")            # e.g., "Vroomie#1234"
+    discord_id    = session.get("discord_id")          # numeric string
+
+    # Pull user input
+    caption = request.form.get("caption", "")          # adjust to your form field name
+    filename = getattr(file, "filename", "") or ""
+    to_scan = " ".join(filter(None, [caption, filename]))
+
+
+    if contains_identifying_text(to_scan, display_name, username_tag, discord_id):
+        flash("❌ Submissions must be anonymous. Do not include your name, Discord tag, ID, or mentions in the filename or caption.", "error")
+        return redirect(url_for("competition_submit"))  # adjust endpoint name if different
 
     # Upload to R2 (resized)
     unique_name = uuid.uuid4().hex
@@ -5332,23 +5399,56 @@ def competition_submit():
 
 @app.route("/competition/results")
 def competition_results():
-    # open a short-lived Mongo connection using your env var
+    # DB
     with MongoClient(os.getenv("MONGO_URI")) as client:
         col = client["Website"]["CompEntries"]
         entries = list(col.find())
 
-    # 🧪 temporary fake votes for testing purposes
+    # 🧪 temporary fake votes (keep your testing logic)
     counts = {str(e["_id"]): (i + 1) * 7 for i, e in enumerate(entries)}
 
-    # sort entries by votes (descending) for ranking display
+    # Sort by votes DESC once, then reuse for both views
     entries_sorted = sorted(entries, key=lambda e: counts.get(str(e["_id"]), 0), reverse=True)
 
-    # render the existing competition_results.html
+    # --- helpers ---
+    def paginate(items, page, per_page):
+        total = len(items)
+        pages = max(1, ceil(total / per_page))
+        page = max(1, min(int(page or 1), pages))
+        start = (page - 1) * per_page
+        end = start + per_page
+        return {
+            "items": items[start:end],
+            "page": page,
+            "pages": pages,
+            "total": total,
+            "per_page": per_page,
+        }
+
+    # Read query params
+    score_page = request.args.get("score_page", 1, type=int)
+    grid_page  = request.args.get("grid_page", 1, type=int)
+
+    # Paginators
+    score = paginate(entries_sorted, score_page, per_page=10)   # Full scoreboard
+    grid  = paginate(entries_sorted, grid_page,  per_page=16)   # 4×4 “All entries”
+
     return render_template(
         "competition_results.html",
         comp_id="October 2025",
+        # original data
         entries=entries_sorted,
         counts=counts,
+        # scoreboard pagination context
+        score_items=score["items"],
+        score_page=score["page"],
+        score_pages=score["pages"],
+        score_total=score["total"],
+        # grid pagination context
+        grid_items=grid["items"],
+        grid_page=grid["page"],
+        grid_pages=grid["pages"],
+        grid_total=grid["total"],
     )
 
 @csrf.exempt
@@ -5487,7 +5587,6 @@ def competition_update_caption():
         )
 
     return jsonify({"ok": True, "caption": caption})
-
 
 # Start prewarm (sync or async based on env flag)
 if os.getenv("WARM_THUMBS_SYNC", "0") == "1":
