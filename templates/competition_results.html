@@ -173,7 +173,108 @@
   .page-btn.is-active { background: #22c55e; color:#0b1b10; border-color: transparent; }
   .page-btn.is-disabled { opacity:.45; pointer-events:none; }
   .page-info { opacity:.7; font-size:12px; margin-left:6px; }
-  
+  /* All-entries cards: lock layout + avoid text spill */
+.entry-card { display:flex; flex-direction:column; }
+.entry-card img { aspect-ratio: 16/9; border-bottom: 1px solid rgba(255,255,255,.06); }
+body:not(.dark) .entry-card img { border-bottom-color: rgba(0,0,0,.06); }
+
+.grid-meta{
+  padding: 8px 10px;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.grid-meta .name{
+  font-weight:600; font-size:13px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  max-width: 70%;
+}
+.grid-meta .votes{ opacity:.85; font-size:12px; }
+
+/* Subtle hover polish so it feels aligned with the rest */
+.entry-card:hover{ transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.22); }
+.entry-card{ transition: transform .15s ease, box-shadow .15s ease; }
+/* 4-up responsive grid for All entries */
+.competition-grid{
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:12px;
+}
+@media (max-width: 1100px){ .competition-grid{ grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 780px){  .competition-grid{ grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px){  .competition-grid{ grid-template-columns: 1fr; } }
+
+/* Match card styling to the rest */
+.entry-card{
+  border-radius:12px;
+  overflow:hidden;
+  background: rgba(255,255,255,.04);
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+}
+body:not(.dark) .entry-card{ background: rgba(0,0,0,.04); }
+/* Pro banner */
+.notice{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 16px; border-radius:14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+}
+body:not(.dark) .notice{
+  background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.02));
+  border-color: rgba(0,0,0,.10);
+}
+.notice-left{ display:flex; align-items:center; gap:10px; }
+.notice .dot{
+  width:10px; height:10px; border-radius:999px; background:#22c55e;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.15);
+}
+.notice .notice-text{ font-weight:600; opacity:.95; }
+/* Empty state */
+.empty{
+  display:grid; place-items:center; text-align:center;
+  padding:26px; border-radius:16px;
+  background: rgba(255,255,255,.03);
+  border:1px dashed rgba(255,255,255,.16);
+}
+body:not(.dark) .empty{ background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.12); }
+.empty-icon{ font-size:28px; margin-bottom:6px; }
+.empty-title{ font-weight:800; margin:2px 0; }
+.empty-text{ opacity:.8; margin:6px 0 10px; }
+/* Section accent */
+.section-title{
+  font-weight:800; letter-spacing:.2px;
+  margin: 8px 0 10px;
+}
+.section-title::after{
+  content:""; display:block; width:78px; height:3px; border-radius:999px; margin-top:6px;
+  background: linear-gradient(90deg,#ffd77a,#ff8f5a 60%, #ff62a1);
+  opacity:.9;
+}
+
+/* Scoreboard card polish */
+.table-card{
+  padding: 8px 10px 12px;
+  border-radius:14px;
+  background: rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow: 0 4px 18px rgba(0,0,0,.18);
+}
+body:not(.dark) .table-card{
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.10);
+}
+
+/* Row hover + subtle separators */
+.leaderboard tbody tr{ transition: background .12s ease; }
+.leaderboard tbody tr:hover{ background: rgba(255,255,255,.06); }
+body:not(.dark) .leaderboard tbody tr:hover{ background: rgba(0,0,0,.06); }
+.leaderboard tbody td + td{ border-left: 1px solid rgba(255,255,255,.06); }
+body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); }
+
+/* Tighter pager inside card */
+.pagination--tight{ margin:10px 6px 4px; display:flex; align-items:center; gap:8px; }
+.pagination--tight .ml-auto{ margin-left:auto; }
+
+
 </style>
 {% endblock %}
 
@@ -187,12 +288,33 @@
     </div>
     <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
   </div>
+
+  {% if banner %}
+    <div class="notice" role="status">
+      <div class="notice-left">
+        <span class="dot"></span>
+        <div class="notice-text">{{ banner.text }}</div>
+      </div>
+      <a class="btn btn-primary" href="{{ banner.cta_href }}">{{ banner.cta_label }}</a>
+    </div>
+  {% endif %}
   <hr class="divider">
 
-  {% set ranked = entries %} {# assume already sorted desc by votes in view #}
-  {% if ranked|length == 0 %}
-    <div class="card p-6 center muted">No results to show yet.</div>
-  {% else %}
+  {% set ranked = entries %}
+{% if ranked|length == 0 %}
+  <div class="empty">
+    <div class="empty-icon">🏁</div>
+    <h3 class="empty-title">No results to show yet.</h3>
+    <p class="empty-text">
+      Winners will appear here after results are announced.
+      {% if banner %} Meanwhile, {{ banner.text|lower }}{% endif %}
+    </p>
+    {% if banner %}
+      <a class="btn btn-primary" href="{{ banner.cta_href }}">{{ banner.cta_label }}</a>
+    {% endif %}
+  </div>
+{% else %}
+
 
 <!-- Podium (Top 3) -->
 <section class="podium">
@@ -243,42 +365,44 @@
   {% endif %}
 </section>
 
+<h2 class="section-title">Full scoreboard</h2>
 
-  <h2 class="section-title">Full scoreboard</h2>
-
-  <table class="leaderboard">
-    <thead>
-      <tr><th>#</th><th>Preview</th><th>User</th><th>Caption</th><th>Votes</th></tr>
-    </thead>
-    <tbody>
-      {% set base_rank = (score_page - 1) * 10 %}
-      {% for row in score_items %}
-        {% set i = base_rank + loop.index %}
-        {% set votes = (counts|default({})).get(row._id|string, 0) %}
-        {% set preview = row.thumb_url or row.image_url %}
-        <tr>
-          <td class="cell-rank">{{ i }}</td>
-          <td class="cell-preview">
-            <img src="{{ preview }}" alt="preview" loading="lazy" referrerpolicy="no-referrer">
-          </td>
-          <td class="cell-user">{{ row.username or row.user or 'Anonymous' }}</td>
-          <td class="truncate">{{ row.caption or '' }}</td>
-          <td class="cell-votes"><strong>{{ votes }}</strong></td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<section class="card table-card">
+  <div class="table-wrap">
+    <table class="leaderboard">
+      <thead>
+        <tr><th>#</th><th>Preview</th><th>User</th><th>Caption</th><th>Votes</th></tr>
+      </thead>
+      <tbody>
+        {% set base_rank = (score_page - 1) * 10 %}
+        {% for row in score_items %}
+          {% set i = base_rank + loop.index %}
+          {% set votes = (counts|default({})).get(row._id|string, 0) %}
+          {% set preview = row.thumb_url or row.image_url %}
+          <tr>
+            <td class="cell-rank">{{ i }}</td>
+            <td class="cell-preview">
+              <img src="{{ preview }}" alt="preview" loading="lazy" referrerpolicy="no-referrer">
+            </td>
+            <td class="cell-user">{{ row.username or row.user or 'Anonymous' }}</td>
+            <td class="truncate">{{ row.caption or '' }}</td>
+            <td class="cell-votes"><strong>{{ votes }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   {% set pages = range(1, score_pages + 1) %}
-  <nav class="pagination">
+  <nav class="pagination pagination--tight">
     <a class="page-btn {% if score_page <= 1 %}is-disabled{% endif %}"
-      href="?score_page={{ score_page-1 if score_page>1 else 1 }}&grid_page={{ grid_page }}">Prev</a>
+       href="?score_page={{ score_page-1 if score_page>1 else 1 }}&grid_page={{ grid_page }}">Prev</a>
 
-    {# First, window around current, last. Ellipses when gaps appear. #}
+    {# windowed pages + ellipses #}
     {% for p in pages %}
       {% if p == 1 or p == score_pages or (p >= score_page-2 and p <= score_page+2) %}
         <a class="page-btn {% if p == score_page %}is-active{% endif %}"
-          href="?score_page={{ p }}&grid_page={{ grid_page }}">{{ p }}</a>
+           href="?score_page={{ p }}&grid_page={{ grid_page }}">{{ p }}</a>
       {% elif p == 2 and score_page > 4 %}
         <span class="page-info">…</span>
       {% elif p == score_pages-1 and score_page < score_pages-3 %}
@@ -287,22 +411,21 @@
     {% endfor %}
 
     <a class="page-btn {% if score_page >= score_pages %}is-disabled{% endif %}"
-      href="?score_page={{ score_page+1 if score_page<score_pages else score_pages }}&grid_page={{ grid_page }}">Next</a>
+       href="?score_page={{ score_page+1 if score_page<score_pages else score_pages }}&grid_page={{ grid_page }}">Next</a>
 
-    <span class="page-info">Page {{ score_page }} / {{ score_pages }} · {{ score_total }} entries</span>
+    <span class="page-info ml-auto">Page {{ score_page }} / {{ score_pages }} · {{ score_total }} entries</span>
   </nav>
-
-
+</section>
 
   <!-- Uniform gallery grid (all entries) -->
   <section>
     <h3 class="section-title" style="margin: 0 0 8px 2px;">All entries</h3>
 
-    <div class="grid">
+    <div class="competition-grid">
       {% for e in grid_items %}
         {% set votes = (counts|default({})).get(e._id|string, 0) %}
-        <article class="grid-card">
-          <img src="{{ e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
+        <article class="entry-card">
+          <img src="{{ e.thumb_url or e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
           <div class="grid-meta">
             <span class="name">{{ e.username or e.user or 'Anonymous' }}</span>
             <span class="votes">{{ votes }} votes</span>

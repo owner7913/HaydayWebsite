@@ -100,7 +100,22 @@ def _phase_today():
     comp_id = f"{y}-{m:02d}"
     return phase, comp_id
 
+def _prev_comp_id(comp_id: str) -> str:
+    y, m = map(int, comp_id.split("-"))
+    m -= 1
+    if m == 0:
+        y -= 1
+        m = 12
+    return f"{y}-{m:02d}"
 
+def _vote_counts_for(comp_id: str, client: MongoClient) -> dict[str, int]:
+    """Return {entry_id: vote_count} for a competition."""
+    col = client["Website"]["CompVotes"]          # <-- your votes collection
+    pipeline = [
+        {"$match": {"comp_id": comp_id}},
+        {"$group": {"_id": "$entry_id", "n": {"$sum": 1}}},
+    ]
+    return {str(d["_id"]): int(d["n"]) for d in col.aggregate(pipeline)}
 
 
 def _allowed(filename: str) -> bool:
@@ -5399,16 +5414,23 @@ def competition_submit():
 
 @app.route("/competition/results")
 def competition_results():
+    # What phase are we in right now, and what's this month's id?
+    phase, comp_id = _phase_today()  # e.g. ("submit"|"voting"|"results", "2025-10")
+
+    # If not in results yet, display last month’s winners
+    display_comp_id = comp_id if phase == "results" else _prev_comp_id(comp_id)
+
     # DB
     with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Website"]["CompEntries"]
-        entries = list(col.find())
+        entries_col = client["Website"]["CompEntries"]
+        # Only entries for the display month
+        entries = list(entries_col.find({"comp_id": display_comp_id}))
+        counts  = _vote_counts_for(display_comp_id, client)
 
-    # 🧪 temporary fake votes (keep your testing logic)
-    counts = {str(e["_id"]): (i + 1) * 7 for i, e in enumerate(entries)}
-
-    # Sort by votes DESC once, then reuse for both views
-    entries_sorted = sorted(entries, key=lambda e: counts.get(str(e["_id"]), 0), reverse=True)
+    # Sort by real votes (default 0 if missing)
+    entries_sorted = sorted(
+        entries, key=lambda e: counts.get(str(e.get("_id")), 0), reverse=True
+    )
 
     # --- helpers ---
     def paginate(items, page, per_page):
@@ -5433,17 +5455,43 @@ def competition_results():
     score = paginate(entries_sorted, score_page, per_page=10)   # Full scoreboard
     grid  = paginate(entries_sorted, grid_page,  per_page=16)   # 4×4 “All entries”
 
+    # Nice month label for the month we're SHOWING
+    try:
+        month_label = datetime.strptime(display_comp_id, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        month_label = display_comp_id
+
+    # CTA banner depends on CURRENT phase (not the display month)
+    banner = None
+    if phase == "submit":
+        banner = {
+            "text": "Submissions are open. Upload your design now.",
+            "cta_href": url_for("competition_submit"),
+            "cta_label": "Go submit your farm",
+        }
+    elif phase == "voting":
+        banner = {
+            "text": "Voting is live. Cast your votes for this month.",
+            "cta_href": url_for("competition_gallery"),
+            "cta_label": "Go vote now",
+        }
+
     return render_template(
         "competition_results.html",
-        comp_id="October 2025",
-        # original data
+        comp_id=display_comp_id,
+        month_label=month_label,
+        banner=banner,
+
+        # entries + real counts
         entries=entries_sorted,
         counts=counts,
+
         # scoreboard pagination context
         score_items=score["items"],
         score_page=score["page"],
         score_pages=score["pages"],
         score_total=score["total"],
+
         # grid pagination context
         grid_items=grid["items"],
         grid_page=grid["page"],
