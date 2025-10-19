@@ -119,10 +119,11 @@
   <section class="gallery-hero">
     <div class="hero-left">
       <div class="eyebrow">Farm Design</div>
+      {% set title = (month_label or comp_id) %}
       <h1 class="hero-title">
-        Gallery — {{ month_label or comp_id }}
-        {% if (month_label or comp_id)|lower in ['october', 'oct 2025', 'oct'] %}
-          <small>(Halloween Theme)</small>
+        Gallery — {{ title }}
+        {% if 'oct' in title|lower %}
+          <span class="pill pill-ghost">Theme: Halloween</span>
         {% endif %}
       </h1>
       <p class="hero-subtitle">
