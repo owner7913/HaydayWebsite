@@ -5,7 +5,7 @@ from wtforms.validators import DataRequired
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pymongo import MongoClient
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from dotenv import load_dotenv
 import os, requests
 import re
@@ -44,12 +44,66 @@ from concurrent.futures import ThreadPoolExecutor
 import email.utils as eut
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib, mimetypes, os
-
+from werkzeug.utils import secure_filename
+from PIL import Image
+import boto3
+import io
+import certifi, os
+from botocore.config import Config
+import socket as _socket
+from calendar import monthrange
+from zoneinfo import ZoneInfo
+from pymongo.errors import DuplicateKeyError
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
+R2_PUBLIC_HOST = os.getenv("R2_PUBLIC_HOST", "")  # e.g. img.hayday.info
+WORKER_UPLOAD_URL = os.getenv("WORKER_UPLOAD_URL")
+WORKER_UPLOAD_SECRET = os.getenv("WORKER_UPLOAD_SECRET")
+
+if os.getenv("FORCE_IPV4", "0") == "1":
+    import socket
+    _orig_getaddrinfo = socket.getaddrinfo
+    def _getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+        res = _orig_getaddrinfo(host, port, family, type, proto, flags)
+        only4 = [r for r in res if r[0] == socket.AF_INET]
+        return only4 or res
+    socket.getaddrinfo = _getaddrinfo_ipv4_only
+    print("✅ IPv4-only mode enabled (FORCE_IPV4=1)")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
+
+# VERY TEMP storage just to see things working locally
+COMP_ENTRIES = {}  # comp_id -> list of {image_url, username, caption, created_at}
+USER_SUBMITTED = {}  # (comp_id, user_id) -> True
+
+# Allow up to ~6 MB uploads (PNG/JPG up to 5 MB + overhead)
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB
+ALLOWED_EXT = {"png", "jpg", "jpeg"}
+UPLOAD_ROOT = os.path.join(app.root_path, "static", "uploads")  # served by Flask static
+
+
+def _phase_today():
+    now = datetime.now(timezone.utc)
+    y, m, d = now.year, now.month, now.day
+    last_day = monthrange(y, m)[1]
+
+    phase = "submit" if 1 <= d <= 25 else ("voting" if 26 <= d <= last_day else "results")
+
+    # manual override for testing
+    FORCE_PHASE = None # e.g. "voting" | "submit" | "results"
+    if FORCE_PHASE:
+        phase = FORCE_PHASE
+
+    comp_id = f"{y}-{m:02d}"
+    return phase, comp_id
+
+
+
+
+def _allowed(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
+
 
 # Session & cookie hardening
 app.config["RATELIMIT_STORAGE_URL"] = os.environ["REDIS_URL"]
@@ -160,6 +214,128 @@ TITLE_EXCEPTIONS = {
     "Tea leaf": "Tea_Leaves",
     # "Plain Yogurt": "Plain_Yogurt",
 }
+
+_getaddrinfo_orig = _socket.getaddrinfo
+def _getaddrinfo_ipv4_first(host, port, family=0, type=0, proto=0, flags=0):
+    res = _getaddrinfo_orig(host, port, family, type, proto, flags)
+    res.sort(key=lambda r: 0 if r[0] == _socket.AF_INET else 1)  # IPv4 first
+    return res
+_socket.getaddrinfo = _getaddrinfo_ipv4_first
+
+S3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+    aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+    region_name="auto",                          # R2 requirement
+    endpoint_url=os.environ["R2_S3_ENDPOINT"],   # <- custom domain
+    config=Config(s3={"addressing_style": "path"})
+)
+
+os.environ.setdefault("AWS_CA_BUNDLE", certifi.where())
+os.environ.setdefault("BOTO_DEFAULT_SSL_VERSION", "TLSv1_2")
+
+def get_r2_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=f"https://{os.getenv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        region_name="auto",
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+        verify=certifi.where(),  # <- important
+    )
+
+def r2_put_object(fileobj, key, content_type):
+    """Upload file through Cloudflare Worker and return a PUBLIC https URL."""
+    if not WORKER_UPLOAD_URL or not WORKER_UPLOAD_SECRET:
+        raise RuntimeError("Worker upload not configured")
+
+    fileobj.seek(0)
+    url = f"{WORKER_UPLOAD_URL.rstrip('/')}/upload/{key}"
+    headers = {
+        "x-upload-secret": WORKER_UPLOAD_SECRET,
+        "content-type": content_type,
+    }
+    r = requests.put(url, data=fileobj.read(), headers=headers, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+
+    # Prefer explicit url; otherwise build it from the returned key
+    if isinstance(data, dict):
+        if "url" in data and str(data["url"]).startswith("http"):
+            return data["url"]
+        if "key" in data and R2_PUBLIC_HOST:
+            return f"https://{R2_PUBLIC_HOST.rstrip('/')}/{data['key'].lstrip('/')}"
+        # Some workers return {host:'...', key:'...'}
+        if "host" in data and "key" in data:
+            scheme = "https://" if not str(data["host"]).startswith("http") else ""
+            return f"{scheme}{data['host'].rstrip('/')}/{data['key'].lstrip('/')}"
+    # Fallback (if worker returns a raw string url)
+    return str(data)
+
+def resize_to_max_edge(filestorage, max_edge=3000):
+    """Resize if needed and return (BytesIO, content_type, ext). Saves as JPEG 85%."""
+    filestorage.stream.seek(0)
+    img = Image.open(filestorage.stream).convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_edge:
+        img.thumbnail((max_edge, max_edge), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85, optimize=True)
+    buf.seek(0)
+    return buf, "image/jpeg", "jpg"
+
+
+def _comp_strings_for(comp_id: str, submit_end_day: int = 25, tz: str = "Europe/Copenhagen"):
+    """
+    Build all display strings/ranges/countdowns for the competition month.
+    Reuse across home, gallery, submit pages so everything stays in sync.
+    """
+    # Parse comp_id like "2025-10"
+    y, m = map(int, comp_id.split("-"))
+    last_day = monthrange(y, m)[1]
+
+    # Clamp submit end to month end + compute vote start
+    submit_end_day = min(submit_end_day, last_day)
+    vote_start_day = min(submit_end_day + 1, last_day)
+
+    # Date objects for ranges
+    d1 = date(y, m, 1)
+    d_submit_end = date(y, m, submit_end_day)
+    d_vote_start = date(y, m, vote_start_day)
+    d_end = date(y, m, last_day)
+
+    # Nice label like "October 2025"
+    month_label = datetime(y, m, 1).strftime("%B %Y")
+
+    # Range strings like "Oct 01–Oct 25, 2025"
+    submit_range_str = f"{d1.strftime('%b %d')}–{d_submit_end.strftime('%b %d, %Y')}"
+    voting_range_str = f"{d_vote_start.strftime('%b %d')}–{d_end.strftime('%b %d, %Y')}"
+
+    # Countdown helper (use local time to avoid UTC off-by-one)
+    today = datetime.now(ZoneInfo(tz)).date()
+    def _left_text(target: date):
+        days = (target - today).days
+        if days < 0:  return "closed"
+        if days == 0: return "today"
+        if days == 1: return "1 day"
+        return f"{days} days"
+
+    submit_left_text = _left_text(d_submit_end)
+    voting_left_text = _left_text(d_end)
+
+    return {
+        "month_label": month_label,
+        "submit_range_str": submit_range_str,
+        "voting_range_str": voting_range_str,
+        "submit_left_text": submit_left_text,
+        "voting_left_text": voting_left_text,
+        # (optionally expose raw day numbers if templates want them)
+        "submit_end_day": submit_end_day,
+        "vote_start_day": vote_start_day,
+        "last_day": last_day,
+    }
+
 
 def _space(s: str) -> str:
     return " ".join(str(s or "").strip().split())
@@ -1995,7 +2171,7 @@ def live_auctions():
             "status": "active",
             "end_time": {"$gt": now}
         }))
-        user_cache = db["Website"]["UserCache"]
+        user_cache = client["Website"]["UserCache"]
 
         results = []
         for auction in auctions:
@@ -2092,30 +2268,44 @@ def api_bid():
                 "message": f"Bid must be at least {min_increment:,} higher than the current bid."
             }), 400
 
-        # Step 3: Update auction
-        db["auctions"].update_one(
-            {"_id": auction["_id"]},
-            {"$set": {
-                "current_bid": amount,
-                "highest_bidder": int(user_id),
-                "last_bid": {
-                    "user_id": int(user_id),
-                    "amount": amount,
-                    "timestamp": datetime.utcnow()
-                }
+        # Step 3: Update auction (ATOMIC)
+        result = db["auctions"].update_one(
+            {
+                "_id": auction["_id"],
+                "status": "active",
+                # Guard against race: only update if current_bid is unchanged
+                "current_bid": current_bid
             },
-            "$push": {
-                "bid_logs": {
-                    "user_id": int(user_id),
-                    "amount": amount,
-                    "timestamp": datetime.utcnow()
+            {
+                "$set": {
+                    "current_bid": amount,
+                    "highest_bidder": int(user_id),
+                    "last_bid": {
+                        "user_id": int(user_id),
+                        "amount": amount,
+                        "timestamp": datetime.utcnow()
+                    }
+                },
+                "$push": {
+                    "bid_logs": {
+                        "user_id": int(user_id),
+                        "amount": amount,
+                        "timestamp": datetime.utcnow()
+                    }
                 }
-            }}
+            }
         )
+
+        if result.modified_count == 0:
+            # Someone else updated the bid first → tell the user to re-try with the latest number
+            return jsonify({
+                "success": False,
+                "message": "Another bid landed just before yours. Please refresh and try again."
+            }), 409
 
         try:
             requests.post(
-                "https://discord-mega-bot.fly.dev/webhook/auction",
+                os.getenv("BOT_WEBHOOK_URL") + "/webhook/auction",
                 json={
                     "message_id": auction_id_int,
                     "amount": amount,
@@ -2144,7 +2334,7 @@ def apply_security_headers(response):
     # Updated CSP — currently allowing unsafe-inline until nonce migration is ready
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "img-src 'self' data: https://cdn.discordapp.com https://cdn-icons-png.flaticon.com; "
+        "img-src 'self' data: https://cdn.discordapp.com https://cdn-icons-png.flaticon.com https://hayday-upload.davisandersen16.workers.dev; "
         "script-src 'self' 'unsafe-inline' https://api.ipify.org https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline'; "
         "connect-src 'self' https://api.ipify.org; "
@@ -3058,7 +3248,7 @@ def callback():
 
         GUILD_ID = "959220051427340379"  # Replace with your actual server ID
 
-        member_res = requests.get(
+        member = requests.get(
             f"https://discord.com/api/users/@me/guilds/{GUILD_ID}/member",
             headers={"Authorization": f"Bearer {access_token}"}
         )
@@ -3069,10 +3259,10 @@ def callback():
         session.permanent = True
         session["guild_name"] = guild_data.get("name", "HayDay 🍀")
         member_data = {}
-        if member_res.status_code == 200:
-            member_data = member_res.json()
+        if member.status_code == 200:
+            member_data = member.json()
             session["display_name"] = member_data.get("nick") or user["username"]
-            session["roles"] = [int(r) for r in member_data.get("roles", [])]
+            session["roles"] = member_data.get("roles", [])
         else:
             session["display_name"] = user["username"]
             session["roles"] = []
@@ -4871,7 +5061,432 @@ def reroll_giveaway_post():
         print("❌ Failed to contact bot:", e)
         return jsonify({"error": f"Request failed: {e}"}), 500
 
+@app.route("/competition")
+def competition_home():
+    import os
+    from pymongo import MongoClient
+    from datetime import datetime, timezone
 
+    # Reuse the same phase/comp_id logic as gallery
+    phase, comp_id = _phase_today()
+    cal = _comp_strings_for(comp_id, submit_end_day=25)
+    # Use your preferred inline client pattern
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Website"]
+        entries_col = db["CompEntries"]
+
+        q = {"comp_id": comp_id}
+
+        # Pull a handful for the hero (latest first)
+        cursor = (
+            entries_col.find(q)
+            .sort("created_at", -1)
+            .limit(12)
+        )
+        docs = list(cursor)
+
+    # --- normalize fields for template (handles different key names)
+    def _img_url(d):
+        return (
+            d.get("image_url")
+            or d.get("cdn_url")
+            or d.get("r2_url")
+            or d.get("url")
+            or "/static/img/placeholder.jpg"
+        )
+
+    def _username(d):
+        return d.get("username") or d.get("display_name") or d.get("discord_name") or "Anonymous"
+
+    entries = [
+        {
+            "image_url": _img_url(d),
+            "username": _username(d),
+            "submitted_at": d.get("created_at") or d.get("submitted_at"),
+        }
+        for d in docs
+    ]
+
+    # Optional debug logging if you still see empty results
+    if not entries:
+        app.logger.info(f"[competition_home] No entries for comp_id={comp_id}. "
+                        f"Example doc fields? created_at/comp_id set?")
+
+    return render_template(
+        "competition_home.html",
+        entries=entries,
+        phase=phase,
+        comp_id=comp_id,
+        **cal,
+    )
+
+
+@csrf.exempt
+@app.route("/competition/gallery")
+def competition_gallery():
+    phase, comp_id = _phase_today()
+    cal = _comp_strings_for(comp_id, submit_end_day=25)
+
+    viewer_id = session.get("discord_id")
+    sort_mode = request.args.get("sort", "top" if phase == "voting" else "newest")
+    PER_PAGE = 16
+
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+    except ValueError:
+        page = 1
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Website"]
+        entries_col = db["CompEntries"]
+        votes_col = db["CompVotes"]
+
+        q_entries = {"comp_id": comp_id}
+        total = entries_col.count_documents(q_entries)
+
+        # --- build vote counts (all keys as strings) ---
+        pipeline = [
+            {"$match": {"comp_id": comp_id}},
+            {"$group": {"_id": "$entry_id", "count": {"$sum": 1}}},
+        ]
+        counts = {}
+        for doc in votes_col.aggregate(pipeline):
+            # handle legacy ObjectId or string in entry_id
+            key = str(doc["_id"])
+            counts[key] = doc["count"]
+
+        # ensure zeros
+        for _e in entries_col.find(q_entries, {"_id": 1}):
+            k = str(_e["_id"])
+            if k not in counts:
+                counts[k] = 0
+
+        # --- fetch entries per your sort ---
+        if phase == "voting" and sort_mode == "top":
+            rank_pipeline = [
+                {"$match": {"comp_id": comp_id}},
+                {"$group": {"_id": "$entry_id", "votes": {"$sum": 1}}},
+                {"$sort": {"votes": -1, "_id": 1}},
+                {"$skip": (page - 1) * PER_PAGE},
+                {"$limit": PER_PAGE},
+            ]
+            ranked = list(votes_col.aggregate(rank_pipeline))
+            ranked_ids = [ObjectId(r["_id"]) for r in ranked if ObjectId.is_valid(str(r["_id"]))]
+
+            if len(ranked_ids) < PER_PAGE:
+                have = set(ranked_ids)
+                zeros_cursor = entries_col.find(
+                    {"comp_id": comp_id, "_id": {"$nin": list(have)}}
+                ).sort("created_at", -1)
+                for e in zeros_cursor:
+                    ranked_ids.append(e["_id"])
+                    if len(ranked_ids) >= PER_PAGE:
+                        break
+
+            docs = list(entries_col.find({"_id": {"$in": ranked_ids}}))
+            idx = {rid: i for i, rid in enumerate(ranked_ids)}
+            entries = sorted(docs, key=lambda d: idx[d["_id"]])
+        else:
+            entries = list(
+                entries_col.find(q_entries)
+                .sort("created_at", -1)
+                .skip((page - 1) * PER_PAGE)
+                .limit(PER_PAGE)
+            )
+
+        # --- my current vote, normalized ---
+        my_vote = None
+        if viewer_id:
+            my_vote = votes_col.find_one({"comp_id": comp_id, "voter_id": str(viewer_id)})
+            if my_vote and isinstance(my_vote.get("entry_id"), ObjectId):
+                my_vote["entry_id"] = str(my_vote["entry_id"])
+
+    return render_template(
+        "competition_gallery.html",
+        phase=phase,
+        comp_id=comp_id,
+        entries=entries,
+        total=total,
+        page=page,
+        total_pages=max((total + PER_PAGE - 1) // PER_PAGE, 1),
+        has_prev=(page > 1),
+        has_next=(page * PER_PAGE < total),
+        my_vote=my_vote,
+        viewer_id=str(viewer_id) if viewer_id else None,
+        sort_mode=sort_mode,
+        vote_counts=counts,   # <- keys are strings now
+        **cal,
+    )
+
+
+
+@csrf.exempt
+@app.route("/competition/submit", methods=["GET", "POST"])
+def competition_submit():
+    phase, comp_id = _phase_today()
+
+    client = get_mongo_client()
+    db = client["Website"]
+    entries_col = db["CompEntries"]
+    votes_col   = db["CompVotes"]  # <-- for "Your vote" tile
+
+    # --- Work out submit_status for the UI ---
+    discord_id = session.get("discord_id")
+    roles = [str(r) for r in (session.get("roles") or [])]
+
+    if not discord_id:
+        submit_status = "not_logged_in"
+    elif str(MEMBER_ROLE_ID) not in roles:
+        submit_status = "not_in_guild"
+    elif str(UNVERIFIED_ROLE_ID) in roles:
+        submit_status = "not_verified"
+    else:
+        submit_status = "ok"
+
+    # Common vars for template
+    username = session.get("username", "Anonymous")
+    try:
+        month_label = datetime.strptime(comp_id, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        month_label = comp_id  # fallback if the format isn't YYYY-MM
+
+    # --- GET ---
+    if request.method == "GET":
+        user_key = str(discord_id) if discord_id else f"anon-{request.remote_addr}"
+        entry = entries_col.find_one({"comp_id": comp_id, "user_id": user_key})
+
+        # Fetch "your vote" (during voting) and the voted image URL
+        my_vote = None
+        entries_map = {}
+        if discord_id:
+            my_vote = votes_col.find_one({"comp_id": comp_id, "voter_id": str(discord_id)})
+            if my_vote:
+                voted = entries_col.find_one({"_id": ObjectId(my_vote["entry_id"])})
+                if voted:
+                    entries_map[my_vote["entry_id"]] = voted.get("image_url", "")
+
+        return render_template(
+            "competition_submit.html",
+            comp_id=comp_id,
+            month_label=month_label,
+            phase=phase,
+            entry=entry,
+            submit_status=submit_status,
+            my_vote=my_vote,          # <-- enables "Your vote" section
+            entries_map=entries_map,  # <-- image lookup for your vote
+            GUILD_ID=GUILD_ID,        # used by template links
+        )
+
+    # --- POST (only if allowed) ---
+    if submit_status != "ok":
+        flash("Please log in and verify in Discord to submit.", "error")
+        return redirect(url_for("competition_submit"))
+
+    if phase != "submit":
+        flash("Submissions are closed for this month.", "error")
+        return redirect(url_for("competition_gallery"))
+
+    file = request.files.get("image")
+    if not file or file.filename == "":
+        flash("Please choose an image.", "error")
+        return redirect(url_for("competition_submit"))
+
+    # (Optional) enforce ≤ 25 MB on the server as well
+    file.seek(0, 2)  # end
+    size = file.tell()
+    file.seek(0)
+    if size > 25 * 1024 * 1024:
+        flash("Image too large (max 25 MB).", "error")
+        return redirect(url_for("competition_submit"))
+
+    ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in {"png", "jpg", "jpeg"}:
+        flash("Invalid file type. Use PNG or JPG.", "error")
+        return redirect(url_for("competition_submit"))
+
+    # Upload to R2 (resized)
+    unique_name = uuid.uuid4().hex
+    buf, content_type, ext_out = resize_to_max_edge(file)  # returns JPEG 85%
+    object_key = f"{comp_id}/{unique_name}.{ext_out}"
+    image_url = r2_put_object(buf, object_key, content_type)
+
+    # Match UI limit
+    caption = (request.form.get("caption") or "").strip()[:35]
+
+    entries_col.update_one(
+        {"comp_id": comp_id, "user_id": str(discord_id)},
+        {"$set": {
+            "username": username,
+            "user_id": str(discord_id),
+            "image_url": image_url,
+            "caption": caption,
+            "created_at": datetime.now(timezone.utc),
+            "ip": request.remote_addr,
+        }},
+        upsert=True
+    )
+
+    flash("Submission saved!", "success")
+    # nicer loop: land back on Submit so they see their card (and later their vote)
+    return redirect(url_for("competition_submit"))
+
+@app.route("/competition/results")
+def competition_results():
+    # open a short-lived Mongo connection using your env var
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        col = client["Website"]["CompEntries"]
+        entries = list(col.find())
+
+    # 🧪 temporary fake votes for testing purposes
+    counts = {str(e["_id"]): (i + 1) * 7 for i, e in enumerate(entries)}
+
+    # sort entries by votes (descending) for ranking display
+    entries_sorted = sorted(entries, key=lambda e: counts.get(str(e["_id"]), 0), reverse=True)
+
+    # render the existing competition_results.html
+    return render_template(
+        "competition_results.html",
+        comp_id="October 2025",
+        entries=entries_sorted,
+        counts=counts,
+    )
+
+@csrf.exempt
+@app.route("/competition/delete", methods=["POST"])
+def competition_delete():
+    phase, comp_id = _phase_today()
+    discord_id = session.get("discord_id")
+    if not discord_id:
+        return redirect(url_for("competition_submit"))
+
+    if phase != "submit":
+        flash("Edits are locked during voting/results.", "error")
+        return redirect(url_for("competition_submit"))
+
+    client = get_mongo_client()
+    db = client["Website"]
+    db["CompEntries"].delete_one({"comp_id": comp_id, "user_id": str(discord_id)})
+
+    flash("Submission deleted.", "success")
+    return redirect(url_for("competition_submit"))
+
+
+@csrf.exempt
+@app.route("/competition/vote", methods=["POST"])
+def competition_vote():
+    phase, comp_id = _phase_today()
+    if phase != "voting":
+        return jsonify({"ok": False, "error": "Voting is not open."}), 400
+
+    voter_id = session.get("discord_id")
+    if not voter_id:
+        return jsonify({"ok": False, "error": "Login required."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    entry_id = request.form.get("entry_id") or payload.get("entry_id")
+    overwrite = (request.form.get("overwrite") == "true") or (payload.get("overwrite") is True)
+
+    if not entry_id:
+        return jsonify({"ok": False, "error": "Missing entry_id."}), 400
+    # Guard invalid ObjectId strings
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid entry_id."}), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Website"]
+        entries = db["CompEntries"]
+        votes = db["CompVotes"]
+        votes.create_index([("comp_id", 1), ("voter_id", 1)], unique=True)
+
+        e = entries.find_one({"_id": oid, "comp_id": comp_id})
+        if not e:
+            return jsonify({"ok": False, "error": "Entry not found for this competition."}), 404
+
+        if str(e.get("user_id")) == str(voter_id):
+            return jsonify({"ok": False, "error": "You cannot vote for your own entry."}), 403
+
+        existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
+
+        def _as_str(x):
+            try:
+                if isinstance(x, ObjectId):
+                    return str(x)
+            except Exception:
+                pass
+            return str(x) if x is not None else None
+
+        new_entry_id = str(e["_id"])
+        existing_entry_id = _as_str(existing["entry_id"]) if existing else None
+
+        if not existing:
+            try:
+                votes.insert_one({
+                    "comp_id": comp_id,
+                    "voter_id": str(voter_id),
+                    "entry_id": new_entry_id,
+                    "created_at": datetime.now(timezone.utc),
+                })
+                # ⬇️ was changed: False
+                return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
+            except DuplicateKeyError:
+                # another request inserted first — re-fetch and continue below
+                existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
+                existing_entry_id = _as_str(existing["entry_id"]) if existing else None
+
+        if existing_entry_id == new_entry_id:
+            return jsonify({"ok": True, "entry_id": new_entry_id, "changed": False})
+
+        if not overwrite:
+            return jsonify({
+                "ok": False,
+                "error": "Already voted for another entry.",
+                "conflict": True,
+                "current_entry_id": existing_entry_id,
+            }), 409
+
+        votes.update_one(
+            {"comp_id": comp_id, "voter_id": str(voter_id)},
+            {"$set": {"entry_id": new_entry_id, "created_at": datetime.now(timezone.utc)}}
+        )
+        return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
+    
+@csrf.exempt
+@app.route("/competition/update-caption", methods=["POST"])
+def competition_update_caption():
+    phase, comp_id = _phase_today()
+    if phase != "submit":
+        return jsonify({"ok": False, "error": "Edits are locked during voting/results."}), 403
+
+    voter_id = session.get("discord_id")
+    if not voter_id:
+        return jsonify({"ok": False, "error": "Login required."}), 401
+
+    caption = (request.form.get("caption") or "").strip()
+    # keep server truth the same as your input maxlength:
+    MAX_LEN = 35
+    if len(caption) > MAX_LEN:
+        caption = caption[:MAX_LEN]
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Website"]
+        entries = db["CompEntries"]
+
+        # find the caller's entry for this competition
+        entry = entries.find_one({"comp_id": comp_id, "user_id": str(voter_id)})
+        if not entry:
+            return jsonify({"ok": False, "error": "No submission to update."}), 404
+
+        entries.update_one(
+            {"_id": entry["_id"]},
+            {"$set": {
+                "caption": caption or None,
+                "updated_at": datetime.now(timezone.utc)
+            }}
+        )
+
+    return jsonify({"ok": True, "caption": caption})
 
 
 # Start prewarm (sync or async based on env flag)

@@ -1,4 +1,4 @@
-header {
+header.site-header {
   width: 100%;
   padding: 12px 24px;
   background: rgba(255, 255, 255, 0.85);
@@ -684,3 +684,300 @@ body.has-maint-banner main{
 body.dark .maint-banner{
   background: #1f4fad;
 }
+/* ---------------------- */
+/* Competition thumbnails */
+/* ---------------------- */
+.submission-thumb { max-width: 560px; }
+.submission-thumb img,
+.thumb-4x3 {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+  cursor: zoom-in;
+}
+
+.thumb-4x3--submit { max-width: 420px; }   /* smaller on submit page */
+.thumb-4x3--gallery { max-height: 280px; } /* gallery grid cards */
+
+/* ---------------------- */
+/* Zoom Modal Styling */
+/* ---------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.7);
+  z-index: 9999;
+}
+.modal-backdrop.open { display: flex; }
+
+#imgModalImg {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(255,255,255,.9);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+/* ---- Competition Grid (4 per row) ---- */
+.competition-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);  /* always 4 across */
+  gap: 16px;
+}
+@media (max-width: 1200px) { .competition-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .competition-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px)  { .competition-grid { grid-template-columns: 1fr; } }
+
+.entry-card {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--card, #161616);
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+}
+
+.entry-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  cursor: zoom-in;
+}
+
+/* ---- Lightbox popup ---- */
+.lightbox {
+  position: fixed; inset: 0; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.7); z-index: 9999;
+}
+.lightbox.open { display: flex; }
+
+.lightbox__dialog {
+  position: relative;
+  background: #111;            /* popup backdrop */
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  max-width: 95vw; max-height: 95vh;
+}
+.lightbox__img {
+  max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 8px;
+}
+.lightbox__close {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(255,255,255,.9); border: 0; border-radius: 999px;
+  padding: 6px 10px; cursor: pointer; font-weight: 700;
+}
+/* === Seasonal: Halloween (applies when <body> has .season-halloween) === */
+body.season-halloween {
+  --hallo-bg: radial-gradient(1200px 600px at 10% -10%, rgba(255,140,0,.10), transparent 60%),
+              radial-gradient(1000px 600px at 100% 10%, rgba(186,104,200,.10), transparent 60%),
+              #0f0f12;
+  --hallo-accent: #ff7a00;    /* pumpkin */
+  --hallo-accent-2: #b388ff;  /* ghostly purple */
+  --hallo-text: #f7f5ff;
+
+  background: var(--hallo-bg);
+}
+
+body.season-halloween header {
+  background: rgba(20, 15, 28, .92);
+  border-bottom: 1px solid rgba(255, 122, 0, .18);
+}
+
+body.season-halloween header nav a:hover { color: var(--hallo-accent-2); }
+
+/* Re-tint footer a bit */
+body.season-halloween footer {
+  background: rgba(20, 15, 28, .85);
+  color: #dcd6ff;
+  border-top: 1px solid rgba(179,136,255,.25);
+}
+
+/* Banner block used on Competition pages */
+.season-banner {
+  margin: 88px auto 18px;        /* room for fixed header */
+  max-width: 1100px;
+  padding: 22px 22px;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 420px at 0% 0%, rgba(255,122,0,.10), transparent 60%),
+    radial-gradient(700px 380px at 100% 0%, rgba(179,136,255,.10), transparent 60%),
+    linear-gradient(135deg, #1a1324 0%, #141019 100%);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  color: var(--hallo-text);
+  text-align: center;
+}
+
+.season-banner::after {
+  content: "🦇🦇🦇";
+  position: absolute;
+  right: 14px; top: 8px;
+  font-size: 20px;
+  opacity: .55;
+}
+
+.season-banner h1 {
+  margin: 0 0 6px;
+  font-size: 1.9rem;
+  letter-spacing: .5px;
+}
+
+.season-banner p {
+  margin: 0;
+  opacity: .9;
+}
+
+/* Cute divider below the banner to blend into page */
+.season-divider {
+  height: 1px;
+  margin: 12px auto 6px;
+  max-width: 1100px;
+  background: linear-gradient(to right, transparent, rgba(255,122,0,.35), rgba(179,136,255,.35), transparent);
+  border: 0;
+}
+
+/* Slight re-tint of your generic .card/.btn on Halloween */
+body.season-halloween .card {
+  border-color: rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+}
+body.season-halloween .btn-primary {
+  background: var(--hallo-accent);
+  border-color: #e46f00;
+}
+/* === Seasonal Décor (refined) === */
+body.season-halloween .hallo-decor{position:fixed;inset:0;pointer-events:none;z-index:999}
+
+/* Corner webs image (safe single-line) */
+body.season-halloween .web {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='white' stroke-width='1.4' stroke-opacity='.85'%3E%3Cpath d='M0 0 L240 0 M0 0 L0 240'/%3E%3Cpath d='M0 0 C80 30,150 70,240 120' opacity='.45'/%3E%3Cpath d='M0 0 C60 24,120 56,200 100' opacity='.35'/%3E%3Cpath d='M0 0 C40 18,90 42,150 70' opacity='.28'/%3E%3Cpath d='M0 20 L200 20 M20 0 L20 200' opacity='.22'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+
+/* Hanging spider (thicker line + clearer body) */
+body.season-halloween .spider-wrap{position:absolute;top:-6px;right:8%;display:flex;flex-direction:column;gap:8px;animation:spider-sway 6s ease-in-out infinite;transform-origin:top center}
+body.season-halloween .spider-thread{width:2.5px;height:150px;background:linear-gradient(to bottom,rgba(255,255,255,.7),rgba(255,255,255,.18))}
+body.season-halloween .spider{
+  width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle at 45% 35%,#1a1a1f 0 60%,#0b0b10 61% 100%);
+  position:relative;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 4px 12px rgba(0,0,0,.45);
+}
+body.season-halloween .spider::before,
+body.season-halloween .spider::after{
+  content:"";position:absolute;left:-14px;right:-14px;height:0;top:10px;border-top:3px solid #0b0b10;border-bottom:3px solid #0b0b10;opacity:.95
+}
+body.season-halloween .spider::after{top:18px}
+
+/* Floating actors (fewer + slower) */
+body.season-halloween .actor{position:absolute;opacity:.9;will-change:transform,opacity;animation:float-linear var(--t,30s) linear infinite, bob 5.5s ease-in-out infinite}
+body.season-halloween .actor svg{width:var(--w,44px);height:auto;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+
+/* Static pumpkins (no motion) */
+body.season-halloween .pumpkin-static{
+  position:fixed;bottom:18px;opacity:.85;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));
+}
+body.season-halloween .pumpkin-left{left:14px}
+body.season-halloween .pumpkin-right{right:14px}
+
+/* Animations: slower + gentle */
+@keyframes float-linear{
+  0%{transform:translate3d(var(--x0,-12vw),var(--y,14vh),0) rotate(var(--r0,0deg));opacity:0}
+  12%{opacity:.95}
+  88%{opacity:.95}
+  100%{transform:translate3d(var(--x1,112vw),var(--y,14vh),0) rotate(var(--r1,0deg));opacity:0}
+}
+@keyframes bob{0%,100%{transform:translateY(-2px)}50%{transform:translateY(2px)}}
+@keyframes spider-sway{0%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}100%{transform:rotate(-1.6deg)}}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce){
+  body.season-halloween .actor, body.season-halloween .spider-wrap{animation:none!important}
+}
+/* optional: soft orange footer glow */
+body.season-halloween footer::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(400px 120px at 50% 100%, rgba(255,122,0,.15), transparent);
+  pointer-events:none;
+}
+
+/* optional: faint fog behind header for depth */
+body.season-halloween header::after {
+  content:"";
+  position:absolute; inset:0;
+  background: radial-gradient(600px 160px at 50% 0, rgba(255,255,255,.04), transparent);
+  pointer-events:none;
+}
+/* === Fix: Bring Halloween décor above everything else === */
+body.season-halloween .hallo-decor {
+  z-index: 99999; /* higher than header, modals, etc. */
+  pointer-events: none;
+}
+
+/* Make webs more visible on dark pages */
+body.season-halloween .web {
+  opacity: 0.8; /* brighter */
+  filter: drop-shadow(0 0 5px rgba(255,255,255,.15));
+}
+/* Bring décor above content */
+body.season-halloween .hallo-decor { z-index: 99999; pointer-events: none; }
+
+/* Use the SVG spider; hide the old circle spider */
+body.season-halloween .spider { display: none; }
+
+body.season-halloween .spider-wrap { top: -2px; right: 7.5%; gap: 4px; animation: spider-sway 6s ease-in-out infinite; }
+body.season-halloween .spider-thread {
+  width: 2px; height: 150px;
+  background: linear-gradient(to bottom, rgba(255,255,255,.85), rgba(255,255,255,.25));
+}
+body.season-halloween .spider-svg {
+  width: 44px; height: 45px; margin-top: -4px;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.45));
+}
+
+/* Make webs more visible on dark backgrounds */
+body.season-halloween .web {
+  opacity: 0.85;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,.15));
+}
+
+/* Ensure pumpkins have a consistent size */
+body.season-halloween .pumpkin-static svg { width: 28px; height: auto; }
+/* --- Visibility boost for flying actors --- */
+body.season-halloween .actor svg {
+  fill: #000;
+  stroke: rgba(255,255,255,.25);
+  stroke-width: 1.2;
+  filter:
+    drop-shadow(0 3px 6px rgba(0,0,0,.6))
+    drop-shadow(0 0 2px rgba(255,255,255,.25))
+    brightness(1.2);
+  opacity: 0.9;
+}
+body.season-halloween .actor {
+  z-index: 99998; /* keep above cards but below header */
+}
+

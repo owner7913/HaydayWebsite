@@ -1,0 +1,404 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Home{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* --- Page container & typography --- */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+  .page-title { font-size: 1.9rem; font-weight: 700; margin: 20px 0 8px; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin: 10px 0 12px; }
+  .muted { opacity: .8; }
+  .list { margin: 0; padding-left: 20px; }
+  .cta-row, .badge-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0 0; }
+  .btn { display:inline-block; padding:8px 14px; border-radius:8px; text-decoration:none; border:1px solid #3b3b3b; }
+  .btn-primary { background:#2b7a3d; color:#fff; border-color:#276c35; }
+  .card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; }
+  body.light .card { background:#fff; border-color:#ddd; }
+
+  /* --- Rolling strip (centered, visible) --- */
+  .hero { margin-top: 80px; }
+  .hero-card {
+    position: relative; overflow: hidden; border-radius: 16px;
+    background: #111; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  }
+  .strip-viewport {
+    width: 100%; overflow: hidden; padding: 10px 0; position: relative;
+    /* softer edge fade so images stay visible */
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  }
+  .strip-track {
+    display: flex; align-items: center; gap: 10px; will-change: transform;
+    animation: stripScroll var(--speed, 38s) linear infinite;
+  }
+  .strip-viewport:hover .strip-track { animation-play-state: paused; }
+  .strip-track img {
+    display:block; height: 140px; width:auto; object-fit: contain;
+    background:#000; border-radius:12px; flex: 0 0 auto;
+  }
+  .strip-viewport.no-animate .strip-track { animation:none; justify-content:center; flex-wrap:wrap; }
+  .strip-viewport.no-animate .strip-track img { margin-bottom:6px; }
+  @keyframes stripScroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  @media (max-width: 720px){ .strip-track img{ height: 100px; } }
+
+  /* Sections spacing */
+  .section { margin-top: 28px; }
+  .rules-card, .how-card { padding: 22px; }
+    /* --- Dark mode hotfix for Competition page --- */
+
+  /* If your site uses a different dark selector, change body.dark → html.dark or [data-theme="dark"] */
+  body.dark .card,
+  body.dark .rules-card,
+  body.dark .how-card {
+    background: rgba(255,255,255,0.04) !important;   /* subtle dark card */
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    color: #e9edf3 !important;
+  }
+
+  /* Ensure text inside cards is readable */
+  body.dark .card p,
+  body.dark .card li,
+  body.dark .card .muted,
+  body.dark .rules-card p,
+  body.dark .how-card p {
+    color: rgba(255,255,255,0.92) !important;
+  }
+  body.dark .muted { color: rgba(255,255,255,0.75) !important; }
+
+  /* Buttons & links in dark */
+  body.dark .btn {
+    color: #e9edf3 !important;
+    border-color: rgba(255,255,255,0.18) !important;
+    background: transparent !important;
+  }
+  body.dark .btn:hover { background: rgba(255,255,255,0.06) !important; }
+  body.dark .btn-primary {
+    background: #2b7a3d !important;
+    border-color: #276c35 !important;
+    color: #fff !important;
+  }
+
+  /* Rolling strip: make sure it’s visible on dark backgrounds */
+  body.dark .hero-card { background: #121212 !important; }
+  body.dark .strip-viewport {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%) !important;
+            mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%) !important;
+  }
+  /* If the strip still looks “cut off”, comment the two mask lines above. */
+  /* make sure the site header is always on top on this page */
+header {
+  z-index: 2000 !important;
+}
+main.submit-page {
+  /* clear the fixed header + some breathing room */
+  margin: calc(64px + 32px) auto 40px;  /* 64px header + 32px spacing */
+  padding: 0 20px 40px;
+  max-width: 960px;                     /* keeps the page nicely centered */
+  position: relative;                   /* keeps it under the header in stacking context */
+}
+/* --- Prizes (pro version) --- */
+.prizes-card{
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.10);
+  position: relative;
+  overflow: hidden;
+}
+.prizes-card::before{
+  content:"";
+  position:absolute; inset:-1px;
+  border-radius:18px;
+  background: radial-gradient(1200px 200px at -10% -10%, rgba(255,255,255,.08), transparent 55%),
+              radial-gradient(1200px 200px at 110% -10%, rgba(255,255,255,.06), transparent 55%);
+  pointer-events:none;
+}
+.prizes-head{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;
+}
+.prizes-title{
+  font-weight:800; letter-spacing:.2px; font-size:1.25rem; display:flex; align-items:center; gap:10px;
+}
+.prizes-title::after{
+  content:"";
+  height:3px; width:78px; border-radius:999px; margin-left:4px;
+  background: linear-gradient(90deg,#ffd77a,#ff8f5a 60%, #ff62a1);
+  opacity:.9;
+}
+.prize-list{
+  display:grid; grid-template-columns: repeat(12,1fr); gap:12px; margin-top:6px;
+}
+@media (max-width: 920px){ .prize-list{ grid-template-columns: repeat(6,1fr);} }
+@media (max-width: 560px){ .prize-list{ grid-template-columns: repeat(2,1fr);} }
+
+.prize-item{
+  grid-column: span 4; /* 3 across on desktop */
+  display:flex; align-items:center; gap:14px;
+  padding:14px 16px; border-radius:14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.12));
+  border:1px solid rgba(255,255,255,.08);
+  transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18);
+}
+.prize-item:hover{ transform: translateY(-2px); border-color: rgba(255,255,255,.16); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+
+.prize-item--first{
+  background: linear-gradient(180deg, rgba(255,223,130,.14), rgba(255,223,130,.06));
+  border-color: rgba(255,223,130,.35);
+  box-shadow: 0 10px 28px rgba(255,215,0,.10), inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.prize-item--second{
+  background: linear-gradient(180deg, rgba(220,226,235,.12), rgba(190,198,210,.05));
+  border-color: rgba(210,220,235,.28);
+}
+.prize-item--third{
+  background: linear-gradient(180deg, rgba(230,190,150,.12), rgba(200,130,70,.06));
+  border-color: rgba(220,160,110,.28);
+}
+
+.medal{
+  width:40px; height:40px; border-radius:50%;
+  display:grid; place-items:center; font-weight:900; font-size:16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 -3px 8px rgba(0,0,0,.25);
+}
+.medal.gold   { background:linear-gradient(135deg,#ffe08a,#ffc44a); color:#4a3800; }
+.medal.silver { background:linear-gradient(135deg,#e9edf3,#cfd6e0); color:#2c3340; }
+.medal.bronze { background:linear-gradient(135deg,#e7b28a,#c67a44); color:#3a2416; }
+
+.prize-copy .place{ font-weight:800; letter-spacing:.2px; }
+.prize-copy .amount{ opacity:.93; margin-top:2px; }
+
+.prize-note{
+  margin-top:10px; opacity:.75;
+}
+
+/* Light mode tweaks */
+body.light .prizes-card{ background: linear-gradient(180deg,#fff, #fafafa); border-color:#e6e6e6; }
+body.light .prize-item{ background: linear-gradient(180deg, #ffffff, #f6f7f8); border-color:#e7eaee; }
+body.light .prize-item--first{ background: linear-gradient(180deg, #fff8df, #fff2c6); border-color:#ffe08a; }
+body.light .prize-item--second{ background: linear-gradient(180deg, #f7f9fc, #eef2f7); }
+body.light .prize-item--third{ background: linear-gradient(180deg, #fff0e4, #ffe7d3); }
+/* --- Prizes visibility hotfix (force readable text on light tiles) --- */
+.prize-item { color: #111; }                  /* default text for all prize tiles */
+.prize-item .amount { opacity: 1; }           /* remove extra fade on the amount */
+
+body.dark .prize-item { color: #0f1720; }     /* darker text in dark theme for contrast */
+
+/* Optional: variant-specific fine-tuning (nice contrast on each background) */
+body.dark .prize-item--first  { color: #2c240e; }   /* warm dark brown */
+body.dark .prize-item--second { color: #1b2330; }   /* cool navy */
+body.dark .prize-item--third  { color: #342217; }   /* deep brown */
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+{% set SUBMIT_END = 25 %}
+{% set VOTE_START = SUBMIT_END + 1 %}
+<main class="container hero">
+<!-- Seasonal banner (shows every month, wears Halloween skin during October) -->
+<section class="season-banner" aria-label="Seasonal Theme">
+  <h1>🎃 October Theme: Halloween</h1>
+  <p class="muted">Spook up your farm! Share your creepiest cornfields and haunted barns. 🕯️👻</p>
+</section>
+<hr class="season-divider">
+  <!-- Rolling strip -->
+  <section class="hero-card">
+    {% set count = entries|length if entries else 0 %}
+    {% if count > 0 %}
+      <div class="strip-viewport {% if count < 6 %}no-animate{% endif %}">
+        <div class="strip-track" style="--speed: 38s">
+          {% for e in entries %}
+            <img src="{{ e.image_url }}" alt="Submission by {{ e.username or 'Anonymous' }}" loading="lazy" />
+          {% endfor %}
+          {% if count >= 6 %}
+            {% for e in entries %}
+              <img src="{{ e.image_url }}" alt="Submission by {{ e.username or 'Anonymous' }}" loading="lazy" />
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="strip-viewport no-animate">
+        <div class="strip-track">
+          <img src="{{ url_for('static', filename='img/placeholder.jpg') }}" alt="No submissions yet" />
+        </div>
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- Title + phase + CTAs -->
+  <section class="section">
+    <h1 class="page-title">Monthly Farm Design Contest</h1>
+    <div class="badge-row">
+      {% if phase == 'submit' %}
+        <span class="badge badge-green">Submissions open</span>
+        <p class="muted">Day 1–{{ SUBMIT_END }}: upload or replace your single image any time.</p>
+      {% elif phase == 'voting' %}
+        <span class="badge badge-blue">Voting open</span>
+        <p class="muted">Day {{ VOTE_START }}–end of month: cast your vote. One vote per account.</p>
+      {% else %}
+        <span class="badge badge-gray">Results</span>
+        <p class="muted">See last month’s winners and full scoreboard.</p>
+      {% endif %}
+    </div>
+
+    <div class="cta-row">
+      <a class="btn" href="{{ url_for('competition_gallery') }}">View Gallery</a>
+      {% if phase == 'submit' %}
+        <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">Submit your design</a>
+      {% elif phase == 'voting' %}
+        <a class="btn btn-primary" href="{{ url_for('competition_gallery') }}">Vote now</a>
+      {% else %}
+        <a class="btn btn-primary" href="{{ url_for('competition_results') }}">See results</a>
+      {% endif %}
+    </div>
+  </section>
+  <!-- Prizes -->
+  <section class="card prizes-card section">
+    <div class="prizes-head">
+      <h2 class="prizes-title">Prizes</h2>
+      {% if is_admin %}
+        <a class="btn" href="{{ url_for('admin_edit_prizes') }}">Edit prizes</a>
+      {% endif %}
+    </div>
+
+    {% set PR = prizes if prizes is defined and prizes else {} %}
+
+    <div class="prize-list">
+      <!-- 1st -->
+      <div class="prize-item prize-item--first">
+        <div class="medal gold">1</div>
+        <div class="prize-copy">
+          <div class="place">1st place</div>
+          <div class="amount">{{ PR.get('first', '1,000,000 coins') }}</div>
+        </div>
+      </div>
+
+      <!-- 2nd -->
+      <div class="prize-item prize-item--second">
+        <div class="medal silver">2</div>
+        <div class="prize-copy">
+          <div class="place">2nd place</div>
+          <div class="amount">{{ PR.get('second', '700,000 coins') }}</div>
+        </div>
+      </div>
+
+      <!-- 3rd -->
+      <div class="prize-item prize-item--third">
+        <div class="medal bronze">3</div>
+        <div class="prize-copy">
+          <div class="place">3rd place</div>
+          <div class="amount">{{ PR.get('third', '500,000 coins') }}</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="prize-note muted">Prizes may be adjusted before results are announced.</p>
+  </section>
+
+  <!-- Rules -->
+  <section class="card rules-card section">
+    <h2 class="section-title">Rules</h2>
+    <ul class="list">
+      <li>Each participant may submit one image per month (PNG or JPG, up to 25&nbsp;MB).</li>
+      <li>Your entry may show your entire farm or a focused area of your design.</li>
+      <li>All submissions must be original and appropriate. Ineligible or stolen content will be removed.</li>
+      <li>Voting is limited to one vote per verified account.</li>
+      <li>Vote totals remain hidden until results are officially announced.</li>
+    </ul>
+    <p class="muted">
+      Timeline: Submit (Days&nbsp;1–{{ submit_end_day }}) • Vote (Days&nbsp;{{ vote_start_day }}–End) • Winners announced on the&nbsp;1st.
+    </p>
+  </section>
+
+
+  <!-- How it works -->
+<section class="card how-card section">
+  <h2 class="section-title">How it Works</h2>
+  <ol class="list">
+    <li><strong>Submit (Days&nbsp;1–{{ submit_end_day }}):</strong> Upload your best farm design image. You may update or replace your submission any time before the deadline.</li>
+    <li><strong>Vote (Days&nbsp;{{ vote_start_day }}–End):</strong> During the voting phase, each verified member can cast one vote for their favorite design.</li>
+    <li><strong>Results (1st of next month):</strong> Winners are revealed, and the full scoreboard becomes public.</li>
+  </ol>
+  <p class="muted">
+    Need inspiration? Explore the <a href="{{ url_for('competition_gallery') }}">gallery</a> to view previous entries and creative designs.
+  </p>
+</section>
+</main>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+(function () {
+  const track = document.getElementById('carousel-track');
+  if (!track) return;
+
+  const slides = Array.from(track.children);
+  const prevBtn = document.querySelector('.carousel-btn[data-dir="prev"]');
+  const nextBtn = document.querySelector('.carousel-btn[data-dir="next"]');
+  const dotsWrap = document.getElementById('carousel-dots');
+  const total = slides.length;
+  let index = 0;
+  let timer = null;
+  const AUTOPLAY_MS = 5000;
+
+  // Build dots
+  if (dotsWrap && total > 1) {
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement('button');
+      dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+      dot.addEventListener('click', () => goTo(i));
+      dotsWrap.appendChild(dot);
+    }
+  }
+
+  function goTo(i) {
+    index = (i + total) % total;
+    track.style.transform = `translateX(-${index * 100}%)`;
+    if (dotsWrap) {
+      Array.from(dotsWrap.children).forEach((d, di) => {
+        d.classList.toggle('active', di === index);
+      });
+    }
+    restart();
+  }
+
+  function next() { goTo(index + 1); }
+  function prev() { goTo(index - 1); }
+
+  function start() {
+    if (total <= 1) return;
+    if (timer) clearInterval(timer);
+    timer = setInterval(next, AUTOPLAY_MS);
+  }
+  function stop() { if (timer) clearInterval(timer); }
+  function restart() { stop(); start(); }
+
+  nextBtn?.addEventListener('click', next);
+  prevBtn?.addEventListener('click', prev);
+
+  const carousel = document.getElementById('comp-carousel');
+  carousel?.addEventListener('mouseenter', stop);
+  carousel?.addEventListener('mouseleave', start);
+
+  // Basic swipe support
+  let startX = null;
+  carousel?.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive:true});
+  carousel?.addEventListener('touchmove', e => {
+    if (startX === null) return;
+    const dx = e.touches[0].clientX - startX;
+    if (Math.abs(dx) > 50) {
+      dx > 0 ? prev() : next();
+      startX = null;
+    }
+  }, {passive:true});
+
+  start();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Results{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ---- Results page scoped styles ---- */
+  .results-page { margin-top: 84px; }
+  .results-hero {
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    margin-bottom: 12px;
+  }
+  .results-hero .title {
+    font-size: clamp(20px, 2.4vw, 28px); font-weight: 800; letter-spacing: .2px;
+  }
+  .results-hero .sub { opacity: .75; font-size: 14px; }
+
+  .divider {
+    border:0; height:1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,.14), transparent);
+    margin: 10px 0 18px;
+  }
+  body:not(.dark) .divider { background: linear-gradient(to right, transparent, rgba(0,0,0,.12), transparent); }
+
+  /* ---- Podium (clean 3-spot layout) ---- */
+  .podium {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr 1fr;
+    grid-template-areas: "second first third";
+    gap: 14px;
+    align-items: stretch;
+    margin-bottom: 18px;
+  }
+  .podium .first  { grid-area: first; }
+  .podium .second { grid-area: second; }
+  .podium .third  { grid-area: third; }
+
+  /* Uniform card sizing + nicer look */
+  .podium-card {
+    position: relative;
+    display: flex; flex-direction: column;
+    border-radius: 14px; overflow: hidden;
+    background: rgba(255,255,255,.04);
+    box-shadow: 0 8px 22px rgba(0,0,0,.16);
+    min-height: 320px;
+  }
+  body:not(.dark) .podium-card { background: rgba(0,0,0,.04); }
+
+  /* Make #1 a touch taller for emphasis without breaking the row */
+  .podium .first .image-wrap { aspect-ratio: 16/9; }
+  .podium .second .image-wrap,
+  .podium .third .image-wrap { aspect-ratio: 16/9; }
+  .podium .first { transform: translateY(-2px); }
+
+  .image-wrap { width: 100%; overflow: hidden; }
+  .image-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .podium-badge {
+    position:absolute; top:10px; left:10px; z-index:2;
+    padding:6px 10px; border-radius:999px; font-weight:700; font-size:13px;
+    backdrop-filter: blur(6px);
+    background: linear-gradient(135deg, rgba(0,0,0,.65), rgba(0,0,0,.35));
+    color:#fff; display:flex; align-items:center; gap:8px;
+  }
+  .podium-badge .medal { font-size:16px; }
+
+  .podium-body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; }
+  .podium-user { font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .podium-caption { opacity:.75; font-size:13px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+
+  /* Mobile: stack cleanly, no weird gaps */
+  @media (max-width: 880px) {
+    .podium {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "first"
+        "second"
+        "third";
+    }
+    .podium .first { transform: none; }
+  }
+
+  /* ---- Scoreboard ---- */
+  .score-card {
+    border-radius: 14px; padding: 8px; background: rgba(255,255,255,.04);
+    box-shadow: 0 6px 16px rgba(0,0,0,.14); margin-bottom: 18px;
+  }
+  body:not(.dark) .score-card { background: rgba(0,0,0,.04); }
+
+  .score-head {
+    display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 10px 12px;
+  }
+  .score-title { font-weight:800; }
+
+  .table-wrap { overflow:auto; border-radius: 12px; }
+  table.leaderboard {
+    width:100%; border-collapse: collapse; font-size: 14px; min-width: 680px;
+  }
+  .leaderboard thead th {
+    position:sticky; top:0; z-index:1; text-align:left; font-weight:800;
+    background: rgba(0,0,0,.12);
+    padding: 10px 12px;
+  }
+  body.dark .leaderboard thead th { background: rgba(255,255,255,.06); }
+  .leaderboard tbody td { padding: 10px 12px; vertical-align: middle; }
+  .leaderboard tbody tr:nth-child(odd) { background: rgba(0,0,0,.04); }
+  body.dark .leaderboard tbody tr:nth-child(odd) { background: rgba(255,255,255,.03); }
+  .cell-rank { width:48px; font-weight:800; }
+  .cell-preview img { height:54px; width:96px; object-fit: cover; border-radius:8px; display:block; }
+  .cell-user { font-weight:600; }
+  .cell-votes strong { font-feature-settings: "tnum"; letter-spacing:.3px; }
+
+  /* ---- Gallery grid (uniform cards) ---- */
+  .grid {
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px;
+  }
+  .grid-card {
+    border-radius: 12px; overflow:hidden; background: rgba(255,255,255,.04);
+    box-shadow: 0 4px 12px rgba(0,0,0,.12);
+  }
+  body:not(.dark) .grid-card { background: rgba(0,0,0,.04); }
+
+  .grid-card img { width:100%; aspect-ratio: 16/9; object-fit: cover; display:block; }
+  .grid-meta { padding: 8px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .grid-meta .name { font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .grid-meta .votes { opacity:.85; font-size:12px; }
+
+  /* Small badge utility */
+  .badge-soft {
+    padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight:700;
+    background: rgba(0,0,0,.12); color: inherit;
+  }
+  body.dark .badge-soft { background: rgba(255,255,255,.08); }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-6 results-page">
+  <!-- Hero -->
+  <div class="results-hero">
+    <div>
+      <div class="sub">Farm Design — Results</div>
+      <h1 class="title">Winners — {{ month_label or comp_id }}</h1>
+    </div>
+    <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
+  </div>
+  <hr class="divider">
+
+  {% set ranked = entries %} {# assume already sorted desc by votes in view #}
+  {% if ranked|length == 0 %}
+    <div class="card p-6 center muted">No results to show yet.</div>
+  {% else %}
+
+<!-- Podium (Top 3) -->
+<section class="podium">
+  {% set first  = ranked[0] if ranked|length > 0 else None %}
+  {% set second = ranked[1] if ranked|length > 1 else None %}
+  {% set third  = ranked[2] if ranked|length > 2 else None %}
+
+  {% if second %}
+    {% set v = (counts|default({})).get(second._id|string, 0) %}
+    <article class="podium-card second">
+      <div class="podium-badge"><span class="medal">🥈</span><span>#2</span><span class="badge-soft">{{ v }} votes</span></div>
+      <div class="image-wrap">
+        <img src="{{ second.image_url }}" alt="Second place" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+      <div class="podium-body">
+        <div class="podium-user"><span>{{ second.username or 'Anonymous' }}</span></div>
+        {% if second.caption %}<div class="podium-caption">{{ second.caption }}</div>{% endif %}
+      </div>
+    </article>
+  {% endif %}
+
+  {% if first %}
+    {% set v = (counts|default({})).get(first._id|string, 0) %}
+    <article class="podium-card first">
+      <div class="podium-badge"><span class="medal">🥇</span><span>#1</span><span class="badge-soft">{{ v }} votes</span></div>
+      <div class="image-wrap">
+        <img src="{{ first.image_url }}" alt="First place" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+      <div class="podium-body">
+        <div class="podium-user"><span>{{ first.username or 'Anonymous' }}</span></div>
+        {% if first.caption %}<div class="podium-caption">{{ first.caption }}</div>{% endif %}
+      </div>
+    </article>
+  {% endif %}
+
+  {% if third %}
+    {% set v = (counts|default({})).get(third._id|string, 0) %}
+    <article class="podium-card third">
+      <div class="podium-badge"><span class="medal">🥉</span><span>#3</span><span class="badge-soft">{{ v }} votes</span></div>
+      <div class="image-wrap">
+        <img src="{{ third.image_url }}" alt="Third place" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+      <div class="podium-body">
+        <div class="podium-user"><span>{{ third.username or 'Anonymous' }}</span></div>
+        {% if third.caption %}<div class="podium-caption">{{ third.caption }}</div>{% endif %}
+      </div>
+    </article>
+  {% endif %}
+</section>
+
+
+  <!-- Scoreboard -->
+  <section class="score-card">
+    <div class="score-head">
+      <h2 class="score-title">Full scoreboard</h2>
+      <span class="badge-soft">Total entries: {{ ranked|length }}</span>
+    </div>
+    <div class="table-wrap">
+      <table class="leaderboard">
+        <thead>
+          <tr><th class="cell-rank">#</th><th>Preview</th><th>User</th><th>Caption</th><th class="cell-votes">Votes</th></tr>
+        </thead>
+        <tbody>
+          {% for e in ranked %}
+            {% set votes = (counts|default({})).get(e._id|string, 0) %}
+            <tr>
+              <td class="cell-rank">{{ loop.index }}</td>
+              <td class="cell-preview"><img src="{{ e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer"></td>
+              <td class="cell-user">{{ e.username or 'Anonymous' }}</td>
+              <td class="muted" style="max-width:460px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                {{ e.caption }}
+              </td>
+              <td class="cell-votes"><strong>{{ votes }}</strong></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Uniform gallery grid (all entries) -->
+  <section>
+    <h3 class="section-title" style="margin: 0 0 8px 2px;">All entries</h3>
+    <div class="grid">
+      {% for e in ranked %}
+        {% set votes = (counts|default({})).get(e._id|string, 0) %}
+        <article class="grid-card">
+          <img src="{{ e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
+          <div class="grid-meta">
+            <span class="name">{{ e.username or 'Anonymous' }}</span>
+            <span class="votes">{{ votes }} votes</span>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% endif %}
+</main>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

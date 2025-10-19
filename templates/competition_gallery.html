@@ -1,0 +1,413 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Gallery{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* Layout + spacing */
+  .container { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+  main.container { margin-top: 96px; padding-bottom: 28px; } /* space from navbar & footer */
+
+  /* --- Polished hero header --- */
+  .gallery-hero {
+    display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;
+    margin-bottom: 8px;
+  }
+  .hero-divider {
+    border:0; height:1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,.12), transparent);
+    margin: 8px 0 16px;
+  }
+  .hero-left { flex:1 1 620px; min-width:280px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(255,255,255,.72); margin-bottom: 4px;
+  }
+  .hero-title {
+    margin: 0 0 6px;
+    font-size: clamp(1.9rem, 2.5vw, 2.2rem);
+    font-weight: 800; letter-spacing: .2px;
+    text-shadow: 0 1px 0 rgba(0,0,0,.25);
+  }
+  .hero-subtitle {
+    margin: 0; line-height: 1.6; font-size: 15.5px;
+    color: rgba(255,255,255,.92);
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  }
+
+  /* Pills */
+  .pill {
+    display:inline-flex; align-items:center; gap:6px;
+    padding: 6px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 700;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+  }
+  .pill-ghost { color: rgba(255,255,255,.92); }
+  .pill-phase { background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .pill-blue  { background:#2563eb; border-color:#1e4fd1; color:#fff; }
+  .pill-countdown { background: rgba(255,255,255,.10); color:#fff; }
+
+  /* Right-side actions (scoped buttons) */
+  .hero-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .hero-actions .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:8px 16px; border-radius:8px; text-decoration:none;
+    border:1px solid rgba(255,255,255,0.15);
+    background:rgba(255,255,255,0.04); color:#fff; font-weight:600;
+    transition:transform .18s ease, background .18s ease, border-color .18s;
+  }
+  .hero-actions .btn:hover{ background:rgba(255,255,255,0.08); transform:translateY(-1px); }
+  .hero-actions .btn-primary{ background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .hero-actions .btn-primary:hover{ background:#2e8441; }
+
+  /* --- Gallery grid/cards (unchanged from your version) --- */
+  .competition-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; margin-top:12px; }
+  .entry-card{ position:relative; overflow:hidden; border-radius:14px; background:#0d0f12; border:1px solid rgba(255,255,255,0.06); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+  .entry-card img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; transition:transform .35s ease; will-change:transform; }
+  .entry-card:hover img{ transform:scale(1.04); }
+  .entry-overlay-top{ position:absolute; inset:8px auto auto 8px; padding:6px 10px; font-size:12px; border-radius:10px; background:rgba(0,0,0,.55); color:#fff; letter-spacing:.2px; pointer-events:none; }
+  .entry-actions{ position:absolute; left:0; right:0; bottom:8px; display:flex; justify-content:center; padding:0 8px; }
+  .vote-btn{ appearance:none; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); cursor:pointer; transition:transform .15s, background .2s; }
+  .vote-btn:hover{ background:rgba(0,0,0,.7); transform:translateY(-1px); }
+  .vote-btn.primary{ background:#2b7a3d; border-color:#276c35; }
+  .entry-card .meta{ display:none; }
+
+  /* Lightbox */
+  .lightbox{ position:fixed; inset:0; background:rgba(0,0,0,.8); display:none; align-items:center; justify-content:center; z-index:1000;opacity: 0; transition: opacity .25s ease; }
+  .lightbox.open { display: flex; opacity: 1; }
+  .lightbox__dialog{ position:relative; max-width:90vw; max-height:90vh; }
+  .lightbox__img{ width:100%; height:auto; max-height:90vh; object-fit:contain; border-radius:8px; }
+  .lightbox__close{ position:absolute; top:-42px; right:-6px; border:none; background:rgba(0,0,0,.6); color:#fff; width:36px; height:36px; border-radius:50%; cursor:pointer; }
+
+  /* Dark/Light hardening */
+  body.dark .entry-card{ background:#111; border-color:rgba(255,255,255,0.08); }
+
+/* Bottom-left caption/vote chip */
+.entry-caption{
+  position:absolute; left:8px; bottom:8px;
+  max-width: calc(100% - 16px);
+  padding:6px 10px; font-size:12px;
+  border-radius:10px;
+  background: rgba(0,0,0,.55);
+  color:#fff; letter-spacing:.2px;
+  pointer-events:none;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+.entry-title{
+  font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  display:inline-block; max-width:100%;
+}
+.hero-title small {
+  color: rgba(255,255,255,.7);
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+
+
+</style>
+{% endblock %}
+
+
+
+{% block content %}
+<main id="gallery" class="container gallery-page mx-auto px-4 py-6"
+      data-my-vote="{{ my_vote.entry_id if my_vote else '' }}">
+  <section class="gallery-hero">
+    <div class="hero-left">
+      <div class="eyebrow">Farm Design</div>
+      <h1 class="hero-title">
+        Gallery — {{ month_label or comp_id }}
+        {% if (month_label or comp_id)|lower in ['october', 'oct 2025', 'oct'] %}
+          <small>(Halloween Theme)</small>
+        {% endif %}
+      </h1>
+      <p class="hero-subtitle">
+        Browse this month’s entries. Click any image to view full size.
+        {% if phase == 'submit' %}
+          <span class="pill pill-phase">Submissions open</span>
+          <span class="pill pill-ghost">{{ submit_range_str }}</span>
+          <span class="pill pill-countdown">Closes in {{ submit_left_text }}</span>
+        {% elif phase == 'voting' %}
+          <span class="pill pill-phase pill-blue">Voting open</span>
+          <span class="pill pill-ghost">{{ voting_range_str }}</span>
+          <span class="pill pill-countdown">Closes in {{ voting_left_text }}</span>
+        {% else %}
+          <span class="pill pill-ghost">Submissions: {{ submit_range_str }}</span>
+          <span class="pill pill-ghost">Voting: {{ voting_range_str }}</span>
+        {% endif %}
+        <span class="pill pill-ghost">{{ total }} entries</span>
+      </p>
+    </div>
+
+  <nav class="hero-actions">
+    <a class="btn" href="{{ url_for('competition_home') }}">⬅ Back to Info</a>
+    {% if phase == 'submit' %}
+      <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">✨ Submit your design</a>
+    {% elif phase == 'voting' %}
+      <div class="btn-group" role="group" aria-label="Sort">
+        <a class="btn {% if sort_mode=='top' %}btn-primary{% endif %}"
+          href="{{ url_for('competition_gallery', sort='top') }}">🔥 Most voted</a>
+        <a class="btn {% if sort_mode=='newest' %}btn-primary{% endif %}"
+          href="{{ url_for('competition_gallery', sort='newest') }}">🆕 Newest</a>
+      </div>
+    {% else %}
+      <a class="btn btn-primary" href="{{ url_for('competition_results') }}">🏆 See results</a>
+    {% endif %}
+  </nav>
+  </section>
+
+  <hr class="hero-divider">
+  {% if entries|length == 0 %}
+    <div class="card p-6 center muted">No entries yet. Be the first!</div>
+  {% else %}
+<div class="competition-grid">
+  {% for e in entries %}
+    <article class="entry-card">
+      <img src="{{ e.image_url }}" data-fullsrc="{{ e.image_url }}" alt="Entry image" class="js-zoom" loading="lazy">
+
+      {% set e_id = e._id|string %}
+      {% set my_current = (my_vote and my_vote.entry_id == e_id) %}
+      {% set votes = (vote_counts.get(e_id, 0) if vote_counts is defined else 0) %}
+
+      <div class="entry-caption">
+        {% if phase == 'voting' or phase == 'results' %}
+          ❤️ <span class="js-vote-count" data-count="{{ votes }}">{{ votes }}</span>
+          <span class="js-vote-suffix">{{ ' vote' if votes == 1 else ' votes' }}</span>
+        {% else %}
+          <span class="entry-title">{{ (e.caption or 'Entry')|truncate(40, True, '…') }}</span>
+        {% endif %}
+      </div>
+
+
+      {% if phase == 'voting' %}
+        <div class="entry-actions">
+          {% if viewer_id and e.user_id and (e.user_id|string) == viewer_id %}
+            <button class="vote-btn" type="button" disabled title="You can’t vote for your own entry">Own entry</button>
+          {% else %}
+            <form class="js-vote-form" data-entry-id="{{ e_id }}" action="{{ url_for('competition_vote') }}" method="post">
+              <input type="hidden" name="entry_id" value="{{ e_id }}">
+              <button class="vote-btn {% if my_current %}primary{% endif %}" type="submit" data-role="vote-btn">
+                {% if my_current %}❤️ Voted{% else %}Vote{% endif %}
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+    </article>
+  {% endfor %}
+</div>
+    {% if total_pages > 1 %}
+      <nav class="mt-6 flex items-center justify-center gap-2">
+        <a class="btn {% if not has_prev %}disabled{% endif %}"
+           href="{{ url_for('competition_gallery', page=page-1) if has_prev else '#' }}"
+           aria-disabled="{{ 'true' if not has_prev else 'false' }}">Previous</a>
+
+        {% for p in range(1, total_pages + 1) %}
+          {% if p == page %}
+            <span class="btn btn-primary">{{ p }}</span>
+          {% else %}
+            <a class="btn" href="{{ url_for('competition_gallery', page=p) }}">{{ p }}</a>
+          {% endif %}
+        {% endfor %}
+
+        <a class="btn {% if not has_next %}disabled{% endif %}"
+           href="{{ url_for('competition_gallery', page=page+1) if has_next else '#' }}"
+           aria-disabled="{{ 'true' if not has_next else 'false' }}">Next</a>
+      </nav>
+    {% endif %}
+  {% endif %}
+<div id="voteConfirmModal" class="lightbox" aria-hidden="true">
+  <div class="lightbox__dialog" style="max-width:520px">
+    <button class="lightbox__close" type="button" data-close>✕</button>
+    <div class="card p-4">
+      <h3 class="section-title">Change your vote?</h3>
+      <p class="muted">You already voted for another entry. Do you want to switch your vote to this image?</p>
+      <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end">
+        <button type="button" class="btn" data-cancel>Keep current</button>
+        <button type="button" class="btn btn-primary" data-confirm>Switch vote</button>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<!-- ✅ Lightbox stays below main -->
+<div id="lightbox" class="lightbox" aria-hidden="true">
+  <div class="lightbox__dialog">
+    <button class="lightbox__close" type="button" data-close>✕</button>
+    <img id="lightboxImg" class="lightbox__img" alt="">
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  (function () {
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lightboxImg');
+
+    document.addEventListener('click', (e) => {
+      const thumb = e.target.closest('.js-zoom');
+      if (thumb) {
+        img.src = thumb.dataset.fullsrc || thumb.src;
+        lb.classList.add('open');
+        lb.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden'; 
+      }
+
+      if (e.target.hasAttribute?.('data-close') || e.target === lb) {
+        lb.classList.remove('open');
+        lb.setAttribute('aria-hidden', 'true');
+        img.src = '';
+        document.body.style.overflow = ''; 
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && lb.classList.contains('open')) {
+        lb.classList.remove('open');
+        lb.setAttribute('aria-hidden', 'true');
+        img.src = '';
+        document.body.style.overflow = ''; 
+      }
+    });
+  })();
+(function () {
+  const mod = document.getElementById('voteConfirmModal');
+  const openModal = () => { mod.classList.add('open'); mod.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+  const closeModal = () => { mod.classList.remove('open'); mod.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+
+  const gallery = document.getElementById('gallery');
+  let pendingForm = null;
+  let pendingPrevId = null; // from 409 payload
+
+  function cardFor(entryId) {
+    return document.querySelector(`.js-vote-form[data-entry-id="${entryId}"]`)?.closest('.entry-card');
+  }
+  function getCount(card) {
+    const span = card?.querySelector('.js-vote-count');
+    return span ? parseInt(span.dataset.count || '0', 10) : 0;
+  }
+  function setCount(card, val) {
+    const n = Math.max(0, val|0);
+    const span = card?.querySelector('.js-vote-count');
+    const suf  = card?.querySelector('.js-vote-suffix');
+    if (span) { span.dataset.count = String(n); span.textContent = String(n); }
+    if (suf)  { suf.textContent = (n === 1 ? ' vote' : ' votes'); }
+  }
+  function setYourVote(card, on) {
+    const badge = card?.querySelector('.js-your-vote');
+    if (badge) badge.style.display = on ? '' : 'none';
+  }
+  function clearSelectedBtn() {
+    const cur = document.querySelector('.js-vote-form .vote-btn.primary');
+    if (cur) {
+      cur.classList.remove('primary');
+      cur.textContent = 'Vote';
+      setYourVote(cur.closest('.entry-card'), false);
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.matches('#voteConfirmModal [data-close], #voteConfirmModal [data-cancel]') || e.target === mod) {
+      closeModal();
+    }
+  });
+
+  document.querySelector('#voteConfirmModal [data-confirm]')?.addEventListener('click', async () => {
+    if (!pendingForm) return;
+    await submitVote(pendingForm, true, pendingPrevId);
+    closeModal();
+    pendingForm = null;
+    pendingPrevId = null;
+  });
+
+  async function submitVote(form, overwrite = false, prevIdFrom409 = null) {
+    const btn = form.querySelector('[data-role="vote-btn"]');
+    const entryId = form.dataset.entryId;
+
+    const body = new URLSearchParams();
+    body.set('entry_id', entryId);
+    if (overwrite) body.set('overwrite', 'true');
+
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+        body
+      });
+
+      if (res.status === 409) {
+        // read previous id so we can decrement it after confirm
+        const data = await res.json().catch(() => ({}));
+        pendingForm = form;
+        pendingPrevId = data?.current_entry_id || (gallery?.dataset?.myVote || null);
+        openModal();
+        btn.disabled = false;
+        return;
+      }
+
+      const ctype = res.headers.get('content-type') || '';
+      const data = ctype.includes('application/json') ? await res.json() : (() => { throw new Error('Unexpected non-JSON response'); })();
+
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Vote failed');
+
+      // clear previous selection
+      const oldSelected = document.querySelector('.js-vote-form .vote-btn.primary');
+      const oldCard = oldSelected?.closest('.entry-card');
+      const prevId = prevIdFrom409
+        || oldSelected?.closest('.js-vote-form')?.dataset.entryId
+        || (gallery?.dataset?.myVote || null);
+
+      if (oldSelected) {
+        oldSelected.classList.remove('primary');
+        oldSelected.textContent = 'Vote';
+      }
+
+      // mark new selection
+      btn.classList.add('primary');
+      btn.textContent = '❤️ Voted';
+      setYourVote(form.closest('.entry-card'), true);
+
+      // update counts
+      const newCard = form.closest('.entry-card');
+      if (data.changed) {
+        if (prevId && prevId !== entryId) {
+          const pCard = cardFor(prevId);
+          if (pCard) {
+            setCount(pCard, getCount(pCard) - 1);
+            setYourVote(pCard, false);
+          }
+        }
+        setCount(newCard, getCount(newCard) + 1);
+      }
+
+      // remember current vote for next overwrite prompt
+      if (gallery) gallery.dataset.myVote = entryId;
+
+    } catch (err) {
+      alert(err.message || 'Something went wrong.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // intercept submits
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('.js-vote-form');
+    if (!form) return;
+    e.preventDefault();
+    submitVote(form, false, null);
+  });
+})();
+
+</script>
+{% endblock %}
+

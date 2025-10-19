@@ -374,17 +374,19 @@ fetchLiveAuctions();
     });
   });
 
-function submitBid(e, auctionId) {
+async function submitBid(e, auctionId) {
   e.preventDefault();
   const form = e.target;
   const card = form.closest('.auction-card');
-  const amount = form.amount.value;
+  const amountStr = form.amount.value;
+  const amount = parseInt(amountStr.replace(/,/g, ''), 10);
 
   const ownerId = card.getAttribute('data-owner-id');
   const currentUserId = "{{ discord_id }}";
+  const feedback = card.querySelector('.bid-feedback');
 
+  // Prevent self-bidding (unchanged)
   if (ownerId === currentUserId) {
-    const feedback = card.querySelector('.bid-feedback');
     if (feedback) {
       feedback.textContent = "❌ You cannot bid on your own auction.";
       feedback.style.color = "red";
@@ -393,55 +395,93 @@ function submitBid(e, auctionId) {
     }
     return;
   }
+
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  fetch("/api/bid", {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "X-CSRFToken": csrfToken 
-    },
-    body: JSON.stringify({
-      auction_id: auctionId,
-      amount: parseInt(amount.replace(/,/g, ''))
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    const newBid = parseInt(amount.replace(/,/g, ''));
-    if (data.success) {
-      card.dataset.currentBid = newBid;
 
-      const bidDisplay = Array.from(card.querySelectorAll(".info")).find(div =>
-        div.textContent.includes("Current Bid")
-      );
-      if (bidDisplay) {
-        bidDisplay.innerHTML = `<strong>Current Bid:</strong> ${newBid.toLocaleString()} coins`;
-      }
+  let res, data;
+  try {
+    res = await fetch("/api/bid", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken
+      },
+      body: JSON.stringify({ auction_id: auctionId, amount })
+    });
 
-      const bidderEl = Array.from(card.querySelectorAll(".info")).find(div =>
-        div.textContent.includes("Highest Bidder")
-      );
-      if (bidderEl) {
-        bidderEl.innerHTML = `<strong>Highest Bidder:</strong> You`;
-      }
-
-      const feedback = card.querySelector('.bid-feedback');
+    // Handle 409 race conflict explicitly
+    if (res.status === 409) {
+      data = await res.json().catch(() => ({ message: "Another bid just beat you. Please refresh and try again." }));
       if (feedback) {
-        feedback.textContent = "✅ Bid placed!";
-        feedback.style.color = "green";
-        setTimeout(() => feedback.textContent = "", 4000);
-      }
-    } else {
-      const feedback = card.querySelector('.bid-feedback');
-      if (feedback) {
-        feedback.textContent = "❌ " + data.message;
+        feedback.textContent = "❌ " + (data.message || "Another bid landed first. Refresh to see the latest price.");
         feedback.style.color = "red";
       } else {
-        alert("❌ " + data.message);
+        alert("❌ " + (data.message || "Another bid landed first. Refresh to see the latest price."));
       }
+      return; // do not update UI optimistically
     }
-  })
-  .catch(() => alert("❌ Failed to submit bid."));
+
+    // For other non-OK statuses, show server message if any
+    if (!res.ok) {
+      data = await res.json().catch(() => ({}));
+      const msg = data.message || "Failed to submit bid.";
+      if (feedback) {
+        feedback.textContent = "❌ " + msg;
+        feedback.style.color = "red";
+      } else {
+        alert("❌ " + msg);
+      }
+      return;
+    }
+
+    // OK: parse JSON
+    data = await res.json();
+
+  } catch (err) {
+    if (feedback) {
+      feedback.textContent = "❌ Network error while submitting bid.";
+      feedback.style.color = "red";
+    } else {
+      alert("❌ Network error while submitting bid.");
+    }
+    return;
+  }
+
+  // Success branch (unchanged, but uses parsed amount)
+  if (data && data.success) {
+    card.dataset.currentBid = amount;
+
+    // Update "Current Bid"
+    const bidDisplay = Array.from(card.querySelectorAll(".info")).find(div =>
+      div.textContent.includes("Current Bid")
+    );
+    if (bidDisplay) {
+      bidDisplay.innerHTML = `<strong>Current Bid:</strong> ${amount.toLocaleString()} coins`;
+    }
+
+    // Update "Highest Bidder"
+    const bidderEl = Array.from(card.querySelectorAll(".info")).find(div =>
+      div.textContent.includes("Highest Bidder")
+    );
+    if (bidderEl) {
+      bidderEl.innerHTML = `<strong>Highest Bidder:</strong> You`;
+    }
+
+    if (feedback) {
+      feedback.textContent = "✅ Bid placed!";
+      feedback.style.color = "green";
+      setTimeout(() => (feedback.textContent = ""), 4000);
+    }
+  } else {
+    // Fallback error handling
+    const msg = (data && data.message) ? data.message : "Failed to submit bid.";
+    if (feedback) {
+      feedback.textContent = "❌ " + msg;
+      feedback.style.color = "red";
+    } else {
+      alert("❌ " + msg);
+    }
+  }
 }
 
 
