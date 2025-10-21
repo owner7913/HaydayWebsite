@@ -282,6 +282,7 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
 <main class="container mx-auto px-4 py-6 results-page">
   <!-- Hero -->
   <div class="results-hero">
+    {% include 'partials/competition_admin_button.html' %}
     <div>
       <div class="sub">Farm Design — Results</div>
       <h1 class="title">Winners — {{ month_label or comp_id }}</h1>

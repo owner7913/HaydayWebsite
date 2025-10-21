@@ -257,6 +257,7 @@ main.submit-page > section {
       {% elif submit_status == 'not_verified' %}
         <a class="btn btn-primary" href="https://discord.com/channels/{{ GUILD_ID }}">🔑 Get verified</a>
       {% endif %}
+      {% include 'partials/competition_admin_button.html' %}
     </nav>
   </div>
 

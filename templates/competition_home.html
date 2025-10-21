@@ -23,25 +23,28 @@
     background: #111; box-shadow: 0 6px 20px rgba(0,0,0,.25);
   }
   .strip-viewport {
-    width: 100%; overflow: hidden; padding: 10px 0; position: relative;
+    width: 100%; overflow: hidden; padding: 10px 0; position: relative;white-space: nowrap;
     /* softer edge fade so images stay visible */
     -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
             mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   }
   .strip-track {
-    display: flex; align-items: center; gap: 10px; will-change: transform;
-    animation: stripScroll var(--speed, 38s) linear infinite;
+    display: inline-flex;; align-items: center; gap: 10px; will-change: transform;
+    animation: scroll var(--speed, 90s) linear infinite;
   }
   .strip-viewport:hover .strip-track { animation-play-state: paused; }
   .strip-track img {
-    display:block; height: 140px; width:auto; object-fit: contain;
-    background:#000; border-radius:12px; flex: 0 0 auto;
+    display:block; height: 140px; width:auto; object-fit: contain;margin-right: 12px;
+    background:#000; border-radius:12px; flex: 0;
   }
   .strip-viewport.no-animate .strip-track { animation:none; justify-content:center; flex-wrap:wrap; }
   .strip-viewport.no-animate .strip-track img { margin-bottom:6px; }
   @keyframes stripScroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
   @media (max-width: 720px){ .strip-track img{ height: 100px; } }
-
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }  /* loops smoothly with duplicates */
+  }
   /* Sections spacing */
   .section { margin-top: 28px; }
   .rules-card, .how-card { padding: 22px; }
@@ -189,6 +192,91 @@ body.dark .prize-item { color: #0f1720; }     /* darker text in dark theme for c
 body.dark .prize-item--first  { color: #2c240e; }   /* warm dark brown */
 body.dark .prize-item--second { color: #1b2330; }   /* cool navy */
 body.dark .prize-item--third  { color: #342217; }   /* deep brown */
+/* Phase badge */
+.phase-chip{
+  --c1:#2b7a3d; --c2:#276c35;            /* defaults (submit) */
+  display:inline-flex; align-items:center; gap:8px;
+  height:30px; padding:0 12px; border-radius:999px;
+  font-size:12px; font-weight:800; letter-spacing:.02em;
+  color:#fff; border:1px solid color-mix(in oklab, var(--c2) 70%, #000 30%);
+  background:
+    radial-gradient(120% 120% at 0% 0%, color-mix(in oklab, var(--c1) 65%, #000 35%) 0%, transparent 70%),
+    linear-gradient(135deg, color-mix(in oklab, var(--c1) 55%, #000 45%), var(--c2));
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--c1) 25%, #000 75%);
+}
+.phase-chip .dot{
+  width:8px; height:8px; border-radius:999px; background: #fff; opacity:.9;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c1) 35%, #000 65%) inset;
+}
+
+/* Phase variants */
+.phase-chip.is-submit { --c1:#22c55e; --c2:#16a34a; }   /* green */
+.phase-chip.is-voting { --c1:#60a5fa; --c2:#2563eb; }   /* blue */
+.phase-chip.is-results{ --c1:#fbbf24; --c2:#b45309; }   /* amber */
+
+/* Outline style (for date ranges / countdowns) */
+.phase-chip.outline{
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  border:1px solid color-mix(in oklab, var(--c1) 40%, #000 60%);
+  box-shadow:none;
+}
+
+/* Slightly smaller helper */
+.phase-chip.sm{ height:26px; padding:0 10px; font-weight:700; }
+/* Premium phase badges — works with your existing classes */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.18);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);
+}
+.badge::before{
+  content:"";
+  width: 8px; height: 8px; border-radius: 999px;
+  background: #fff; opacity: .9;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.12) inset;
+}
+
+/* Phase colors */
+.badge-green{
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border-color: rgba(22,163,74,.6);
+  box-shadow: 0 8px 24px rgba(34,197,94,.35);
+}
+.badge-blue{
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  border-color: rgba(37,99,235,.6);
+  box-shadow: 0 8px 24px rgba(37,99,235,.35);
+}
+.badge-gray{
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  border-color: rgba(107,114,128,.55);
+  box-shadow: 0 8px 24px rgba(107,114,128,.35);
+}
+
+/* Layout polish for the row */
+.badge-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px 14px;
+  margin: 8px 0 12px;
+}
+.badge-row .muted{
+  margin: 0;
+  font-size: 14px;
+  opacity: .9;
+}
 
 
 </style>
@@ -208,16 +296,13 @@ body.dark .prize-item--third  { color: #342217; }   /* deep brown */
   <section class="hero-card">
     {% set count = entries|length if entries else 0 %}
     {% if count > 0 %}
-      <div class="strip-viewport {% if count < 6 %}no-animate{% endif %}">
-        <div class="strip-track" style="--speed: 38s">
-          {% for e in entries %}
-            <img src="{{ e.image_url }}" alt="Submission by {{ e.username or 'Anonymous' }}" loading="lazy" />
-          {% endfor %}
-          {% if count >= 6 %}
-            {% for e in entries %}
-              <img src="{{ e.image_url }}" alt="Submission by {{ e.username or 'Anonymous' }}" loading="lazy" />
-            {% endfor %}
-          {% endif %}
+      <div class="strip-viewport">
+        <div class="strip-track" style="--speed: 90s">
+       {% for _ in range(0, 4) %}  {# repeat 4x to ensure a long loop #}
+         {% for e in entries %}
+           <img src="{{ e.image_url }}" alt="Submission by {{ e.username or 'Anonymous' }}" loading="lazy" />
+         {% endfor %}
+       {% endfor %}
         </div>
       </div>
     {% else %}
@@ -246,6 +331,7 @@ body.dark .prize-item--third  { color: #342217; }   /* deep brown */
     </div>
 
     <div class="cta-row">
+      {% include 'partials/competition_admin_button.html' %}
       <a class="btn" href="{{ url_for('competition_gallery') }}">View Gallery</a>
       {% if phase == 'submit' %}
         <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">Submit your design</a>
@@ -254,6 +340,7 @@ body.dark .prize-item--third  { color: #342217; }   /* deep brown */
       {% else %}
         <a class="btn btn-primary" href="{{ url_for('competition_results') }}">See results</a>
       {% endif %}
+  
     </div>
   </section>
   <!-- Prizes -->

@@ -100,6 +100,9 @@ def _phase_today():
     comp_id = f"{y}-{m:02d}"
     return phase, comp_id
 
+def _bot_auth_ok(req):
+    return req.headers.get("Authorization") == os.getenv("BOT_WEBHOOK_KEY")
+
 def _prev_comp_id(comp_id: str) -> str:
     y, m = map(int, comp_id.split("-"))
     m -= 1
@@ -586,6 +589,8 @@ def parse_duration(duration_str):
 
 def is_staff():
     return session.get("staff_role") is not None
+
+app.jinja_env.globals['is_staff'] = is_staff
 
 def is_admin():
     return session.get("staff_role") in ["Owner", "Co-Owner", "Head Admin"]
@@ -2227,6 +2232,55 @@ def admin_panel():
     if not is_staff():  # Ensure only staff can access
         return "Unauthorized", 403
     return render_template("admin.html", year=datetime.now().year)
+
+@app.route("/admin/competition")
+def admin_competition():
+    if not is_staff(): 
+        return "Unauthorized", 403
+
+    phase, default_comp = _phase_today()
+    comp_id = request.args.get("comp_id", default_comp)
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        db = client["Website"]
+        entries = list(db["CompEntries"].find({"comp_id": comp_id}).sort("created_at", -1))
+        vote_counts = _vote_counts_for(comp_id, client)  # ← reuse
+
+        # Optional: label “who submitted” via your usernames cache
+        ids = [str(e.get("user_id")) for e in entries if e.get("user_id")]
+        users = list(db["usernames"].find({"_id": {"$in": ids}}))
+        user_map = {u["_id"]: u for u in users}
+
+    return render_template("admin_competition.html",
+                           comp_id=comp_id, phase=phase,
+                           entries=entries, vote_counts=vote_counts,
+                           user_map=user_map)
+
+@csrf.exempt
+@app.post("/admin/competition/caption/<entry_id>")
+def admin_competition_caption(entry_id):
+    if not is_staff(): 
+        return "Unauthorized", 403
+    new_caption = (request.form.get("caption") or "").strip()[:35]
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        c["Website"]["CompEntries"].update_one(
+            {"_id": ObjectId(entry_id)},
+            {"$set": {"caption": new_caption}}
+        )
+    flash("Caption updated.", "success")
+    return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
+
+@csrf.exempt
+@app.post("/admin/competition/delete/<entry_id>")
+def admin_competition_delete(entry_id):
+    if not is_staff():
+        return "Unauthorized", 403
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        db = c["Website"]
+        db["CompEntries"].delete_one({"_id": ObjectId(entry_id)})
+        db["CompVotes"].delete_many({"entry_id": entry_id})
+    flash("Entry deleted (votes removed).", "success")
+    return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
 
 @app.route("/api/live-auctions")
 def live_auctions():
@@ -5518,6 +5572,97 @@ def competition_delete():
     flash("Submission deleted.", "success")
     return redirect(url_for("competition_submit"))
 
+@app.get("/admin/competition/votes/<entry_id>")
+def admin_competition_votes(entry_id):
+    if not is_staff(): 
+        return "Unauthorized", 403
+
+    client = get_mongo_client()
+    db = client["Website"]
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return "Invalid entry id", 400
+
+    entry = db["CompEntries"].find_one({"_id": oid})
+    if not entry:
+        abort(404)
+
+    votes = list(db["CompVotes"]
+                 .find({"comp_id": entry["comp_id"], "entry_id": str(oid)})
+                 .sort("created_at", -1))
+    # Optional: map usernames
+    voter_ids = list({v["voter_id"] for v in votes})
+    usernames = {u["_id"]: (u.get("display_name") or u.get("username") or u["_id"])
+                 for u in db["usernames"].find({"_id": {"$in": voter_ids}})}
+    for v in votes:
+        v["voter_name"] = usernames.get(v["voter_id"], v["voter_id"])
+
+    return render_template("competition_admin_votes.html", entry=entry, votes=votes)
+
+
+@csrf.exempt
+@app.post("/admin/competition/votes/<entry_id>/delete/<vote_id>")
+def admin_competition_vote_delete(entry_id, vote_id):
+    if not is_staff(): 
+        return "Unauthorized", 403
+    client = get_mongo_client()
+    db = client["Website"]
+    try:
+        vo = ObjectId(vote_id)
+    except Exception:
+        return "Invalid vote id", 400
+    db["CompVotes"].delete_one({"_id": vo})
+    flash("Vote deleted.", "success")
+    return redirect(url_for("admin_competition_votes", entry_id=entry_id))
+
+@csrf.exempt
+@app.post("/competition/update-caption")
+def competition_update_caption():
+    # must be logged in & during submit phase
+    discord_id = session.get("discord_id")
+    if not discord_id:
+        return jsonify(ok=False, error="Login required."), 401
+
+    phase, comp_id = _phase_today()
+    if phase != "submit":
+        return jsonify(ok=False, error="Edits are locked during voting/results."), 400
+
+    new_caption = (request.form.get("caption") or "").strip()[:35]
+
+    client = get_mongo_client()
+    db = client["Website"]
+
+    # only allow editing *your own* entry for the current comp
+    entry = db["CompEntries"].find_one({"comp_id": comp_id, "user_id": str(discord_id)})
+    if not entry:
+        return jsonify(ok=False, error="No submission found for your account."), 404
+
+    db["CompEntries"].update_one(
+        {"_id": entry["_id"]},
+        {"$set": {"caption": new_caption}}
+    )
+
+    return jsonify(ok=True, caption=new_caption)
+
+@csrf.exempt
+@app.post("/admin/competition/votes/<entry_id>/delete-all")
+def admin_competition_vote_delete_all(entry_id):
+    if not is_staff(): 
+        return "Unauthorized", 403
+    client = get_mongo_client()
+    db = client["Website"]
+    # ensure entry exists
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return "Invalid entry id", 400
+    entry = db["CompEntries"].find_one({"_id": oid})
+    if not entry:
+        abort(404)
+    db["CompVotes"].delete_many({"comp_id": entry["comp_id"], "entry_id": str(oid)})
+    flash("All votes for this entry were deleted.", "success")
+    return redirect(url_for("admin_competition_votes", entry_id=entry_id))
 
 @csrf.exempt
 @app.route("/competition/vote", methods=["POST"])
@@ -5599,42 +5744,109 @@ def competition_vote():
             {"$set": {"entry_id": new_entry_id, "created_at": datetime.now(timezone.utc)}}
         )
         return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
-    
+
+@app.get("/api/competition/phase")
+def api_competition_phase():
+    phase, comp_id = _phase_today()
+    return jsonify(ok=True, phase=phase, comp_id=comp_id, submit_open=(phase == "submit"))
+
 @csrf.exempt
-@app.route("/competition/update-caption", methods=["POST"])
-def competition_update_caption():
+@app.post("/api/competition/submit-from-bot")
+def api_competition_submit_from_bot():
+    if not _bot_auth_ok(request):
+        return jsonify(ok=False, error="Unauthorized"), 401
+
     phase, comp_id = _phase_today()
     if phase != "submit":
-        return jsonify({"ok": False, "error": "Edits are locked during voting/results."}), 403
+        return jsonify(ok=False, error="Submissions closed"), 400
 
-    voter_id = session.get("discord_id")
-    if not voter_id:
-        return jsonify({"ok": False, "error": "Login required."}), 401
+    discord_id = (request.form.get("discord_id") or "").strip()
+    caption    = (request.form.get("caption") or "").strip()[:35]
+    file       = request.files.get("image")
 
-    caption = (request.form.get("caption") or "").strip()
-    # keep server truth the same as your input maxlength:
-    MAX_LEN = 35
-    if len(caption) > MAX_LEN:
-        caption = caption[:MAX_LEN]
+    if not discord_id:
+        return jsonify(ok=False, error="Missing discord_id"), 400
+    if not file or file.filename == "":
+        return jsonify(ok=False, error="Missing image file"), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Website"]
-        entries = db["CompEntries"]
+    # Size/type guard (same as your form route)
+    file.seek(0, 2); size = file.tell(); file.seek(0)
+    if size > 25 * 1024 * 1024:
+        return jsonify(ok=False, error="Image too large (max 25 MB)"), 400
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in {"png", "jpg", "jpeg"}:
+        return jsonify(ok=False, error="Invalid file type (png/jpg)"), 400
 
-        # find the caller's entry for this competition
-        entry = entries.find_one({"comp_id": comp_id, "user_id": str(voter_id)})
-        if not entry:
-            return jsonify({"ok": False, "error": "No submission to update."}), 404
+    # Reuse your anonymity + R2 helpers used in /competition/submit
+    display_name = username_tag = None  # no session for bot flow
+    to_scan = " ".join(filter(None, [caption, file.filename, discord_id]))
+    if contains_identifying_text(to_scan, display_name, username_tag, discord_id):
+        return jsonify(ok=False, error="Submissions must be anonymous"), 400
 
-        entries.update_one(
-            {"_id": entry["_id"]},
+    unique_name = uuid.uuid4().hex
+    buf, content_type, ext_out = resize_to_max_edge(file)   # your helper returns resized JPEG + info
+    object_key = f"{comp_id}/{unique_name}.{ext_out}"
+    image_url = r2_put_object(buf, object_key, content_type)
+
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        db = c["Website"]
+        db["CompEntries"].update_one(
+            {"comp_id": comp_id, "user_id": str(discord_id)},
             {"$set": {
-                "caption": caption or None,
-                "updated_at": datetime.now(timezone.utc)
-            }}
+                "user_id": str(discord_id),
+                "image_url": image_url,
+                "caption": caption,
+                "created_at": datetime.now(timezone.utc),
+                "ip": request.remote_addr,
+            }},
+            upsert=True
         )
 
-    return jsonify({"ok": True, "caption": caption})
+    return jsonify(ok=True, comp_id=comp_id, image_url=image_url, caption=caption)
+
+@csrf.exempt
+@app.post("/api/competition/edit-caption-from-bot")
+def api_competition_edit_caption_from_bot():
+    if not _bot_auth_ok(request):
+        return jsonify(ok=False, error="Unauthorized"), 401
+    phase, comp_id = _phase_today()
+    if phase != "submit":
+        return jsonify(ok=False, error="Edits locked"), 400
+
+    payload = request.get_json(silent=True) or {}
+    discord_id = (payload.get("discord_id") or "").strip()
+    caption = (payload.get("caption") or "").strip()[:35]
+    if not discord_id:
+        return jsonify(ok=False, error="Missing discord_id"), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        db = c["Website"]
+        entry = db["CompEntries"].find_one({"comp_id": comp_id, "user_id": str(discord_id)})
+        if not entry:
+            return jsonify(ok=False, error="No submission found"), 404
+        db["CompEntries"].update_one({"_id": entry["_id"]}, {"$set": {"caption": caption}})
+
+    return jsonify(ok=True, caption=caption)
+
+@csrf.exempt
+@app.post("/api/competition/delete-from-bot")
+def api_competition_delete_from_bot():
+    if not _bot_auth_ok(request):
+        return jsonify(ok=False, error="Unauthorized"), 401
+    phase, comp_id = _phase_today()
+    if phase != "submit":
+        return jsonify(ok=False, error="Edits locked"), 400
+
+    payload = request.get_json(silent=True) or {}
+    discord_id = (payload.get("discord_id") or "").strip()
+    if not discord_id:
+        return jsonify(ok=False, error="Missing discord_id"), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        db = c["Website"]
+        db["CompEntries"].delete_one({"comp_id": comp_id, "user_id": str(discord_id)})
+
+    return jsonify(ok=True, deleted=True)
 
 # Start prewarm (sync or async based on env flag)
 if os.getenv("WARM_THUMBS_SYNC", "0") == "1":
