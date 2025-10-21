@@ -320,8 +320,7 @@
 <div class="competition-grid">
   {% for e in entries %}
     <article class="entry-card">
-      <img src="{{ e.image_url }}" data-fullsrc="{{ e.image_url }}" alt="Entry image" class="js-zoom" loading="lazy">
-
+      <img src="{{ e.image_url }}" data-fullsrc="{{ e.image_url }}" alt="{{ e.caption or '' }}" class="js-zoom" loading="lazy">
       {% set e_id = e._id|string %}
       {% set my_current = (my_vote and my_vote.entry_id == e_id) %}
       {% set votes = (vote_counts.get(e_id, 0) if vote_counts is defined else 0) %}
