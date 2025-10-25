@@ -7,6 +7,31 @@
   <meta name="google-site-verification" content="XytNN-ofO92AjDuNxZaJNX_4ItyUMYsHj1pgQ4B-Hp4" />
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  {% set META = meta|default({
+    'title': 'HayDay 🍀 — Your Community for Giveaways & Competitions',
+    'description': 'Join exciting giveaways and monthly farm design competitions — connect with fellow Hay Day farmers and win great prizes.',
+    'url': 'https://www.hayday.info/',
+    'image': url_for('static', filename='img/share.jpg', _external=True)
+  }) %}
+  <!-- Social sharing / Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HayDay 🍀">
+  <meta property="og:title" content="{{ META.title }}">
+  <meta property="og:description" content="{{ META.description }}">
+  <meta property="og:url" content="{{ META.url }}">
+  <meta property="og:image" content="{{ META.image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ META.title }}">
+  <meta name="twitter:description" content="{{ META.description }}">
+  <meta name="twitter:image" content="{{ META.image }}">
+  <meta name="theme-color" content="#4CAF50">
+  <link rel="canonical" href="{{ META.url }}">
+
+  
   {% block head_extra %}{% endblock %}
 </head>
 <body class="light">

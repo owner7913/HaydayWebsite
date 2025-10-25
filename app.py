@@ -55,6 +55,7 @@ from calendar import monthrange
 from zoneinfo import ZoneInfo
 from pymongo.errors import DuplicateKeyError
 from math import ceil
+import random
 
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
@@ -84,6 +85,13 @@ app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB
 ALLOWED_EXT = {"png", "jpg", "jpeg"}
 UPLOAD_ROOT = os.path.join(app.root_path, "static", "uploads")  # served by Flask static
 
+def page_meta(title=None, description=None, image=None, url=None):
+    return {
+        "title": title or "HayDay 🍀 — Community Tools & Competitions",
+        "description": description or "Join events, verify accounts, and explore community tools for Hay Day.",
+        "image": image or url_for("static", filename="img/share.jpg", _external=True),
+        "url": url or "https://www.hayday.info/",
+    }
 
 def _phase_today():
     now = datetime.now(timezone.utc)
@@ -319,27 +327,42 @@ def _comp_strings_for(comp_id: str, submit_end_day: int = 25, tz: str = "Europe/
     submit_end_day = min(submit_end_day, last_day)
     vote_start_day = min(submit_end_day + 1, last_day)
 
-    # Date objects for ranges
+    # Date objects for ranges (for pretty labels)
     d1 = date(y, m, 1)
-    d_submit_end = date(y, m, submit_end_day)
-    d_vote_start = date(y, m, vote_start_day)
-    d_end = date(y, m, last_day)
+    d_submit_end_date = date(y, m, submit_end_day)
+    d_vote_start_date = date(y, m, vote_start_day)
+    d_end_date = date(y, m, last_day)
+
+    # Exact cutoffs with local timezone
+    tzinfo = ZoneInfo(tz)
+    # Submissions close at 23:59 local on submit_end_day
+    d_submit_end = datetime(y, m, submit_end_day, 23, 59, tzinfo=tzinfo)
+    # Voting ends at 23:59 local on the last day
+    d_end = datetime(y, m, last_day, 23, 59, tzinfo=tzinfo)
 
     # Nice label like "October 2025"
     month_label = datetime(y, m, 1).strftime("%B %Y")
 
     # Range strings like "Oct 01–Oct 25, 2025"
-    submit_range_str = f"{d1.strftime('%b %d')}–{d_submit_end.strftime('%b %d, %Y')}"
-    voting_range_str = f"{d_vote_start.strftime('%b %d')}–{d_end.strftime('%b %d, %Y')}"
+    submit_range_str = f"{d1.strftime('%b %d')}–{d_submit_end_date.strftime('%b %d, %Y')}"
+    voting_range_str = f"{d_vote_start_date.strftime('%b %d')}–{d_end_date.strftime('%b %d, %Y')}"
 
-    # Countdown helper (use local time to avoid UTC off-by-one)
-    today = datetime.now(ZoneInfo(tz)).date()
-    def _left_text(target: date):
-        days = (target - today).days
-        if days < 0:  return "closed"
-        if days == 0: return "today"
-        if days == 1: return "1 day"
-        return f"{days} days"
+    # Countdown helper (local time; shows h/m if under 1 day)
+    now = datetime.now(tzinfo)
+
+    def _left_text(target_dt: datetime):
+        delta = target_dt - now
+        secs = int(delta.total_seconds())
+        if secs <= 0:
+            return "closed"
+        days = secs // 86400
+        if days >= 1:
+            return f"{days} day{'s' if days != 1 else ''}"
+        hours = (secs % 86400) // 3600
+        mins = (secs % 3600) // 60
+        if hours > 0:
+            return f"{hours}h {mins:02d}m"
+        return f"{mins}m"
 
     submit_left_text = _left_text(d_submit_end)
     voting_left_text = _left_text(d_end)
@@ -348,7 +371,7 @@ def _comp_strings_for(comp_id: str, submit_end_day: int = 25, tz: str = "Europe/
         "month_label": month_label,
         "submit_range_str": submit_range_str,
         "voting_range_str": voting_range_str,
-        "submit_left_text": submit_left_text,
+        "submit_left_text": submit_left_text,   # e.g., "3 days", "12h 05m", "35m", "closed"
         "voting_left_text": voting_left_text,
         # (optionally expose raw day numbers if templates want them)
         "submit_end_day": submit_end_day,
@@ -2866,8 +2889,9 @@ def scam_ids():
 
 @app.route("/")
 def home():
+    meta = page_meta()
     year = datetime.now(timezone.utc).year
-    return render_template("index.html", year=year)
+    return render_template("index.html", year=year, meta=meta)
 
 @app.route("/login-page")
 def login_page():
@@ -5184,10 +5208,12 @@ def reroll_giveaway_post():
 
 @app.route("/competition")
 def competition_home():
-    import os
-    from pymongo import MongoClient
-    from datetime import datetime, timezone
-
+    meta = page_meta(
+        title="Monthly Farm Design Competition — HayDay 🍀",
+        description="Submit your design and vote on the best farms. Win huge coin prizes each month!",
+        image=url_for("static", filename="img/competition_share.jpg", _external=True),
+        url="https://www.hayday.info/competition",
+    )    
     # Reuse the same phase/comp_id logic as gallery
     phase, comp_id = _phase_today()
     cal = _comp_strings_for(comp_id, submit_end_day=25)
@@ -5235,6 +5261,7 @@ def competition_home():
 
     return render_template(
         "competition_home.html",
+        meta=meta,
         entries=entries,
         phase=phase,
         comp_id=comp_id,
@@ -5307,13 +5334,29 @@ def competition_gallery():
             docs = list(entries_col.find({"_id": {"$in": ranked_ids}}))
             idx = {rid: i for i, rid in enumerate(ranked_ids)}
             entries = sorted(docs, key=lambda d: idx[d["_id"]])
+
         else:
-            entries = list(
-                entries_col.find(q_entries)
-                .sort("created_at", -1)
-                .skip((page - 1) * PER_PAGE)
-                .limit(PER_PAGE)
-            )
+            # Default sort is newest, but when the total is small we randomize to avoid obvious ordering.
+            # We randomize BEFORE pagination when total <= 3 pages so distribution stays fair.
+            small_threshold = PER_PAGE * 3
+
+            if total <= small_threshold:
+                # Pull all, stable-shuffle for the day, then slice page
+                all_docs = list(entries_col.find(q_entries))
+                rng = random.Random(f"{comp_id}-{date.today().isoformat()}")
+                rng.shuffle(all_docs)
+
+                start = (page - 1) * PER_PAGE
+                end = start + PER_PAGE
+                entries = all_docs[start:end]
+            else:
+                # Many entries: keep normal newest ordering + pagination
+                entries = list(
+                    entries_col.find(q_entries)
+                    .sort("created_at", -1)
+                    .skip((page - 1) * PER_PAGE)
+                    .limit(PER_PAGE)
+                )
 
         # --- my current vote, normalized ---
         my_vote = None
