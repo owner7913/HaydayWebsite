@@ -5295,14 +5295,19 @@ def competition_home():
     if not entries:
         app.logger.info(f"[competition_home] No entries for comp_id={comp_id}. "
                         f"Example doc fields? created_at/comp_id set?")
-
+    prizes = {
+        "first":  "1,000,000 coins + 1 month of Discord Nitro",
+        "second": "700,000 coins",
+        "third":  "500,000 coins",
+    }
     return render_template(
         "competition_home.html",
         meta=meta,
         entries=entries,
         phase=phase,
         comp_id=comp_id,
-        theme=theme,  
+        theme=theme, 
+        prizes=prizes,  
         **cal,
     )
 
@@ -5661,6 +5666,11 @@ def competition_results():
         banner = {"text": "Voting is live. Cast your votes for this month.",
                   "cta_href": url_for("competition_gallery"),
                   "cta_label": "Go vote now"}
+    prizes = {
+        "first":  "1,000,000 coins + 1 month of Discord Nitro",
+        "second": "700,000 coins",
+        "third":  "500,000 coins",
+    }
 
     return render_template(
         "competition_results.html",
@@ -5687,6 +5697,7 @@ def competition_results():
 
 
         is_admin=is_staff(),
+        prizes=prizes,
     )
 
 

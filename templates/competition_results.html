@@ -475,6 +475,20 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
 
   {% endif %}
 </main>
+<!-- ✅ Lightbox -->
+<div id="lightbox" class="lightbox" aria-hidden="true">
+  <button class="lightbox__nav prev" type="button" data-prev aria-label="Previous">‹</button>
+
+  <div class="lightbox__dialog">
+    <button class="lightbox__close" type="button" data-close aria-label="Close">✕</button>
+    <img id="lightboxImg" class="lightbox__img" alt="">
+    <div id="lightboxCounter" class="lightbox__counter" aria-live="polite"></div>
+    <div id="lightboxCaption" class="lightbox__caption"></div>
+  </div>
+
+  <button class="lightbox__nav next" type="button" data-next aria-label="Next">›</button>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -576,6 +590,61 @@ function fmtTopN(n) {
   document.getElementById('copyScoreboardPage')?.addEventListener('click', (e) => copyToClipboard(fmtScoreboardPage(), e.currentTarget));
 })();
 </script>
+<script>
+/* ------- Lightbox for Results Page ------- */
+(function () {
+  const lb = document.getElementById('lightbox');
+  const imgEl = document.getElementById('lightboxImg');
+  const counter = document.getElementById('lightboxCounter');
+  const caption = document.getElementById('lightboxCaption');
+  const btnPrev = lb.querySelector('[data-prev]');
+  const btnNext = lb.querySelector('[data-next]');
+
+  const imgs = Array.from(document.querySelectorAll('.podium-card img, .competition-grid img'));
+  const slides = imgs.map(img => ({
+    src: img.src,
+    caption: img.alt || img.closest('.entry-card')?.querySelector('.name')?.textContent || ''
+  }));
+  let idx = 0;
+
+  function open(i) {
+    idx = i;
+    show(i);
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  function show(i) {
+    const s = slides[i];
+    if (!s) return;
+    imgEl.src = s.src;
+    caption.textContent = s.caption;
+    counter.textContent = `${i + 1} / ${slides.length}`;
+  }
+  function next() { idx = (idx + 1) % slides.length; show(idx); }
+  function prev() { idx = (idx - 1 + slides.length) % slides.length; show(idx); }
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('.podium-card img, .competition-grid img');
+    if (t) open(imgs.indexOf(t));
+    if (e.target === lb || e.target.hasAttribute?.('data-close')) close();
+  });
+  btnPrev.addEventListener('click', e => { e.stopPropagation(); prev(); });
+  btnNext.addEventListener('click', e => { e.stopPropagation(); next(); });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowRight') next();
+    if (e.key === 'ArrowLeft') prev();
+  });
+})();
+</script>
+
 {% endif %}
 
 
