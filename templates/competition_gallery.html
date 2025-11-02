@@ -67,10 +67,57 @@
   .entry-card img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; transition:transform .35s ease; will-change:transform; }
   .entry-card:hover img{ transform:scale(1.04); }
   .entry-overlay-top{ position:absolute; inset:8px auto auto 8px; padding:6px 10px; font-size:12px; border-radius:10px; background:rgba(0,0,0,.55); color:#fff; letter-spacing:.2px; pointer-events:none; }
-  .entry-actions{ position:absolute; left:0; right:0; bottom:8px; display:flex; justify-content:center; padding:0 8px; }
-  .vote-btn{ appearance:none; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); cursor:pointer; transition:transform .15s, background .2s; }
-  .vote-btn:hover{ background:rgba(0,0,0,.7); transform:translateY(-1px); }
-  .vote-btn.primary{ background:#2b7a3d; border-color:#276c35; }
+  .entry-actions{
+    position:absolute;
+    right:8px;      /* was left:0; right:0; */
+    left:auto;
+    bottom:8px;
+    display:flex;
+    justify-content:flex-end; /* no horizontal centering */
+    padding:0;                 /* no extra padding on mobile */
+  }
+  .entry-caption {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 8px 14px;              /* same padding as button */
+    font-size: 14px;                /* match font size */
+    border-radius: 999px;           /* same roundness */
+    background: rgba(0, 0, 0, 0.35); /* lighter so it matches button tone */
+    color: #fff;
+    font-weight: 500;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  /* Make both buttons and badges same height/width feel */
+  .vote-btn {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: transparent;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 14px;
+    border-radius: 999px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s, background 0.2s, border-color 0.2s;
+  }
+  .vote-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
+  }
+  .vote-btn.primary {
+    background: #2b7a3d;
+    border-color: #276c35;
+}
   .entry-card .meta{ display:none; }
 
 /* --- Lightbox Layout / Controls Fix --- */
@@ -258,6 +305,56 @@
     font-size: 13px;
   }
 }
+@media (max-width:560px){
+  .vote-btn{ padding:8px 12px; font-size:14px; }
+  .entry-caption{ font-size:11.5px; }
+}
+.entry-caption{
+  position:absolute;
+  left:8px; bottom:8px;
+  padding:8px 14px;
+  font-size:14px;
+  border-radius:999px;
+  background:rgba(0,0,0,.35);
+  color:#fff; font-weight:500;
+  display:inline-flex; align-items:center; line-height:1; white-space:nowrap;
+  border:1px solid rgba(255,255,255,.25);
+}
+/* proper spacing between number and “votes” */
+.entry-caption .js-vote-count { margin-left:6px; }
+.entry-caption .js-vote-suffix { margin-left:4px; }
+/* --- Force the Vote button to be clean/transparent on all themes --- */
+.vote-btn,
+body.dark .vote-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;                 /* ← kill the black box */
+  border: 1px solid rgba(255,255,255,.25) !important; /* outline only */
+  color: #fff !important;
+  padding: 8px 14px;
+  font-size: 14px;
+  border-radius: 999px;
+  font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: none; outline: 0;
+}
+
+.vote-btn:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); }
+.vote-btn.primary,
+body.dark .vote-btn.primary {
+  background: #2b7a3d !important;
+  border-color: #276c35 !important;
+  color: #fff !important;
+}
+
+/* ensure the surrounding form has no UA background */
+.entry-actions form { background: transparent; border: 0; }
+
+.btn.btn-primary:hover {
+  transform: none;
+  background: #2e8441; /* or slightly lighter shade */
+}
+
 
 </style>
 {% endblock %}
@@ -273,8 +370,8 @@
       {% set title = (month_label or comp_id) %}
       <h1 class="hero-title">
         Gallery — {{ title }}
-        {% if 'oct' in title|lower %}
-          <span class="pill pill-ghost">Theme: Halloween</span>
+        {% if theme %}
+          <span class="pill pill-ghost">Theme: {{ theme.title }}</span>
         {% endif %}
       </h1>
       <p class="hero-subtitle">
@@ -299,17 +396,19 @@
     {% include 'partials/competition_admin_button.html' %}
     <a class="btn" href="{{ url_for('competition_home') }}">⬅ Back to Info</a>
     {% if phase == 'submit' %}
-      <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">✨ Submit your design</a>
+      <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">Submit your design</a>
     {% elif phase == 'voting' %}
       <div class="btn-group" role="group" aria-label="Sort">
+        <a class="btn {% if sort_mode=='random' %}btn-primary{% endif %}"
+          {% if sort_mode=='random' %}aria-current="page"{% endif %}
+          href="{{ url_for('competition_gallery', sort='random') }}">Random</a>
         <a class="btn {% if sort_mode=='top' %}btn-primary{% endif %}"
-          href="{{ url_for('competition_gallery', sort='top') }}">🔥 Most voted</a>
+          href="{{ url_for('competition_gallery', sort='top') }}">Most voted</a>
         <a class="btn {% if sort_mode=='newest' %}btn-primary{% endif %}"
-          href="{{ url_for('competition_gallery', sort='newest') }}">🆕 Newest</a>
+          href="{{ url_for('competition_gallery', sort='newest') }}">Newest</a>
       </div>
-    {% else %}
-      <a class="btn btn-primary" href="{{ url_for('competition_results') }}">🏆 See results</a>
     {% endif %}
+    <a class="btn btn-primary" href="{{ url_for('competition_results') }}">See results</a>
   </nav>
   </section>
 
@@ -353,26 +452,24 @@
       {% endif %}
     </article>
   {% endfor %}
-</div>
-    {% if total_pages > 1 %}
-      <nav class="mt-6 flex items-center justify-center gap-2">
-        <a class="btn {% if not has_prev %}disabled{% endif %}"
-           href="{{ url_for('competition_gallery', page=page-1) if has_prev else '#' }}"
-           aria-disabled="{{ 'true' if not has_prev else 'false' }}">Previous</a>
+    </div>
+    <nav class="mt-6 flex items-center justify-center gap-2">
+      <a class="btn {% if not has_prev %}disabled{% endif %}"
+        href="{{ url_for('competition_gallery', page=page-1, sort=sort_mode) if has_prev else '#' }}"
+        aria-disabled="{{ 'true' if not has_prev else 'false' }}">Previous</a>
 
-        {% for p in range(1, total_pages + 1) %}
-          {% if p == page %}
-            <span class="btn btn-primary">{{ p }}</span>
-          {% else %}
-            <a class="btn" href="{{ url_for('competition_gallery', page=p) }}">{{ p }}</a>
-          {% endif %}
-        {% endfor %}
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="btn btn-primary">{{ p }}</span>
+        {% else %}
+          <a class="btn" href="{{ url_for('competition_gallery', page=p, sort=sort_mode) }}">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
 
-        <a class="btn {% if not has_next %}disabled{% endif %}"
-           href="{{ url_for('competition_gallery', page=page+1) if has_next else '#' }}"
-           aria-disabled="{{ 'true' if not has_next else 'false' }}">Next</a>
-      </nav>
-    {% endif %}
+      <a class="btn {% if not has_next %}disabled{% endif %}"
+        href="{{ url_for('competition_gallery', page=page+1, sort=sort_mode) if has_next else '#' }}"
+        aria-disabled="{{ 'true' if not has_next else 'false' }}">Next</a>
+    </nav>
   {% endif %}
 <div id="voteConfirmModal" class="lightbox" aria-hidden="true">
   <div class="lightbox__dialog" style="max-width:520px">

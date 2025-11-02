@@ -981,67 +981,6 @@ body.season-halloween .actor {
   z-index: 99998; /* keep above cards but below header */
 }
 
-/* === 🎃 Competition Banner === */
-.competition-banner {
-  position: fixed;
-  top: -100px;
-  left: 0;
-  width: 100%;
-  z-index: 1500;
-  background: linear-gradient(90deg, #ff8a00, #ff4500);
-  color: white;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  transition: top 0.7s ease;
-  overflow: hidden;
-}
-
-.competition-banner.show {
-  top: 65px; /* slides down just below your nav bar */
-}
-
-.banner-inner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  padding: 12px 20px;
-  position: relative;
-  z-index: 5;
-}
-
-.banner-text {
-  font-size: 1rem;
-  font-family: 'Segoe UI', sans-serif;
-}
-
-.banner-btn {
-  background: white;
-  color: #ff4500;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-weight: bold;
-  text-decoration: none;
-  transition: background 0.2s;
-}
-
-.banner-btn:hover {
-  background: #ffe4c1;
-}
-
-.banner-close {
-  background: transparent;
-  border: none;
-  color: white;
-  font-size: 18px;
-  cursor: pointer;
-  transition: opacity 0.3s;
-}
-
-.banner-close:hover {
-  opacity: 0.8;
-}
 
 /* Floating pumpkins 🎃 */
 .banner-pumpkins {
@@ -1073,10 +1012,6 @@ body.season-halloween .actor {
   100% { transform: translateY(-120%) rotate(-15deg); opacity: 0; }
 }
 
-/* Dark mode fallback */
-body.dark .competition-banner {
-  background: linear-gradient(90deg, #cc5500, #992d00);
-}
 /* ---------- Admin Competition UI ---------- */
 .adm-toolbar{
   position: sticky; top: 64px; z-index: 10;

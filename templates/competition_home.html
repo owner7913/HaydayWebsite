@@ -288,8 +288,8 @@ body.dark .prize-item--third  { color: #342217; }   /* deep brown */
 <main class="container hero">
 <!-- Seasonal banner (shows every month, wears Halloween skin during October) -->
 <section class="season-banner" aria-label="Seasonal Theme">
-  <h1>🎃 October Theme: Halloween</h1>
-  <p class="muted">Spook up your farm! Share your creepiest cornfields and haunted barns. 🕯️👻</p>
+  <h1>🌾 {{ (theme.title if theme else 'Farm Design') }}</h1>
+  <p class="muted">{{ (theme.desc if theme else 'Show your creativity this month!') }}</p>
 </section>
 <hr class="season-divider">
   <!-- Rolling strip -->
@@ -333,13 +333,14 @@ body.dark .prize-item--third  { color: #342217; }   /* deep brown */
     <div class="cta-row">
       {% include 'partials/competition_admin_button.html' %}
       <a class="btn" href="{{ url_for('competition_gallery') }}">View Gallery</a>
+      <a class="btn btn-primary" href="{{ url_for('competition_results') }}">Past Results</a>
       {% if phase == 'submit' %}
         <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">Submit your design</a>
       {% elif phase == 'voting' %}
         <a class="btn btn-primary" href="{{ url_for('competition_gallery') }}">Vote now</a>
-      {% else %}
-        <a class="btn btn-primary" href="{{ url_for('competition_results') }}">See results</a>
       {% endif %}
+    </div>
+
   
     </div>
   </section>

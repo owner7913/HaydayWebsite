@@ -85,6 +85,31 @@ app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB
 ALLOWED_EXT = {"png", "jpg", "jpeg"}
 UPLOAD_ROOT = os.path.join(app.root_path, "static", "uploads")  # served by Flask static
 
+THEMES = {
+    1:  {"title": "Winter Warmth",     "desc": "Cozy up your farm with fireplaces, snowmen, and frosty barns."},
+    2:  {"title": "Valentine’s Farm",  "desc": "Hearts, roses, and love-filled decorations everywhere."},
+    3:  {"title": "Spring Awakening",  "desc": "Flowers, sprouts, and colorful renewal after winter."},
+    4:  {"title": "Easter Garden",     "desc": "Eggs, bunnies, and pastel farm vibes."},
+    5:  {"title": "Flower Festival",   "desc": "Transform your farm into a field of color."},
+    6:  {"title": "Summer Harvest",    "desc": "Lush crops and long sunny days on the farm."},
+    7:  {"title": "Berry Season",      "desc": "Strawberries, picnics, and outdoor fun."},
+    8:  {"title": "Tropical Farm",     "desc": "Palms, sunshine, and vacation vibes."},
+    9:  {"title": "Rustic Revival",    "desc": "Simple, traditional farm life returning after summer."},
+    10: {"title": "Halloween Harvest", "desc": "Pumpkins, scarecrows, and spooky fun."},
+    11: {"title": "Harvest Festival",  "desc": "Celebrate abundance with cozy autumn colors."},
+    12: {"title": "Christmas Cheer",   "desc": "Festive lights, gifts, and holiday sparkle."},
+}
+
+def _theme_for(comp_id: str):
+    """Pick theme by comp_id 'YYYY-MM'. Falls back to current month if parsing fails."""
+    try:
+        _, m = comp_id.split("-")
+        month = int(m)
+    except Exception:
+        month = datetime.now(timezone.utc).month
+    return THEMES.get(month, {"title": "Farm Design", "desc": ""})
+
+
 def page_meta(title=None, description=None, image=None, url=None):
     return {
         "title": title or "HayDay 🍀 — Community Tools & Competitions",
@@ -94,14 +119,23 @@ def page_meta(title=None, description=None, image=None, url=None):
     }
 
 def _phase_today():
-    now = datetime.now(timezone.utc)
+    # Use Danish local time for cutoff (handles DST automatically)
+    now = datetime.now(ZoneInfo("Europe/Copenhagen"))
     y, m, d = now.year, now.month, now.day
     last_day = monthrange(y, m)[1]
 
-    phase = "submit" if 1 <= d <= 25 else ("voting" if 26 <= d <= last_day else "results")
+    # Submissions: day 1–25
+    # Voting: day 26–(last_day - 1)
+    # Results: last_day (end-of-month)
+    if 1 <= d <= 25:
+        phase = "submit"
+    elif 26 <= d < last_day:
+        phase = "voting"
+    else:
+        phase = "results"  # runs on the final calendar day
 
-    # manual override for testing
-    FORCE_PHASE = None # e.g. "voting" | "submit" | "results"
+    # Manual override (optional)
+    FORCE_PHASE = None  # e.g. "voting", "submit", "results"
     if FORCE_PHASE:
         phase = FORCE_PHASE
 
@@ -5216,6 +5250,9 @@ def competition_home():
     )    
     # Reuse the same phase/comp_id logic as gallery
     phase, comp_id = _phase_today()
+    from flask import g
+    g.comp_id_for_theme = comp_id     # <- makes current_theme available everywhere
+    theme = _theme_for(comp_id)       # <- explicit object if you want to pass it    
     cal = _comp_strings_for(comp_id, submit_end_day=25)
     # Use your preferred inline client pattern
     with MongoClient(os.getenv("MONGO_URI")) as client:
@@ -5265,6 +5302,7 @@ def competition_home():
         entries=entries,
         phase=phase,
         comp_id=comp_id,
+        theme=theme,  
         **cal,
     )
 
@@ -5273,10 +5311,13 @@ def competition_home():
 @app.route("/competition/gallery")
 def competition_gallery():
     phase, comp_id = _phase_today()
+    from flask import g
+    g.comp_id_for_theme = comp_id
+    theme = _theme_for(comp_id)
     cal = _comp_strings_for(comp_id, submit_end_day=25)
 
     viewer_id = session.get("discord_id")
-    sort_mode = request.args.get("sort", "top" if phase == "voting" else "newest")
+    sort_mode = request.args.get("sort", "random" if phase == "voting" else "newest")
     PER_PAGE = 16
 
     try:
@@ -5299,9 +5340,7 @@ def competition_gallery():
         ]
         counts = {}
         for doc in votes_col.aggregate(pipeline):
-            # handle legacy ObjectId or string in entry_id
-            key = str(doc["_id"])
-            counts[key] = doc["count"]
+            counts[str(doc["_id"])] = doc["count"]
 
         # ensure zeros
         for _e in entries_col.find(q_entries, {"_id": 1}):
@@ -5311,6 +5350,7 @@ def competition_gallery():
 
         # --- fetch entries per your sort ---
         if phase == "voting" and sort_mode == "top":
+            # existing TOP logic (unchanged)
             rank_pipeline = [
                 {"$match": {"comp_id": comp_id}},
                 {"$group": {"_id": "$entry_id", "votes": {"$sum": 1}}},
@@ -5335,28 +5375,39 @@ def competition_gallery():
             idx = {rid: i for i, rid in enumerate(ranked_ids)}
             entries = sorted(docs, key=lambda d: idx[d["_id"]])
 
+        elif sort_mode == "newest":
+            # newest with normal pagination
+            entries = list(
+                entries_col.find(q_entries)
+                .sort("created_at", -1)
+                .skip((page - 1) * PER_PAGE)
+                .limit(PER_PAGE)
+            )
+
         else:
-            # Default sort is newest, but when the total is small we randomize to avoid obvious ordering.
-            # We randomize BEFORE pagination when total <= 3 pages so distribution stays fair.
-            small_threshold = PER_PAGE * 3
+            # --- RANDOM (default during voting) ---
+            # Stable per day (Copenhagen time handled by _phase_today())
+            seed_str = f"{comp_id}-{date.today().isoformat()}"
+            seed_bytes = seed_str.encode("utf-8")
 
-            if total <= small_threshold:
-                # Pull all, stable-shuffle for the day, then slice page
-                all_docs = list(entries_col.find(q_entries))
-                rng = random.Random(f"{comp_id}-{date.today().isoformat()}")
-                rng.shuffle(all_docs)
+            # Get just IDs to avoid pulling all fields
+            id_list = [doc["_id"] for doc in entries_col.find(q_entries, {"_id": 1})]
 
-                start = (page - 1) * PER_PAGE
-                end = start + PER_PAGE
-                entries = all_docs[start:end]
-            else:
-                # Many entries: keep normal newest ordering + pagination
-                entries = list(
-                    entries_col.find(q_entries)
-                    .sort("created_at", -1)
-                    .skip((page - 1) * PER_PAGE)
-                    .limit(PER_PAGE)
-                )
+            # Deterministic hash score per _id for the day
+            def rand_score(oid):
+                h = hashlib.sha1(seed_bytes + str(oid).encode("utf-8")).digest()
+                # use first 8 bytes as big-endian int for sorting
+                return int.from_bytes(h[:8], "big")
+
+            id_list.sort(key=rand_score)  # ascending is fine; it's "randomized"
+
+            # paginate IDs, then fetch full docs for this page
+            start = (page - 1) * PER_PAGE
+            end = start + PER_PAGE
+            page_ids = id_list[start:end]
+            docs = list(entries_col.find({"_id": {"$in": page_ids}}))
+            pos = {rid: i for i, rid in enumerate(page_ids)}
+            entries = sorted(docs, key=lambda d: pos[d["_id"]])
 
         # --- my current vote, normalized ---
         my_vote = None
@@ -5378,7 +5429,8 @@ def competition_gallery():
         my_vote=my_vote,
         viewer_id=str(viewer_id) if viewer_id else None,
         sort_mode=sort_mode,
-        vote_counts=counts,   # <- keys are strings now
+        vote_counts=counts,
+        theme=theme,  
         **cal,
     )
 
@@ -5416,6 +5468,9 @@ def competition_submit():
 
     # --- GET ---
     if request.method == "GET":
+        theme = _theme_for(comp_id)
+        from flask import g
+        g.comp_id_for_theme = comp_id        
         user_key = str(discord_id) if discord_id else f"anon-{request.remote_addr}"
         entry = entries_col.find_one({"comp_id": comp_id, "user_id": user_key})
 
@@ -5439,6 +5494,7 @@ def competition_submit():
             my_vote=my_vote,          # <-- enables "Your vote" section
             entries_map=entries_map,  # <-- image lookup for your vote
             GUILD_ID=GUILD_ID,        # used by template links
+            theme=theme,  
         )
 
     # --- POST (only if allowed) ---
@@ -5511,22 +5567,65 @@ def competition_submit():
 
 @app.route("/competition/results")
 def competition_results():
-    # What phase are we in right now, and what's this month's id?
-    phase, comp_id = _phase_today()  # e.g. ("submit"|"voting"|"results", "2025-10")
+    # Allow optional override: /competition/results?comp_id=YYYY-MM
+    override = request.args.get("comp_id")
 
-    # If not in results yet, display last month’s winners
-    display_comp_id = comp_id if phase == "results" else _prev_comp_id(comp_id)
+    phase, comp_id = _phase_today()  # e.g. ("submit"|"voting"|"results", "2025-11")
 
-    # DB
+    # Target month: results month when in results, otherwise previous month… unless overridden
+    display_comp_id = (
+        override.strip() if override
+        else (comp_id if phase == "results" else _prev_comp_id(comp_id))
+    )
+
+    from flask import g
+    g.comp_id_for_theme = display_comp_id
+    theme = _theme_for(display_comp_id)
+
     with MongoClient(os.getenv("MONGO_URI")) as client:
-        entries_col = client["Website"]["CompEntries"]
-        # Only entries for the display month
-        entries = list(entries_col.find({"comp_id": display_comp_id}))
-        counts  = _vote_counts_for(display_comp_id, client)
+        db = client["Website"]
+        entries_col = db["CompEntries"]
+        usernames_col = db["usernames"]  # or "super_trusted" if that's where display names live
 
-    # Sort by real votes (default 0 if missing)
+        entries = list(entries_col.find({"comp_id": display_comp_id}))
+
+        # Build a lookup: { discord_id: display_name }
+        username_map = {
+            str(u["_id"]): u.get("display_name") or u.get("username")
+            for u in usernames_col.find({}, {"_id": 1, "display_name": 1, "username": 1})
+        }
+
+        # Attach display_name to entries
+        for e in entries:
+            e["display_name"] = username_map.get(str(e.get("user_id")), e.get("username") or "Anonymous")
+
+        counts = _vote_counts_for(display_comp_id, client)
+
+
+    def tie_ts(e) -> float:
+        """Return a UTC timestamp for deterministic tie-breaks."""
+        t = e.get("created_at")
+        if t:
+            # PyMongo usually returns naive UTC; normalize to aware UTC then to epoch
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+            else:
+                t = t.astimezone(timezone.utc)
+            return t.timestamp()
+
+        # Fallback: ObjectId.generation_time is aware UTC
+        oid = e.get("_id")
+        gt = getattr(oid, "generation_time", None)
+        if gt:
+            return gt.timestamp()
+
+        # Last resort: very old timestamp so these sort last among same-vote ties
+        return 0.0
+
+    # Sort by votes (desc), then by earliest submission time (asc) as deterministic tie-break
     entries_sorted = sorted(
-        entries, key=lambda e: counts.get(str(e.get("_id")), 0), reverse=True
+        entries,
+        key=lambda e: (-counts.get(str(e["_id"]), 0), tie_ts(e), str(e["_id"])),  # tertiary by _id for extra stability
     )
 
     # --- helpers ---
@@ -5536,65 +5635,60 @@ def competition_results():
         page = max(1, min(int(page or 1), pages))
         start = (page - 1) * per_page
         end = start + per_page
-        return {
-            "items": items[start:end],
-            "page": page,
-            "pages": pages,
-            "total": total,
-            "per_page": per_page,
-        }
+        return {"items": items[start:end], "page": page, "pages": pages, "total": total, "per_page": per_page}
 
     # Read query params
     score_page = request.args.get("score_page", 1, type=int)
     grid_page  = request.args.get("grid_page", 1, type=int)
 
-    # Paginators
+    # Pagination
     score = paginate(entries_sorted, score_page, per_page=10)   # Full scoreboard
     grid  = paginate(entries_sorted, grid_page,  per_page=16)   # 4×4 “All entries”
 
-    # Nice month label for the month we're SHOWING
+    # Label for the DISPLAY month (after any fallback)
     try:
         month_label = datetime.strptime(display_comp_id, "%Y-%m").strftime("%B %Y")
     except ValueError:
         month_label = display_comp_id
 
-    # CTA banner depends on CURRENT phase (not the display month)
+    # CTA banner depends on CURRENT phase (not display month)
     banner = None
     if phase == "submit":
-        banner = {
-            "text": "Submissions are open. Upload your design now.",
-            "cta_href": url_for("competition_submit"),
-            "cta_label": "Go submit your farm",
-        }
+        banner = {"text": "Submissions are open. Upload your design now.",
+                  "cta_href": url_for("competition_submit"),
+                  "cta_label": "Go submit your farm"}
     elif phase == "voting":
-        banner = {
-            "text": "Voting is live. Cast your votes for this month.",
-            "cta_href": url_for("competition_gallery"),
-            "cta_label": "Go vote now",
-        }
+        banner = {"text": "Voting is live. Cast your votes for this month.",
+                  "cta_href": url_for("competition_gallery"),
+                  "cta_label": "Go vote now"}
 
     return render_template(
         "competition_results.html",
         comp_id=display_comp_id,
         month_label=month_label,
         banner=banner,
+        theme=theme,
 
-        # entries + real counts
+
         entries=entries_sorted,
         counts=counts,
 
-        # scoreboard pagination context
+
         score_items=score["items"],
         score_page=score["page"],
         score_pages=score["pages"],
         score_total=score["total"],
 
-        # grid pagination context
+
         grid_items=grid["items"],
         grid_page=grid["page"],
         grid_pages=grid["pages"],
         grid_total=grid["total"],
+
+
+        is_admin=is_staff(),
     )
+
 
 @csrf.exempt
 @app.route("/competition/delete", methods=["POST"])
@@ -5803,16 +5897,18 @@ def api_competition_submit_from_bot():
     if phase != "submit":
         return jsonify(ok=False, error="Submissions closed"), 400
 
-    discord_id = (request.form.get("discord_id") or "").strip()
-    caption    = (request.form.get("caption") or "").strip()[:35]
-    file       = request.files.get("image")
+    discord_id   = (request.form.get("discord_id") or "").strip()
+    caption      = (request.form.get("caption") or "").strip()[:35]
+    display_name = (request.form.get("display_name") or "").strip()   # ✅ NEW
+    username_tag = (request.form.get("username") or "").strip()       # ✅ NEW (legacy tag like user#1234)
+    file         = request.files.get("image")
 
     if not discord_id:
         return jsonify(ok=False, error="Missing discord_id"), 400
     if not file or file.filename == "":
         return jsonify(ok=False, error="Missing image file"), 400
 
-    # Size/type guard (same as your form route)
+    # Size/type guard
     file.seek(0, 2); size = file.tell(); file.seek(0)
     if size > 25 * 1024 * 1024:
         return jsonify(ok=False, error="Image too large (max 25 MB)"), 400
@@ -5820,32 +5916,42 @@ def api_competition_submit_from_bot():
     if ext not in {"png", "jpg", "jpeg"}:
         return jsonify(ok=False, error="Invalid file type (png/jpg)"), 400
 
-    # Reuse your anonymity + R2 helpers used in /competition/submit
-    display_name = username_tag = None  # no session for bot flow
-    to_scan = " ".join(filter(None, [caption, file.filename, discord_id]))
-    if contains_identifying_text(to_scan, display_name, username_tag, discord_id):
-        return jsonify(ok=False, error="Submissions must be anonymous"), 400
-
+    # Upload resized
     unique_name = uuid.uuid4().hex
-    buf, content_type, ext_out = resize_to_max_edge(file)   # your helper returns resized JPEG + info
+    buf, content_type, ext_out = resize_to_max_edge(file)
     object_key = f"{comp_id}/{unique_name}.{ext_out}"
     image_url = r2_put_object(buf, object_key, content_type)
 
+    # Store entry (+names) and upsert usernames cache
     with MongoClient(os.getenv("MONGO_URI")) as c:
         db = c["Website"]
+
         db["CompEntries"].update_one(
             {"comp_id": comp_id, "user_id": str(discord_id)},
             {"$set": {
                 "user_id": str(discord_id),
                 "image_url": image_url,
                 "caption": caption,
+                "display_name": display_name or username_tag,  # ✅ prefer display name
+                "username": username_tag,                      # ✅ keep legacy tag too
                 "created_at": datetime.now(timezone.utc),
                 "ip": request.remote_addr,
             }},
             upsert=True
         )
 
+        db["usernames"].update_one(  # ✅ handy for joins/backfills elsewhere
+            {"_id": str(discord_id)},
+            {"$set": {
+                "display_name": display_name or username_tag,
+                "username": username_tag,
+                "updated_at": datetime.now(timezone.utc),
+            }},
+            upsert=True
+        )
+
     return jsonify(ok=True, comp_id=comp_id, image_url=image_url, caption=caption)
+
 
 @csrf.exempt
 @app.post("/api/competition/edit-caption-from-bot")

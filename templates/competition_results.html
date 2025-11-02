@@ -284,8 +284,11 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
   <div class="results-hero">
     {% include 'partials/competition_admin_button.html' %}
     <div>
-      <div class="sub">Farm Design — Results</div>
-      <h1 class="title">Winners — {{ month_label or comp_id }}</h1>
+    <div class="sub">
+      Farm Design — Results
+      {% if theme %} · Theme: {{ theme.title }}{% endif %}
+    </div>
+    <h1 class="title">Winners — {{ month_label or comp_id }}</h1>
     </div>
     <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
   </div>
@@ -316,6 +319,16 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
   </div>
 {% else %}
 
+{% if is_admin %}
+<div class="card table-card" style="display:flex; gap:8px; align-items:center; justify-content:space-between; padding:10px 12px; margin-bottom:12px;">
+  <div style="font-weight:700;">Admin tools — Discord export</div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px;">
+    <button class="btn btn-primary" id="copyTop3">Copy Top 3</button>
+    <button class="btn" id="copyTop10">Copy Top 10</button>
+    <button class="btn" id="copyScoreboardPage">Copy Current Page (scoreboard)</button>
+  </div>
+</div>
+{% endif %}
 
 <!-- Podium (Top 3) -->
 <section class="podium">
@@ -331,7 +344,7 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
         <img src="{{ second.image_url }}" alt="Second place" loading="lazy" referrerpolicy="no-referrer">
       </div>
       <div class="podium-body">
-        <div class="podium-user"><span>{{ second.username or 'Anonymous' }}</span></div>
+        <div class="podium-user"><span>{{ second.display_name or second.username or second.user or 'Anonymous' }}</span></div>
         {% if second.caption %}<div class="podium-caption">{{ second.caption }}</div>{% endif %}
       </div>
     </article>
@@ -345,7 +358,7 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
         <img src="{{ first.image_url }}" alt="First place" loading="lazy" referrerpolicy="no-referrer">
       </div>
       <div class="podium-body">
-        <div class="podium-user"><span>{{ first.username or 'Anonymous' }}</span></div>
+        <div class="podium-user"><span>{{ first.display_name  or first.username  or first.user  or 'Anonymous' }}</span></div>
         {% if first.caption %}<div class="podium-caption">{{ first.caption }}</div>{% endif %}
       </div>
     </article>
@@ -359,7 +372,7 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
         <img src="{{ third.image_url }}" alt="Third place" loading="lazy" referrerpolicy="no-referrer">
       </div>
       <div class="podium-body">
-        <div class="podium-user"><span>{{ third.username or 'Anonymous' }}</span></div>
+        <div class="podium-user"><span>{{ third.display_name  or third.username  or third.user  or 'Anonymous' }}</span></div>
         {% if third.caption %}<div class="podium-caption">{{ third.caption }}</div>{% endif %}
       </div>
     </article>
@@ -385,7 +398,7 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
             <td class="cell-preview">
               <img src="{{ preview }}" alt="preview" loading="lazy" referrerpolicy="no-referrer">
             </td>
-            <td class="cell-user">{{ row.username or row.user or 'Anonymous' }}</td>
+            <td class="cell-user">{{ row.display_name or row.display_name or row.username or row.user or 'Anonymous' }}</td>
             <td class="truncate">{{ row.caption or '' }}</td>
             <td class="cell-votes"><strong>{{ votes }}</strong></td>
           </tr>
@@ -428,7 +441,7 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
         <article class="entry-card">
           <img src="{{ e.thumb_url or e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
           <div class="grid-meta">
-            <span class="name">{{ e.username or e.user or 'Anonymous' }}</span>
+            <span class="name">{{ e.display_name or e.username or 'Anonymous' }}</span>
             <span class="votes">{{ votes }} votes</span>
           </div>
         </article>
@@ -464,4 +477,106 @@ body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); 
 </main>
 {% endblock %}
 
-{% block scripts %}{% endblock %}
+{% block scripts %}
+{% if is_admin %}
+<script>
+console.log("Ranked:", {{ ranked|length }}, "Month:", {{ month_label|tojson }});
+(function () {
+  const MONTH = {{ (month_label or comp_id)|tojson }};
+
+// Full ranked list (from server)
+const RANKED_ALL = [
+  {% for row in entries %}
+  {
+    rank: {{ loop.index }},
+    user: {{ ("<@" ~ (row.user_id or row.discord_id or '') ~ ">")|tojson }},
+    votes: {{ (counts|default({})).get(row._id|string, 0) }},
+    caption: {{ (row.caption or '')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+// Current scoreboard page (already in your script)
+const SCOREBOARD_PAGE = [
+  {% set base_rank = (score_page - 1) * 10 %}
+  {% for row in score_items %}
+  {
+    rank: {{ base_rank + loop.index }},
+    user: {{ ("<@" ~ (row.user_id or row.discord_id or '') ~ ">")|tojson }},
+    votes: {{ (counts|default({})).get(row._id|string, 0) }},
+    caption: {{ (row.caption or '')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+// ✅ Safe fallback if entries list is empty (RANKED_ALL.length === 0)
+const RANKED_SAFE = RANKED_ALL.length ? RANKED_ALL : SCOREBOARD_PAGE;
+
+// Then use RANKED_SAFE in your formatters:
+function fmtTop3() {
+  const medal = (p) => p === 1 ? '🥇' : p === 2 ? '🥈' : '🥉';
+  const top3 = RANKED_SAFE.slice(0, 3);
+  const lines = [`🎉 **Farm Design — ${MONTH} Winners** 🎉`];
+  if (!top3.length) return lines.concat('_No winners yet._').join('\n');
+  top3.forEach((row, i) => {
+    const cap = row.caption ? ` — *${row.caption}*` : '';
+    lines.push(`${medal(i+1)} **#${i+1}** — **${row.user}** (${row.votes} votes)${cap}`);
+  });
+  lines.push('', '🏆 Prizes: 1st — 1,000,000 coins · 2nd — 700,000 · 3rd — 500,000');
+  return lines.join('\n');
+}
+
+function fmtTopN(n) {
+  const medal = (i) => i === 1 ? '🥇' : i === 2 ? '🥈' : i === 3 ? '🥉' : `#${i}`;
+  const items = RANKED_SAFE.slice(0, n);
+  const lines = [`**Farm Design — ${MONTH} — Top ${n}**`];
+  if (!items.length) return lines.concat('_No entries._').join('\n');
+  items.forEach((row, idx) => {
+    const tag = idx < 3 ? medal(idx + 1) : `#${row.rank}`;
+    const cap = row.caption ? ` — *${row.caption}*` : '';
+    lines.push(`${tag} **${row.user}** — ${row.votes} votes${cap}`);
+  });
+  return lines.join('\n');
+}
+
+  function fmtScoreboardPage() {
+    const lines = [`**Farm Design — ${MONTH} — Scoreboard (Page {{ score_page }}/{{ score_pages }})**`];
+    if (!SCOREBOARD_PAGE.length) return lines.concat('_No entries on this page._').join('\n');
+    SCOREBOARD_PAGE.forEach(row => {
+      const cap = row.caption ? ` — *${row.caption}*` : '';
+      lines.push(`#${row.rank} **${row.user}** — ${row.votes} votes${cap}`);
+    });
+    lines.push(`_Showing ${SCOREBOARD_PAGE.length} of {{ score_total }} entries_`);
+    return lines.join('\n');
+  }
+
+  async function copyToClipboard(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(btn, 'Copied ✔');
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); flash(btn, 'Copied ✔'); }
+      catch { alert('Copy failed — select and copy manually:\n\n' + text); }
+      finally { document.body.removeChild(ta); }
+    }
+  }
+
+  function flash(btn, msg) {
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.textContent = msg;
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1000);
+  }
+
+  document.getElementById('copyTop3')?.addEventListener('click', (e) => copyToClipboard(fmtTop3(), e.currentTarget));
+  document.getElementById('copyTop10')?.addEventListener('click', (e) => copyToClipboard(fmtTopN(10), e.currentTarget));
+  document.getElementById('copyScoreboardPage')?.addEventListener('click', (e) => copyToClipboard(fmtScoreboardPage(), e.currentTarget));
+})();
+</script>
+{% endif %}
+
+
+{% endblock %}

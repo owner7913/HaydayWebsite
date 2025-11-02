@@ -230,8 +230,7 @@ main.submit-page > section {
       <div class="eyebrow">Farm Design</div>
       <h1 class="title">Submit your design — {{ month_label or comp_id }}</h1>
       <p class="subtitle">
-        This month’s theme is <strong>Halloween</strong> — show off your spookiest, most creative farm design!  
-        Upload one image for the October contest. You can replace it any time before submissions close.
+        This month’s theme is <strong>{{ theme.title }}</strong> — {{ theme.desc }}
       </p>
       <div class="pills">
         {% if phase == 'submit' %}
@@ -243,7 +242,7 @@ main.submit-page > section {
         {% endif %}
         <span class="pill">PNG/JPG ≤ 25&nbsp;MB</span>
         <span class="pill">Caption ≤ 35 chars</span>
-        <span class="pill">🎃 Theme: Halloween</span>
+        <span class="pill">Theme: {{ theme.title }}</span>
       </div>
     </div>
 
