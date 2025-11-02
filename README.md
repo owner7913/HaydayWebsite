@@ -1,6 +1,6 @@
 ﻿# 🌾 HayDay 🍀 Web App
 
-Flask-based community portal integrated with a Discord bot for linking Hay Day IDs, managing giveaways, auctions, and more.
+Flask-based community portal for HayDay Community
 
 ---
 
@@ -31,8 +31,8 @@ Flask-based community portal integrated with a Discord bot for linking Hay Day I
 ### ▶️ Run Locally
 
 ```bash
-git clone https://github.com/yourname/hayday-verification.git
-cd hayday-verification
+git clone https://github.com/owner7913/HaydayWebsite
+cd HaydayWebsite
 pip install -r requirements.txt
 cp .env.example .env  # or manually create .env
 python app.py
