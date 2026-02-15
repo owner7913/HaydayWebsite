@@ -1,0 +1,1093 @@
+header.site-header {
+  width: 100%;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box; 
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Segoe UI', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+body {
+  transition: background-color 0.4s ease, color 0.4s ease;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+body.dark header {
+  background: rgba(30, 30, 30, 0.95);
+  color: #e0e0e0;
+}
+
+body.dark header a {
+  color: #ddd;
+}
+:root {
+  --bg-color: #ffffff;
+  --text-color: #111111;
+  --border-color: #dddddd;
+  --button-bg: #eeeeee;
+  --button-hover: #dddddd;
+  --button-text: #333333;
+}
+
+body.dark {
+  --bg-color: #1e1e1e;
+  --text-color: #eeeeee;
+  --border-color: #444444;
+  --button-bg: #333333;
+  --button-hover: #444444;
+  --button-text: #eeeeee;
+}
+
+body.dark {
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+/* Header */
+body.dark header {
+  background-color: #1f1f1f !important;
+  color: #e0e0e0;
+}
+
+/* Form container */
+body.dark form {
+  background-color: rgba(40, 40, 40, 0.95);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+}
+
+/* Inputs + buttons */
+body.dark input,
+body.dark button:not(.darkmode-toggle),
+body.dark label {
+  background-color: #1e1e1e;
+  color: #eee;
+  border: 1px solid #555;
+}
+
+label {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+
+/* Modal */
+body.dark #privacyModal > div {
+  background-color: #1f1f1f;
+  color: #eee;
+}
+
+/* Staff Cards */
+body.dark .member {
+  background-color: #1e1e1e;
+  color: #ddd;
+}
+
+/* Links */
+body.dark a {
+  color: #7abfff;
+}
+
+/* Headings */
+body.dark h1, body.dark h2, body.dark h3 {
+  color: #fff;
+}
+body, form, header, .member {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+header a {
+  text-decoration: none;
+}
+
+
+body.dark .darkmode-toggle {
+  color: #fff;
+}
+
+body.dark .theme-toggle {
+  color: #fff;
+  border-color: #777;
+}
+.privacy-container {
+  max-width: 600px;
+  margin: 40px auto;
+  font-family: sans-serif;
+}
+
+body.dark .privacy-container {
+  background-color: #1f1f1f;
+  color: #e0e0e0;
+  padding: 20px;
+  border-radius: 10px;
+}
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.75);
+  z-index: 999;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 30px;
+  max-width: 700px;
+  margin: 5% auto;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  position: relative;
+  font-family: 'Segoe UI', sans-serif;
+  overflow-y: auto;
+  max-height: 85vh;
+  color: #111;
+}
+.modal-content button {
+  margin-top: 20px;
+  padding: 8px 16px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+body.dark .modal-content {
+  background: #1f1f1f;
+  color: #eee;
+}
+header nav a {
+  text-decoration: none;
+  color: #111; /* Light mode */
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+body.dark header nav a:hover {
+  color: #7abfff;
+}
+
+/* Optional: hover effect */
+header nav a:hover {
+  color: #7abfff;
+}
+header nav {
+  font-weight: 500;
+}
+
+footer {
+  position: relative; /* ✅ Not absolute */
+  width: 100%;
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #333;
+  border-top: 1px solid #ccc;
+  z-index: 0; /* ✅ Let header/nav stay on top */
+}
+
+
+body.dark footer {
+  background: rgba(20, 20, 20, 0.85);
+  color: #ccc;
+  border-top: 1px solid #333;
+}
+
+
+footer .footer-content {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+footer a {
+  color: #0077cc;
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
+
+body.dark footer a {
+  color: #88c6ff;
+}
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background-color: rgba(0,0,0,0.75);
+  z-index: 999;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 30px;
+  max-width: 700px;
+  margin: 5% auto;
+  border-radius: 16px;
+  position: relative;
+  overflow-y: auto;
+  max-height: 90vh;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+body.dark .modal-content {
+  background: #1f1f1f;
+  color: #eee;
+}
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 20px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+}
+.card-overlay {
+  background: rgba(0, 0, 0, 0.6);
+  padding: 40px;
+  border-radius: 16px;
+  color: white;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  padding: 20px;
+  width: 90%;
+  margin: 0 auto;
+}
+
+.grid-card {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 18px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 0 6px rgba(0,0,0,0.1);
+}
+
+.grid-id {
+  font-family: monospace;
+  font-size: 16px;
+  word-break: break-word;
+  color: #111; /* light mode default */
+}
+
+body.dark .grid-id {
+  color: #eee;
+}
+
+
+.grid-id,
+.copy-button,
+#searchInput {
+  color: #111 !important;
+}
+
+body.theme-dark {
+  background-color: #121212;
+  color: #eee;
+}
+
+body.theme-dark .grid-id,
+body.theme-dark .copy-button,
+body.theme-dark #searchInput,
+body.theme-dark header,
+body.theme-dark nav a,
+body.theme-dark footer {
+  color: #eee !important;
+}
+.theme-toggle {
+  z-index: 10001;
+  pointer-events: auto;
+}
+header nav {
+  z-index: 10001;
+  position: relative;
+}
+.profile-container,
+header,
+footer {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+.role-badge,
+.nav-button,
+.modal-content,
+.member {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+.home-container {
+  position: relative;
+  z-index: 0;
+}
+
+.home-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0); /* default: transparent */
+  z-index: 1;
+  transition: background-color 0.4s ease;
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+
+body.dark .home-container::before {
+  background-color: rgba(0, 0, 0, 0.5); /* dim overlay in dark mode */
+}
+
+.home-container > * {
+  position: relative;
+  z-index: 2;
+}
+.darkmode-toggle {
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 10;
+}
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1000;
+}
+
+.darkmode-wrapper {
+  z-index: 10;
+  position: relative;
+}
+
+.role-badge {
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.role-badge:hover {
+  transform: scale(1.05);
+}
+
+.role-owner {
+  background-color: #FFD700;
+  box-shadow: 0 0 8px #FFD700;
+}
+.role-coowner {
+  background-color: #FFA726;
+  box-shadow: 0 0 8px #FFA726;
+}
+.role-headadmin {
+  background-color: #29B6F6;
+  box-shadow: 0 0 8px #29B6F6;
+}
+.role-moderator {
+  background-color: #4CAF50;
+  box-shadow: 0 0 8px #4CAF50;
+}
+.role-trialmoderator {
+  background-color: #AB47BC;
+  box-shadow: 0 0 8px #AB47BC;
+}
+.role-verifier {
+  background-color: #64B5F6;
+  box-shadow: 0 0 8px #64B5F6;
+}
+.role-giveaway {
+  background-color: #EF5350;
+  box-shadow: 0 0 8px #EF5350;
+}
+#discord-winglet {
+  position: fixed;
+  left: -400px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #2f3136; /* Discord dark grey */
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 4px 0 12px rgba(0,0,0,0.2);
+  font-size: 15px;
+  line-height: 1.4;
+  transition: left 0.6s ease;
+  z-index: 9999;
+  max-width: 360px;
+}
+
+#discord-winglet.show {
+  left: 0;
+}
+
+#discord-winglet .discord-icon {
+  width: 40px;
+  height: 40px;
+}
+
+#discord-winglet .discord-text a {
+  color: #ffffff;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+#friend-list {
+  position: fixed;
+  bottom: 0;
+  right: 20px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 0 8px rgba(0,0,0,0.2);
+  width: 200px;
+  font-size: 14px;
+  z-index: 999;
+}
+
+#friend-list .friend {
+  cursor: pointer;
+  padding: 6px;
+  border-bottom: 1px solid #eee;
+}
+
+#friend-list .friend:hover {
+  background: #f0f0f0;
+}
+
+#chat-dock {
+  position: fixed;
+  bottom: 0;
+  right: 240px;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.chat-window {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px 8px 0 0;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+}
+
+.chat-header {
+  background: #4caf50;
+  color: white;
+  padding: 6px 10px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.chat-input {
+  display: flex;
+  border-top: 1px solid #ddd;
+}
+
+.chat-input input {
+  flex: 1;
+  border: none;
+  padding: 8px;
+}
+
+.chat-input button {
+  border: none;
+  background: #4caf50;
+  color: white;
+  padding: 8px;
+}
+
+body.dark #friend-list,
+body.dark .chat-window {
+  background: #1e1e1e;
+  color: #eee;
+}
+
+body.dark .chat-header {
+  background: #388e3c;
+}
+
+.friend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.friend img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.dashboard-wrapper {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+  margin-top: 60px;
+}
+
+.sidebar {
+  width: 240px;
+  background-color: #222;
+  color: white;
+  padding: 20px;
+  font-family: sans-serif;
+}
+
+.sidebar h2 {
+  font-size: 20px;
+  margin-bottom: 16px;
+}
+
+.sidebar a {
+  display: block;
+  color: white;
+  text-decoration: none;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.sidebar a:hover {
+  background-color: #333;
+}
+
+.dashboard-content {
+  flex-grow: 1;
+  padding: 40px;
+  background-color: #f4f4f4;
+}
+
+body.dark .dashboard-content {
+  background-color: #1e1e1e;
+}
+@media (max-width: 768px) {
+  .dashboard-wrapper {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 15px;
+    text-align: center;
+  }
+
+  .sidebar a {
+    display: inline-block;
+    margin: 6px;
+    font-size: 15px;
+  }
+
+  .dashboard-content {
+    padding: 20px;
+  }
+
+  .toggle-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+/* Maintenance banner */
+.maint-banner{
+  position: sticky;
+  top: 0;
+  z-index: 10000;
+  width: 100%;
+  background: #2f80ed; /* readable blue; respects dark/light */
+  color: #fff;
+  padding: 10px 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+.maint-inner{
+  max-width: 1100px;
+  margin: 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.maint-ok{
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.35);
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+}
+.maint-ok:hover{ background: rgba(255,255,255,.25); }
+
+/* Push content when banner visible */
+body.has-maint-banner main{
+  margin-top: var(--maint-banner-height, 0px);
+}
+
+/* Dark mode tweak */
+body.dark .maint-banner{
+  background: #1f4fad;
+}
+/* ---------------------- */
+/* Competition thumbnails */
+/* ---------------------- */
+.submission-thumb { max-width: 560px; }
+.submission-thumb img,
+.thumb-4x3 {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+  cursor: zoom-in;
+}
+
+.thumb-4x3--submit { max-width: 420px; }   /* smaller on submit page */
+.thumb-4x3--gallery { max-height: 280px; } /* gallery grid cards */
+
+/* ---------------------- */
+/* Zoom Modal Styling */
+/* ---------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.7);
+  z-index: 9999;
+}
+.modal-backdrop.open { display: flex; }
+
+#imgModalImg {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(255,255,255,.9);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+/* ---- Competition Grid (4 per row) ---- */
+.competition-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);  /* always 4 across */
+  gap: 16px;
+}
+@media (max-width: 1200px) { .competition-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .competition-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px)  { .competition-grid { grid-template-columns: 1fr; } }
+
+.entry-card {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--card, #161616);
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+}
+
+.entry-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  cursor: zoom-in;
+}
+
+/* ---- Lightbox popup ---- */
+.lightbox {
+  position: fixed; inset: 0; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.7); z-index: 9999;
+}
+.lightbox.open { display: flex; }
+
+.lightbox__dialog {
+  position: relative;
+  background: #111;            /* popup backdrop */
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  max-width: 95vw; max-height: 95vh;
+}
+.lightbox__img {
+  max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 8px;
+}
+.lightbox__close {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(255,255,255,.9); border: 0; border-radius: 999px;
+  padding: 6px 10px; cursor: pointer; font-weight: 700;
+}
+/* === Seasonal: Halloween (applies when <body> has .season-halloween) === */
+body.season-halloween {
+  --hallo-bg: radial-gradient(1200px 600px at 10% -10%, rgba(255,140,0,.10), transparent 60%),
+              radial-gradient(1000px 600px at 100% 10%, rgba(186,104,200,.10), transparent 60%),
+              #0f0f12;
+  --hallo-accent: #ff7a00;    /* pumpkin */
+  --hallo-accent-2: #b388ff;  /* ghostly purple */
+  --hallo-text: #f7f5ff;
+
+  background: var(--hallo-bg);
+}
+
+body.season-halloween header {
+  background: rgba(20, 15, 28, .92);
+  border-bottom: 1px solid rgba(255, 122, 0, .18);
+}
+
+body.season-halloween header nav a:hover { color: var(--hallo-accent-2); }
+
+/* Re-tint footer a bit */
+body.season-halloween footer {
+  background: rgba(20, 15, 28, .85);
+  color: #dcd6ff;
+  border-top: 1px solid rgba(179,136,255,.25);
+}
+
+/* Banner block used on Competition pages */
+.season-banner {
+  margin: 88px auto 18px;        /* room for fixed header */
+  max-width: 1100px;
+  padding: 22px 22px;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 420px at 0% 0%, rgba(255,122,0,.10), transparent 60%),
+    radial-gradient(700px 380px at 100% 0%, rgba(179,136,255,.10), transparent 60%),
+    linear-gradient(135deg, #1a1324 0%, #141019 100%);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  color: var(--hallo-text);
+  text-align: center;
+}
+
+.season-banner::after {
+  content: "🦇🦇🦇";
+  position: absolute;
+  right: 14px; top: 8px;
+  font-size: 20px;
+  opacity: .55;
+}
+
+.season-banner h1 {
+  margin: 0 0 6px;
+  font-size: 1.9rem;
+  letter-spacing: .5px;
+}
+
+.season-banner p {
+  margin: 0;
+  opacity: .9;
+}
+
+/* Cute divider below the banner to blend into page */
+.season-divider {
+  height: 1px;
+  margin: 12px auto 6px;
+  max-width: 1100px;
+  background: linear-gradient(to right, transparent, rgba(255,122,0,.35), rgba(179,136,255,.35), transparent);
+  border: 0;
+}
+
+/* Slight re-tint of your generic .card/.btn on Halloween */
+body.season-halloween .card {
+  border-color: rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+}
+body.season-halloween .btn-primary {
+  background: var(--hallo-accent);
+  border-color: #e46f00;
+}
+/* === Seasonal Décor (refined) === */
+body.season-halloween .hallo-decor{position:fixed;inset:0;pointer-events:none;z-index:999}
+
+/* Corner webs image (safe single-line) */
+body.season-halloween .web {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='white' stroke-width='1.4' stroke-opacity='.85'%3E%3Cpath d='M0 0 L240 0 M0 0 L0 240'/%3E%3Cpath d='M0 0 C80 30,150 70,240 120' opacity='.45'/%3E%3Cpath d='M0 0 C60 24,120 56,200 100' opacity='.35'/%3E%3Cpath d='M0 0 C40 18,90 42,150 70' opacity='.28'/%3E%3Cpath d='M0 20 L200 20 M20 0 L20 200' opacity='.22'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+
+/* Hanging spider (thicker line + clearer body) */
+body.season-halloween .spider-wrap{position:absolute;top:-6px;right:8%;display:flex;flex-direction:column;gap:8px;animation:spider-sway 6s ease-in-out infinite;transform-origin:top center}
+body.season-halloween .spider-thread{width:2.5px;height:150px;background:linear-gradient(to bottom,rgba(255,255,255,.7),rgba(255,255,255,.18))}
+body.season-halloween .spider{
+  width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle at 45% 35%,#1a1a1f 0 60%,#0b0b10 61% 100%);
+  position:relative;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 4px 12px rgba(0,0,0,.45);
+}
+body.season-halloween .spider::before,
+body.season-halloween .spider::after{
+  content:"";position:absolute;left:-14px;right:-14px;height:0;top:10px;border-top:3px solid #0b0b10;border-bottom:3px solid #0b0b10;opacity:.95
+}
+body.season-halloween .spider::after{top:18px}
+
+/* Floating actors (fewer + slower) */
+body.season-halloween .actor{position:absolute;opacity:.9;will-change:transform,opacity;animation:float-linear var(--t,30s) linear infinite, bob 5.5s ease-in-out infinite}
+body.season-halloween .actor svg{width:var(--w,44px);height:auto;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+
+/* Static pumpkins (no motion) */
+body.season-halloween .pumpkin-static{
+  position:fixed;bottom:18px;opacity:.85;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));
+}
+body.season-halloween .pumpkin-left{left:14px}
+body.season-halloween .pumpkin-right{right:14px}
+
+/* Animations: slower + gentle */
+@keyframes float-linear{
+  0%{transform:translate3d(var(--x0,-12vw),var(--y,14vh),0) rotate(var(--r0,0deg));opacity:0}
+  12%{opacity:.95}
+  88%{opacity:.95}
+  100%{transform:translate3d(var(--x1,112vw),var(--y,14vh),0) rotate(var(--r1,0deg));opacity:0}
+}
+@keyframes bob{0%,100%{transform:translateY(-2px)}50%{transform:translateY(2px)}}
+@keyframes spider-sway{0%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}100%{transform:rotate(-1.6deg)}}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce){
+  body.season-halloween .actor, body.season-halloween .spider-wrap{animation:none!important}
+}
+/* optional: soft orange footer glow */
+body.season-halloween footer::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(400px 120px at 50% 100%, rgba(255,122,0,.15), transparent);
+  pointer-events:none;
+}
+
+/* optional: faint fog behind header for depth */
+body.season-halloween header::after {
+  content:"";
+  position:absolute; inset:0;
+  background: radial-gradient(600px 160px at 50% 0, rgba(255,255,255,.04), transparent);
+  pointer-events:none;
+}
+/* === Fix: Bring Halloween décor above everything else === */
+body.season-halloween .hallo-decor {
+  z-index: 99999; /* higher than header, modals, etc. */
+  pointer-events: none;
+}
+
+/* Make webs more visible on dark pages */
+body.season-halloween .web {
+  opacity: 0.8; /* brighter */
+  filter: drop-shadow(0 0 5px rgba(255,255,255,.15));
+}
+/* Bring décor above content */
+body.season-halloween .hallo-decor { z-index: 99999; pointer-events: none; }
+
+/* Use the SVG spider; hide the old circle spider */
+body.season-halloween .spider { display: none; }
+
+body.season-halloween .spider-wrap { top: -2px; right: 7.5%; gap: 4px; animation: spider-sway 6s ease-in-out infinite; }
+body.season-halloween .spider-thread {
+  width: 2px; height: 150px;
+  background: linear-gradient(to bottom, rgba(255,255,255,.85), rgba(255,255,255,.25));
+}
+body.season-halloween .spider-svg {
+  width: 44px; height: 45px; margin-top: -4px;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.45));
+}
+
+/* Make webs more visible on dark backgrounds */
+body.season-halloween .web {
+  opacity: 0.85;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,.15));
+}
+
+/* Ensure pumpkins have a consistent size */
+body.season-halloween .pumpkin-static svg { width: 28px; height: auto; }
+/* --- Visibility boost for flying actors --- */
+body.season-halloween .actor svg {
+  fill: #000;
+  stroke: rgba(255,255,255,.25);
+  stroke-width: 1.2;
+  filter:
+    drop-shadow(0 3px 6px rgba(0,0,0,.6))
+    drop-shadow(0 0 2px rgba(255,255,255,.25))
+    brightness(1.2);
+  opacity: 0.9;
+}
+body.season-halloween .actor {
+  z-index: 99998; /* keep above cards but below header */
+}
+
+
+/* Floating pumpkins 🎃 */
+.banner-pumpkins {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.pumpkin {
+  position: absolute;
+  font-size: 24px;
+  opacity: 0.9;
+  animation: floatPumpkins 10s linear infinite;
+}
+
+.pumpkin-1 { left: 5%;  animation-delay: 0s; }
+.pumpkin-2 { left: 50%; animation-delay: 2s; }
+.pumpkin-3 { left: 85%; animation-delay: 4s; }
+
+@keyframes floatPumpkins {
+  0% { transform: translateY(100%) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translateY(-20%) rotate(15deg); }
+  100% { transform: translateY(-120%) rotate(-15deg); opacity: 0; }
+}
+
+/* ---------- Admin Competition UI ---------- */
+.adm-toolbar{
+  position: sticky; top: 64px; z-index: 10;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background: var(--surface, #121212);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px; padding: 12px 14px; margin-bottom: 16px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
+}
+.adm-toolbar-left{ display:flex; align-items:center; gap:10px; }
+.adm-toolbar-right{ display:flex; align-items:center; gap:8px; }
+
+.adm-grid{
+  display:grid; gap:16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+/* Card */
+.entry-card{
+  display:flex; flex-direction: column;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+
+/* Media with fixed aspect to prevent layout jumps */
+.entry-media{
+  display:block; width:100%; aspect-ratio: 16 / 9; background: rgba(255,255,255,.04);
+}
+.entry-media > img{
+  width:100%; height:100%; object-fit: cover; display:block;
+}
+
+/* Body */
+.entry-body{ padding:12px; display:flex; flex-direction:column; gap:10px; }
+
+.entry-title{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.caption-line{ display:flex; gap:6px; align-items:center; }
+.caption-text{ opacity:.95; }
+
+.votes-pill{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width: 36px; height: 28px; padding: 0 10px; border-radius: 999px;
+  font-weight: 700; font-size: 13px;
+  background: linear-gradient(180deg, rgba(64,160,255,.22), rgba(64,160,255,.12));
+  border: 1px solid rgba(64,160,255,.35);
+}
+
+/* Meta line with avatar */
+.entry-meta{ display:flex; gap:10px; align-items:flex-start; }
+.entry-meta .avatar{
+  width:28px; height:28px; border-radius:50%; object-fit:cover;
+  border: 1px solid rgba(255,255,255,.18);
+}
+.entry-meta .meta-lines{ line-height:1.25; }
+
+/* Actions */
+.entry-actions{ display:flex; gap:10px; align-items:center; }
+.entry-actions .input-sm{ height:34px; padding:6px 10px; }
+.action-buttons{ margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+.btn-ghost{
+  background: transparent;
+  border: 1px dashed rgba(255,255,255,.18);
+}
+.btn-danger{
+  background:#8b0000; border-color:#6e0000; color:#fff;
+}
+.badge-green{ background: rgba(0,160,80,.18); border:1px solid rgba(0,160,80,.35); }
+.badge-blue{  background: rgba(64,160,255,.18); border:1px solid rgba(64,160,255,.35); }
+
+/* Tighten small inputs on narrow cards */
+@media (max-width: 380px){
+  .entry-actions{ flex-direction:column; align-items:stretch; }
+  .action-buttons{ width:100%; justify-content:space-between; }
+}

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}🛒 Shop - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+
+  <style>
+    .shop-container {
+      max-width: 900px;
+      margin: 120px auto 60px;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    .shop-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .coin-balance {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+    .shop-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .item-card {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 14px;
+      padding: 20px;
+      transition: transform 0.2s ease;
+    }
+    .item-card:hover {
+      transform: translateY(-3px);
+    }
+    .item-name {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+    .item-desc {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+    .item-price {
+      font-weight: 600;
+      font-size: 15px;
+    }
+    body.dark .item-desc {
+      color: #aaa;
+    }
+      .buy-button {
+    margin-top: 8px;
+    padding: 8px 16px;
+    background: #4caf50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+  .buy-button:hover {
+    background: #45a049;
+  }
+
+
+@media (max-width: 600px) {
+  .shop-container {
+    margin: 100px 10px 60px;
+    padding: 10px;
+  }
+
+  .item-card {
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .item-name {
+    font-size: 16px;
+  }
+
+  .item-desc {
+    font-size: 13px;
+  }
+
+  .item-price {
+    font-size: 14px;
+  }
+
+  .buy-button {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+  }
+
+  .coin-balance {
+    font-size: 16px;
+    margin-top: 10px;
+  }
+
+  .shop-header h1 {
+    font-size: 22px;
+  }
+}
+
+  </style>
+{% endblock %}
+
+{% block content %}
+
+  <div class="shop-container">
+    <div class="shop-header">
+      <h1>🛒 Coin Shop</h1>
+      {% if coins is not none %}
+  <div class="coin-balance">💰 You have <strong>{{ coins | format }}</strong> coins</div>
+{% else %}
+  <div class="coin-balance">🔒 <a href="/login" style="color: #3b82f6;">Log in</a> to view your coin balance</div>
+{% endif %}
+    </div>
+    <div class="shop-grid">
+ {% for key, item in items.items() %}
+  <div class="item-card">
+    <div class="item-name">{{ item.name }}</div>
+    <div class="item-desc">{{ item.description }}</div>
+    <div class="item-price">{{ item.price | format }} coins</div>
+
+    {% if coins is not none %}
+      {% if owned_items and key in owned_items %}
+        <div style="margin-top: 10px; font-size: 13px; color: #66bb6a;">✅ Already Owned</div>
+      {% else %}
+        <form method="POST" action="/buy" style="margin-top: 10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="item_id" value="{{ key }}">
+          <button type="submit" class="buy-button">Buy</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endfor %}
+
+
+    </div>
+  </div>
+
+{% endblock %}

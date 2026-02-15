@@ -1,0 +1,847 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Gallery{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* Layout + spacing */
+  .container { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+  main.container { margin-top: 96px; padding-bottom: 28px; } /* space from navbar & footer */
+
+  /* --- Polished hero header --- */
+  .gallery-hero {
+    display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;
+    margin-bottom: 8px;
+  }
+  .hero-divider {
+    border:0; height:1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,.12), transparent);
+    margin: 8px 0 16px;
+  }
+  .hero-left { flex:1 1 620px; min-width:280px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(255,255,255,.72); margin-bottom: 4px;
+  }
+  .hero-title {
+    margin: 0 0 6px;
+    font-size: clamp(1.9rem, 2.5vw, 2.2rem);
+    font-weight: 800; letter-spacing: .2px;
+    text-shadow: 0 1px 0 rgba(0,0,0,.25);
+  }
+  .hero-subtitle {
+    margin: 0; line-height: 1.6; font-size: 15.5px;
+    color: rgba(255,255,255,.92);
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  }
+
+  /* Pills */
+  .pill {
+    display:inline-flex; align-items:center; gap:6px;
+    padding: 6px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 700;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+  }
+  .pill-ghost { color: rgba(255,255,255,.92); }
+  .pill-phase { background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .pill-blue  { background:#2563eb; border-color:#1e4fd1; color:#fff; }
+  .pill-countdown { background: rgba(255,255,255,.10); color:#fff; }
+
+  /* Right-side actions (scoped buttons) */
+  .hero-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .hero-actions .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:8px 16px; border-radius:8px; text-decoration:none;
+    border:1px solid rgba(255,255,255,0.15);
+    background:rgba(255,255,255,0.04); color:#fff; font-weight:600;
+    transition:transform .18s ease, background .18s ease, border-color .18s;
+  }
+  .hero-actions .btn:hover{ background:rgba(255,255,255,0.08); transform:translateY(-1px); }
+  .hero-actions .btn-primary{ background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .hero-actions .btn-primary:hover{ background:#2e8441; }
+
+  /* --- Gallery grid/cards (unchanged from your version) --- */
+  .competition-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; margin-top:12px; }
+  .entry-card{ position:relative; overflow:hidden; border-radius:14px; background:#0d0f12; border:1px solid rgba(255,255,255,0.06); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+  .entry-card img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; transition:transform .35s ease; will-change:transform; }
+  .entry-card:hover img{ transform:scale(1.04); }
+  .entry-overlay-top{ position:absolute; inset:8px auto auto 8px; padding:6px 10px; font-size:12px; border-radius:10px; background:rgba(0,0,0,.55); color:#fff; letter-spacing:.2px; pointer-events:none; }
+  .entry-actions{
+    position:absolute;
+    right:8px;      /* was left:0; right:0; */
+    left:auto;
+    bottom:8px;
+    display:flex;
+    justify-content:flex-end; /* no horizontal centering */
+    padding:0;                 /* no extra padding on mobile */
+  }
+  .entry-caption {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 8px 14px;              /* same padding as button */
+    font-size: 14px;                /* match font size */
+    border-radius: 999px;           /* same roundness */
+    background: rgba(0, 0, 0, 0.35); /* lighter so it matches button tone */
+    color: #fff;
+    font-weight: 500;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  /* Make both buttons and badges same height/width feel */
+  .vote-btn {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: transparent;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 14px;
+    border-radius: 999px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s, background 0.2s, border-color 0.2s;
+  }
+  .vote-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
+  }
+  .vote-btn.primary {
+    background: #2b7a3d;
+    border-color: #276c35;
+}
+  .entry-card .meta{ display:none; }
+
+/* --- Lightbox Layout / Controls Fix --- */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity .25s ease;
+  user-select: none;
+  touch-action: pan-y;
+}
+.lightbox.open { display: flex; opacity: 1; }
+
+.lightbox__dialog {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
+.lightbox__img {
+  max-width: 95vw;
+  max-height: 95vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 0 40px rgba(0,0,0,.65);
+  transition: opacity .25s ease;
+}
+
+/* --- Close button --- */
+.lightbox__close {
+  position: fixed;
+  top: 24px;
+  right: 28px;
+  z-index: 1002;
+  background: rgba(0,0,0,.6);
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .2s;
+}
+.lightbox__close:hover { background: rgba(0,0,0,.8); }
+
+/* --- Arrows --- */
+.lightbox__nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.25);
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  cursor: pointer;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  transition: background .2s;
+}
+.lightbox__nav:hover { background: rgba(0,0,0,.7); }
+.lightbox__nav.prev { left: 24px; }
+.lightbox__nav.next { right: 24px; }
+
+/* --- Counter, Caption, Vote button --- */
+.lightbox__counter {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-weight: 600;
+  opacity: .9;
+  z-index: 1001;
+  font-size: 14px;
+}
+
+.lightbox__caption {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+  opacity: .85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80vw;
+  z-index: 1001;
+}
+
+/* --- Vote button --- */
+.lightbox__vote {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  background: #22c55e;
+  color: #0b2313;
+  font-weight: 700;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 20px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.28);
+  z-index: 1001;
+  transition: filter .2s;
+}
+.lightbox__vote:hover { filter: brightness(1.08); }
+.lightbox__vote[hidden]{ display:none !important; }
+
+/* --- Responsive adjustments for lightbox controls --- */
+@media (max-width: 800px) {
+  .lightbox__close {
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+  .lightbox__nav {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+  .lightbox__nav.prev { left: 12px; }
+  .lightbox__nav.next { right: 12px; }
+
+  .lightbox__vote {
+    right: 16px;
+    bottom: 16px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  .lightbox__caption {
+    bottom: 72px;  /* make space above button */
+    font-size: 13px;
+    max-width: 90vw;
+  }
+
+  .lightbox__counter {
+    bottom: 46px;
+    font-size: 13px;
+  }
+
+  .lightbox__img {
+    max-width: 98vw;
+    max-height: 88vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .lightbox__nav {
+    display: none; /* swipe handles navigation */
+  }
+  .lightbox__caption,
+  .lightbox__counter {
+    font-size: 12px;
+    bottom: 58px;
+  }
+  .lightbox__vote {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+}
+@media (max-width:560px){
+  .vote-btn{ padding:8px 12px; font-size:14px; }
+  .entry-caption{ font-size:11.5px; }
+}
+.entry-caption{
+  position:absolute;
+  left:8px; bottom:8px;
+  padding:8px 14px;
+  font-size:14px;
+  border-radius:999px;
+  background:rgba(0,0,0,.35);
+  color:#fff; font-weight:500;
+  display:inline-flex; align-items:center; line-height:1; white-space:nowrap;
+  border:1px solid rgba(255,255,255,.25);
+}
+/* proper spacing between number and “votes” */
+.entry-caption .js-vote-count { margin-left:6px; }
+.entry-caption .js-vote-suffix { margin-left:4px; }
+/* --- Force the Vote button to be clean/transparent on all themes --- */
+.vote-btn,
+body.dark .vote-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;                 /* ← kill the black box */
+  border: 1px solid rgba(255,255,255,.25) !important; /* outline only */
+  color: #fff !important;
+  padding: 8px 14px;
+  font-size: 14px;
+  border-radius: 999px;
+  font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: none; outline: 0;
+}
+
+.vote-btn:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); }
+.vote-btn.primary,
+body.dark .vote-btn.primary {
+  background: #2b7a3d !important;
+  border-color: #276c35 !important;
+  color: #fff !important;
+}
+
+/* ensure the surrounding form has no UA background */
+.entry-actions form { background: transparent; border: 0; }
+
+.btn.btn-primary:hover {
+  transform: none;
+  background: #2e8441; /* or slightly lighter shade */
+}
+
+/* --- Gallery pagination --- */
+.gallery-pagination {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.gallery-pagination .pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.04);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, transform .15s ease;
+}
+
+.gallery-pagination .pager-btn:hover {
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.28);
+  transform: translateY(-1px);
+}
+
+.gallery-pagination .pager-btn.is-current {
+  background: #2b7a3d;
+  border-color: #276c35;
+  font-weight: 700;
+}
+
+.gallery-pagination .pager-btn.is-disabled {
+  opacity: .35;
+  cursor: default;
+  pointer-events: none;
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<main id="gallery" class="container gallery-page mx-auto px-4 py-6"
+      data-my-vote="{{ my_vote.entry_id if my_vote else '' }}">
+  <section class="gallery-hero">
+    <div class="hero-left">
+      <div class="eyebrow">Farm Design</div>
+      {% set title = (month_label or comp_id) %}
+      <h1 class="hero-title">
+        Gallery — {{ title }}
+        {% if theme %}
+          <span class="pill pill-ghost">Theme: {{ theme.title }}</span>
+        {% endif %}
+      </h1>
+      <p class="hero-subtitle">
+        Browse this month’s entries. Click any image to view full size.
+        {% if phase == 'submit' %}
+          <span class="pill pill-phase">Submissions open</span>
+          <span class="pill pill-ghost">{{ submit_range_str }}</span>
+          <span class="pill pill-countdown">Closes in {{ submit_left_text }}</span>
+        {% elif phase == 'voting' %}
+          <span class="pill pill-phase pill-blue">Voting open</span>
+          <span class="pill pill-ghost">{{ voting_range_str }}</span>
+          <span class="pill pill-countdown">Closes in {{ voting_left_text }}</span>
+        {% else %}
+          <span class="pill pill-ghost">Submissions: {{ submit_range_str }}</span>
+          <span class="pill pill-ghost">Voting: {{ voting_range_str }}</span>
+        {% endif %}
+        <span class="pill pill-ghost">{{ total }} entries</span>
+      </p>
+    </div>
+
+  <nav class="hero-actions">
+    {% include 'partials/competition_admin_button.html' %}
+    <a class="btn" href="{{ url_for('competition_home') }}">⬅ Back to Info</a>
+    {% if phase == 'submit' %}
+      <a class="btn btn-primary" href="{{ url_for('competition_submit') }}">Submit your design</a>
+    {% elif phase == 'voting' %}
+      <div class="btn-group" role="group" aria-label="Sort">
+        <a class="btn {% if sort_mode=='random' %}btn-primary{% endif %}"
+          {% if sort_mode=='random' %}aria-current="page"{% endif %}
+          href="{{ url_for('competition_gallery', sort='random') }}">Random</a>
+        <a class="btn {% if sort_mode=='top' %}btn-primary{% endif %}"
+          href="{{ url_for('competition_gallery', sort='top') }}">Most voted</a>
+        <a class="btn {% if sort_mode=='newest' %}btn-primary{% endif %}"
+          href="{{ url_for('competition_gallery', sort='newest') }}">Newest</a>
+      </div>
+    {% endif %}
+    <a class="btn btn-primary" href="{{ url_for('competition_results') }}">See results</a>
+  </nav>
+  </section>
+
+  <hr class="hero-divider">
+  {% if entries|length == 0 %}
+    <div class="card p-6 center muted">No entries yet. Be the first!</div>
+  {% else %}
+<div class="competition-grid">
+  {% for e in entries %}
+    <article class="entry-card">
+      <img src="{{ e.image_url }}" data-fullsrc="{{ e.image_url }}" alt="{{ e.caption or '' }}" class="js-zoom" loading="lazy">
+      {% set e_id = e._id|string %}
+      {% set my_current = (my_vote and my_vote.entry_id == e_id) %}
+      {% set votes = (vote_counts.get(e_id, 0) if vote_counts is defined else 0) %}
+
+      <div class="entry-caption">
+        {% if phase == 'voting' or phase == 'results' %}
+          ❤️ <span class="js-vote-count" data-count="{{ votes }}">{{ votes }}</span>
+          <span class="js-vote-suffix">{{ ' vote' if votes == 1 else ' votes' }}</span>
+        {% else %}
+          {% if e.caption %}
+            <span class="entry-title">{{ e.caption|truncate(40, True, '…') }}</span>
+          {% endif %}
+        {% endif %}
+      </div>
+
+
+      {% if phase == 'voting' %}
+        <div class="entry-actions">
+          {% if viewer_id and e.user_id and (e.user_id|string) == viewer_id %}
+            <button class="vote-btn" type="button" disabled title="You can’t vote for your own entry">Own entry</button>
+          {% else %}
+            <form class="js-vote-form" data-entry-id="{{ e_id }}" action="{{ url_for('competition_vote') }}" method="post">
+              <input type="hidden" name="entry_id" value="{{ e_id }}">
+              <button class="vote-btn {% if my_current %}primary{% endif %}" type="submit" data-role="vote-btn">
+                {% if my_current %}❤️ Voted{% else %}Vote{% endif %}
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+    </article>
+  {% endfor %}
+    </div>
+    {% if total_pages > 1 %}
+    <nav class="gallery-pagination" aria-label="Gallery pages">
+      <!-- Prev -->
+      <a
+        class="pager-btn {% if not has_prev %}is-disabled{% endif %}"
+        href="{{ url_for('competition_gallery', page=page-1, sort=sort_mode) if has_prev else '#' }}"
+        aria-disabled="{{ 'true' if not has_prev else 'false' }}"
+      >
+        ‹ Prev
+      </a>
+
+      <!-- Page numbers -->
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="pager-btn is-current">{{ p }}</span>
+        {% else %}
+          <a
+            class="pager-btn"
+            href="{{ url_for('competition_gallery', page=p, sort=sort_mode) }}"
+          >
+            {{ p }}
+          </a>
+        {% endif %}
+      {% endfor %}
+
+      <!-- Next -->
+      <a
+        class="pager-btn {% if not has_next %}is-disabled{% endif %}"
+        href="{{ url_for('competition_gallery', page=page+1, sort=sort_mode) if has_next else '#' }}"
+        aria-disabled="{{ 'true' if not has_next else 'false' }}"
+      >
+        Next ›
+      </a>
+    </nav>
+    {% endif %}
+
+  {% endif %}
+<div id="voteConfirmModal" class="lightbox" aria-hidden="true">
+  <div class="lightbox__dialog" style="max-width:520px">
+    <button class="lightbox__close" type="button" data-close>✕</button>
+    <div class="card p-4">
+      <h3 class="section-title">Change your vote?</h3>
+      <p class="muted">You already voted for another entry. Do you want to switch your vote to this image?</p>
+      <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end">
+        <button type="button" class="btn" data-cancel>Keep current</button>
+        <button type="button" class="btn btn-primary" data-confirm>Switch vote</button>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<!-- ✅ Lightbox -->
+<div id="lightbox" class="lightbox" aria-hidden="true">
+  <button class="lightbox__nav prev" type="button" data-prev aria-label="Previous">‹</button>
+
+  <div class="lightbox__dialog">
+    <button class="lightbox__close" type="button" data-close aria-label="Close">✕</button>
+    <img id="lightboxImg" class="lightbox__img" alt="">
+    <div id="lightboxCounter" class="lightbox__counter" aria-live="polite"></div>
+    <div id="lightboxCaption" class="lightbox__caption"></div>
+    <button id="lightboxVote" class="lightbox__vote" type="button" aria-label="Vote this entry">Vote</button>
+  </div>
+
+  <button class="lightbox__nav next" type="button" data-next aria-label="Next">›</button>
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+/* ------- Gallery Lightbox Slider with Vote ------- */
+(function () {
+  const lb       = document.getElementById('lightbox');
+  const imgEl    = document.getElementById('lightboxImg');
+  const counter  = document.getElementById('lightboxCounter');
+  const caption  = document.getElementById('lightboxCaption');
+  const btnPrev  = lb.querySelector('[data-prev]');
+  const btnNext  = lb.querySelector('[data-next]');
+  const btnVote  = document.getElementById('lightboxVote');
+
+  // Thumbs and their parent entry-cards
+  const thumbs = Array.from(document.querySelectorAll('.competition-grid .js-zoom'));
+  const cards  = thumbs.map(t => t.closest('.entry-card'));
+
+  // Build slides incl. caption + full image
+  const slides = thumbs.map((t, i) => {
+    const card = cards[i];
+    const src = t.dataset.fullsrc || t.src;
+
+    // Prefer a title; fall back to alt or votes
+    const titleEl   = card?.querySelector('.entry-title');
+    const voteBadge = card?.querySelector('.js-vote-count');
+    const cap = titleEl?.textContent?.trim()
+              || t.alt?.trim()
+              || (voteBadge ? `${voteBadge.textContent} votes` : '');
+
+    // We’ll try to find an existing vote trigger on the card
+    const voteBtn   = card?.querySelector('.js-vote, [data-action="vote"], button.vote, .vote-btn');
+
+    return { src, caption: cap || '', voteBtn, card };
+  });
+
+  let idx = 0;
+
+  function open(i) {
+    idx = clamp(i, 0, slides.length - 1);
+    show(idx);
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function close() {
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    imgEl.src = '';
+    caption.textContent = '';
+    counter.textContent = '';
+    document.body.style.overflow = '';
+  }
+
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function show(i) {
+    const s = slides[i];
+    if (!s) return;
+    imgEl.src = s.src;
+    caption.textContent = s.caption || '';
+    counter.textContent = slides.length ? `${i+1} / ${slides.length}` : '';
+
+    // Toggle Vote button visibility (only if a vote action exists on the card)
+    if (s.voteBtn) btnVote.hidden = false; else btnVote.hidden = true;
+
+    // Preload neighbors
+    preload(i+1);
+    preload(i-1);
+  }
+
+  function next() { idx = (idx + 1) % slides.length; show(idx); }
+  function prev() { idx = (idx - 1 + slides.length) % slides.length; show(idx); }
+
+  function preload(i) {
+    const s = slides[(i + slides.length) % slides.length];
+    if (!s || !s.src) return;
+    const im = new Image(); im.src = s.src;
+  }
+
+  // Open on thumb click
+  document.addEventListener('click', (e) => {
+    const thumb = e.target.closest('.js-zoom');
+    if (thumb && thumbs.length) {
+      const i = thumbs.indexOf(thumb);
+      if (i > -1) open(i);
+    }
+  });
+
+  // Close on backdrop / X
+  document.addEventListener('click', (e) => {
+    if (!lb.classList.contains('open')) return;
+    if (e.target === lb || e.target.hasAttribute?.('data-close')) close();
+  });
+
+  // Prev/Next buttons
+  btnPrev.addEventListener('click', (e) => { e.stopPropagation(); prev(); });
+  btnNext.addEventListener('click', (e) => { e.stopPropagation(); next(); });
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
+    if (e.key === 'ArrowLeft'  || e.key.toLowerCase() === 'a') prev();
+  });
+
+  // Touch swipe
+  let touchX = null, touchY = null, dragging = false;
+  const SWIPE_THRESH = 40;
+
+  lb.addEventListener('touchstart', (e) => {
+    if (!lb.classList.contains('open')) return;
+    const t = e.touches[0];
+    touchX = t.clientX; touchY = t.clientY; dragging = true;
+  }, { passive: true });
+
+  lb.addEventListener('touchend', (event) => {
+    if (!dragging || touchX == null) return;
+    const dx = (event.changedTouches?.[0]?.clientX || 0) - touchX;
+    const dy = (event.changedTouches?.[0]?.clientY || 0) - touchY;
+    dragging = false;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESH) {
+      if (dx < 0) next(); else prev();
+    }
+    touchX = touchY = null;
+  }, { passive: true });
+
+  // Optional mouse drag on desktop
+  let mStartX = null;
+  lb.addEventListener('mousedown', (e) => { if (e.button===0) mStartX = e.clientX; });
+  lb.addEventListener('mouseup',   (e) => {
+    if (mStartX == null) return;
+    const dx = e.clientX - mStartX;
+    if (Math.abs(dx) > SWIPE_THRESH) { if (dx < 0) next(); else prev(); }
+    mStartX = null;
+  });
+
+  // 🔔 Vote from lightbox: reuse the page’s existing vote trigger
+  btnVote.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const s = slides[idx];
+    if (!s?.voteBtn) return;
+    // Trigger the existing vote UI/flow on the corresponding card
+    s.voteBtn.click();
+    // (Keep lightbox open; if your vote flow opens a modal, it will appear on top.)
+  });
+})();
+
+(function () {
+  const mod = document.getElementById('voteConfirmModal');
+  const openModal = () => { mod.classList.add('open'); mod.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+  const closeModal = () => { mod.classList.remove('open'); mod.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+
+  const gallery = document.getElementById('gallery');
+  let pendingForm = null;
+  let pendingPrevId = null; // from 409 payload
+
+  function cardFor(entryId) {
+    return document.querySelector(`.js-vote-form[data-entry-id="${entryId}"]`)?.closest('.entry-card');
+  }
+  function getCount(card) {
+    const span = card?.querySelector('.js-vote-count');
+    return span ? parseInt(span.dataset.count || '0', 10) : 0;
+  }
+  function setCount(card, val) {
+    const n = Math.max(0, val|0);
+    const span = card?.querySelector('.js-vote-count');
+    const suf  = card?.querySelector('.js-vote-suffix');
+    if (span) { span.dataset.count = String(n); span.textContent = String(n); }
+    if (suf)  { suf.textContent = (n === 1 ? ' vote' : ' votes'); }
+  }
+  function setYourVote(card, on) {
+    const badge = card?.querySelector('.js-your-vote');
+    if (badge) badge.style.display = on ? '' : 'none';
+  }
+  function clearSelectedBtn() {
+    const cur = document.querySelector('.js-vote-form .vote-btn.primary');
+    if (cur) {
+      cur.classList.remove('primary');
+      cur.textContent = 'Vote';
+      setYourVote(cur.closest('.entry-card'), false);
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.matches('#voteConfirmModal [data-close], #voteConfirmModal [data-cancel]') || e.target === mod) {
+      closeModal();
+    }
+  });
+
+  document.querySelector('#voteConfirmModal [data-confirm]')?.addEventListener('click', async () => {
+    if (!pendingForm) return;
+    await submitVote(pendingForm, true, pendingPrevId);
+    closeModal();
+    pendingForm = null;
+    pendingPrevId = null;
+  });
+
+  async function submitVote(form, overwrite = false, prevIdFrom409 = null) {
+    const btn = form.querySelector('[data-role="vote-btn"]');
+    const entryId = form.dataset.entryId;
+
+    const body = new URLSearchParams();
+    body.set('entry_id', entryId);
+    if (overwrite) body.set('overwrite', 'true');
+
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+        body
+      });
+
+      if (res.status === 409) {
+        // read previous id so we can decrement it after confirm
+        const data = await res.json().catch(() => ({}));
+        pendingForm = form;
+        pendingPrevId = data?.current_entry_id || (gallery?.dataset?.myVote || null);
+        openModal();
+        btn.disabled = false;
+        return;
+      }
+
+      const ctype = res.headers.get('content-type') || '';
+      const data = ctype.includes('application/json') ? await res.json() : (() => { throw new Error('Unexpected non-JSON response'); })();
+
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Vote failed');
+
+      // clear previous selection
+      const oldSelected = document.querySelector('.js-vote-form .vote-btn.primary');
+      const oldCard = oldSelected?.closest('.entry-card');
+      const prevId = prevIdFrom409
+        || oldSelected?.closest('.js-vote-form')?.dataset.entryId
+        || (gallery?.dataset?.myVote || null);
+
+      if (oldSelected) {
+        oldSelected.classList.remove('primary');
+        oldSelected.textContent = 'Vote';
+      }
+
+      // mark new selection
+      btn.classList.add('primary');
+      btn.textContent = '❤️ Voted';
+      setYourVote(form.closest('.entry-card'), true);
+
+      // update counts
+      const newCard = form.closest('.entry-card');
+      if (data.changed) {
+        if (prevId && prevId !== entryId) {
+          const pCard = cardFor(prevId);
+          if (pCard) {
+            setCount(pCard, getCount(pCard) - 1);
+            setYourVote(pCard, false);
+          }
+        }
+        setCount(newCard, getCount(newCard) + 1);
+      }
+
+      // remember current vote for next overwrite prompt
+      if (gallery) gallery.dataset.myVote = entryId;
+
+    } catch (err) {
+      alert(err.message || 'Something went wrong.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // intercept submits
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('.js-vote-form');
+    if (!form) return;
+    e.preventDefault();
+    submitVote(form, false, null);
+  });
+})();
+
+</script>
+{% endblock %}
+

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Admin{% endblock %}
+
+{% block head_extra %}
+{# Any page-specific CSS could go here, but your theme.css is already in base.html #}
+{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-6" style="margin-top:80px">
+  <!-- Sticky toolbar -->
+  <div class="adm-toolbar">
+    <div class="adm-toolbar-left">
+      <h1 class="page-title">Competition — {{ comp_id }}</h1>
+      <span class="badge {{ 'badge-green' if phase=='submit' else ('badge-blue' if phase=='voting' else 'badge' ) }}">
+        {{ phase|capitalize }}
+      </span>
+    </div>
+    <div class="adm-toolbar-right">
+      <input id="adm-search" class="input" type="text" placeholder="Search caption / user…" autocomplete="off">
+      <a class="btn" href="{{ url_for('admin_panel') }}">Back to Admin</a>
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <div id="adm-grid" class="adm-grid">
+    {% for e in entries %}
+      <article class="entry-card" data-user="{{ (user_map.get(e.user_id|string) or {}).get('display_name') or e.username or e.user_id }}" data-caption="{{ e.caption or '' }}">
+        <a class="entry-media" href="{{ e.image_url }}" target="_blank" rel="noopener">
+          <img src="{{ e.thumb_url or e.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        </a>
+
+        <div class="entry-body">
+          <div class="entry-title">
+            <div class="caption-line">
+              <strong>Caption:</strong>
+              <span class="caption-text">{{ e.caption or '—' }}</span>
+            </div>
+            <span class="votes-pill" title="Total votes">{{ vote_counts.get(e._id|string, 0) }}</span>
+          </div>
+
+          <div class="entry-meta">
+            {% set u = user_map.get(e.user_id|string) %}
+            {% if u and u.get('avatar') %}
+              <img class="avatar" src="{{ u.avatar }}" alt="" referrerpolicy="no-referrer">
+            {% endif %}
+            <div class="meta-lines">
+              <div><strong>Submitted by:</strong> {{ (u.get('display_name') if u else None) or e.username or e.user_id }}</div>
+              <div class="muted">ID: {{ e._id }} • {{ e.created_at }}</div>
+            </div>
+          </div>
+
+          <!-- Single form, two actions (save / delete) -->
+          <form class="entry-actions" method="post"
+                action="{{ url_for('admin_competition_caption', entry_id=e._id, comp_id=comp_id) }}">
+            <input class="input input-sm" type="text" name="caption" maxlength="35"
+                   value="{{ e.caption or '' }}" placeholder="Edit caption">
+
+            <div class="action-buttons">
+              <a class="btn btn-ghost" href="{{ url_for('admin_competition_votes', entry_id=e._id) }}">
+                View voters
+              </a>
+
+              <button class="btn btn-primary" type="submit">Save caption</button>
+
+              <button class="btn btn-danger" type="submit"
+                      formaction="{{ url_for('admin_competition_delete', entry_id=e._id, comp_id=comp_id) }}"
+                      formmethod="post"
+                      onclick="return confirm('Delete this entry and its votes?');">
+                Delete
+              </button>
+            </div>
+          </form>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</main>
+
+<!-- Page script (kept inline; move to a scripts block if you have one) -->
+<script>
+  (function () {
+    const q = document.getElementById('adm-search');
+    const cards = Array.from(document.querySelectorAll('#adm-grid .entry-card'));
+    if (!q) return;
+    q.addEventListener('input', function () {
+      const s = this.value.trim().toLowerCase();
+      for (const c of cards) {
+        const t = (c.dataset.caption + ' ' + c.dataset.user).toLowerCase();
+        c.style.display = t.includes(s) ? '' : 'none';
+      }
+    });
+  })();
+</script>
+{% endblock %}

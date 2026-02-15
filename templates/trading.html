@@ -1,0 +1,1170 @@
+{% extends "base.html" %}
+{% set meta = {
+  "title": "HayDay 🍀 — Trading Market",
+  "description": "Real-time Hay Day market intelligence — spreads, trend %, and historical price charts.",
+  "url": "https://www.hayday.info/trading",
+  "image": url_for('static', filename='img/previews/trading.jpg', _external=True)
+} %}
+
+{% block title %}Trading Overview{% endblock %}
+{% block head_extra %}
+<style>
+  .trade-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+
+  .trade-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    transition: transform .12s ease, border-color .12s ease;
+  }
+
+    .trade-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(100, 200, 100, 0.35);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.35);
+    }
+
+    .trade-card {
+      cursor: pointer;
+    }
+
+    .trade-card:focus {
+      outline: 2px solid rgba(100, 200, 100, 0.35);
+      outline-offset: 2px;
+    }
+
+  .trade-top {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .trade-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.06);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+
+  .trade-icon img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+  }
+
+
+  .trade-name{
+    font-weight: 900;
+    font-size: 17px;
+    line-height: 1.2;
+    letter-spacing: .2px;
+    text-shadow: 0 1px 6px rgba(255,255,255,0.05);
+
+    /* clamp */
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
+    /* standard draft */
+    line-clamp: 2;
+    box-orient: vertical; /* harmless fallback */
+  }
+
+
+  .trade-divider {
+    margin: 12px 0;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+
+  .trade-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-box {
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    opacity: .65;
+  }
+
+    .stat-value {
+    margin-top: 4px;
+    font-weight: 800;
+    font-size: 15px;
+    }
+
+    .stat-box:nth-child(1) .stat-value,
+    .stat-box:nth-child(2) .stat-value {
+    font-size: 17px;
+    }
+  .trade-grid{
+    display:grid;
+    gap:16px;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  @media (min-width: 700px){
+    .trade-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1000px){
+    .trade-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1300px){
+    .trade-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  .pager{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    justify-content:center;
+    margin: 18px 0 6px;
+  }
+  .pager button{
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.06);
+    color: inherit;
+    cursor: pointer;
+  }
+  .pager button:disabled{ opacity:.4; cursor:not-allowed; }
+  .pager .meta{ opacity:.75; }
+/* --- Modal (popup) --- */
+.modal-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+}
+.modal-backdrop.show{ display:flex; }
+
+.modal{
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: 16px;
+  background: rgba(20,20,24,0.96);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+}
+.modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: sticky;
+  top: 0;
+  background: rgba(20,20,24,0.96);
+  z-index: 1;
+}
+.modal-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.modal-title .m-icon{
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.06);
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+}
+.modal-title .m-icon img{ width: 36px; height: 36px; object-fit: contain; }
+.modal-title .m-name{ font-weight: 900; font-size: 16px; line-height: 1.1; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+
+.modal-close{
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.modal-body{ padding: 14px; }
+
+.modal-grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 900px){
+  .modal-grid{ grid-template-columns: 0.9fr 1.1fr; }
+}
+
+.modal-card{
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.modal-stats{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 10px;
+}
+.modal-stats .stat-box{ padding: 10px; }
+
+.chart-wrap{
+  height: 320px;
+}
+canvas{ max-width: 100%; }
+.trend-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  white-space: nowrap;
+}
+.trend-up{
+  color: #6ee7a8;
+  border-color: rgba(110,231,168,.35);
+  background: rgba(110,231,168,.08);
+}
+.trend-down{
+  color: #fb7185;
+  border-color: rgba(251,113,133,.35);
+  background: rgba(251,113,133,.08);
+}
+.trend-flat{
+  opacity: .7;
+}
+/* Professional toolbar */
+.trade-controls{
+  margin-top:14px;
+  padding:14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+}
+
+.trade-controls-grid{
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 900px){
+  .trade-controls-grid{ grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 520px){
+  .trade-controls-grid{ grid-template-columns: 1fr; }
+}
+
+.control-label{
+  font-size: 12px;
+  opacity: .8;
+  margin-bottom: 6px;
+}
+
+.trade-controls .input:focus{
+  outline: none;
+  border-color: rgba(110,231,168,.45);
+  box-shadow: 0 0 0 3px rgba(110,231,168,.12);
+}
+.search-input{
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.35),
+    rgba(0,0,0,0.25)
+  );
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+.search-input::placeholder{
+  opacity: .5;
+  font-weight: 500;
+}
+.trade-controls .input:focus{
+  outline: none;
+  border-color: rgba(110,231,168,.55);
+  box-shadow:
+    0 0 0 3px rgba(110,231,168,.12),
+    0 0 20px rgba(110,231,168,.08);
+}
+/* Fix select text clipping / overlap */
+.trade-controls select.input{
+  -webkit-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(255,255,255,.55) 50%),
+    linear-gradient(135deg, rgba(255,255,255,.55) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 34px; /* room for arrow */
+  line-height: 1.2;
+}
+
+/* Prevent weird vertical centering in some browsers */
+.trade-controls .input{
+  width: 100%;
+  height: 42px;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  line-height: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.20);
+  color: inherit;
+}
+
+.trade-head-row{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.trade-head-row .trade-name{
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.trade-head-row .trend-pair{
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+
+/* Trend block should not crush the name */
+.trade-head-row > div:last-child{
+  flex: 0 0 auto;
+}
+.trade-card .trade-name{
+  cursor: default;
+}
+.trade-card:hover .trade-name{
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.trade-head-col{
+  display:flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.trade-trends{
+  opacity: .95;
+}
+.trade-top > div{
+  min-width: 0;
+}
+/* Dark theme dropdown menu */
+body.dark .trade-controls select.input{
+  background-color: rgba(0,0,0,0.35);
+  color: #eaeaea;
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* The dropdown items (works in Chrome/Edge/Firefox to varying degrees) */
+body.dark .trade-controls select.input option{
+  background-color: #141418;
+  color: #eaeaea;
+}
+
+/* Light theme safety */
+body.light .trade-controls select.input option{
+  background-color: #ffffff;
+  color: #111;
+}
+.trade-hero{
+  margin-top: 12px;
+  margin-bottom: 22px;
+  padding: 22px 26px;
+  border-radius: 18px;
+
+  background: linear-gradient(
+    135deg,
+    rgba(18,18,22,0.95),
+    rgba(25,28,35,0.95)
+  );
+
+  border: 1px solid rgba(110,231,168,0.18);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
+  flex-wrap:wrap;
+}
+
+.trade-hero-title{
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: .6px;
+}
+
+.trade-hero-sub{
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: .5px;
+  opacity: .65;
+  text-transform: uppercase;
+}
+
+.hero-refresh{
+  padding: 12px 16px;
+  font-weight: 700;
+}
+
+</style>
+
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 0 auto; padding: 110px 12px 24px;">
+
+<div class="trade-hero">
+  <div class="trade-hero-left">
+    <div class="trade-hero-title">
+      HayDay Trading Exchange
+    </div>
+    <div class="trade-hero-sub">
+      Live market data · Price trends · Volume analytics
+    </div>
+  </div>
+
+<div class="trade-hero-right" style="display:flex; gap:10px; align-items:center;">
+  <button class="btn hero-refresh" onclick="loadTrading()">Refresh Data</button>
+
+  {% if is_staff %}
+  <button class="btn hero-refresh" onclick="openAdminItemModal()">Admin: Add Item</button>
+  {% endif %}
+</div>
+
+
+  <!-- Controls -->
+  <div class="trade-controls">
+    <div class="trade-controls-grid">
+      <div>
+        <div class="control-label">Search</div>
+        <input id="searchInput" class="input search-input" placeholder="Search items…">
+      </div>
+
+      <div>
+        <div class="control-label">Days</div>
+        <select id="daysSelect" class="input">
+          <option value="1">1</option>
+          <option value="3">3</option>
+          <option value="7" selected>7</option>
+          <option value="14">14</option>
+          <option value="30">30</option>
+          <option value="90">90</option>
+          <option value="365">365</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="control-label">Type</div>
+        <select id="typeSelect" class="input">
+          <option value="all" selected>All</option>
+          <option value="sell">Sell</option>
+          <option value="buy">Buy</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="control-label">Sort</div>
+        <select id="sortSelect" class="input">
+          <option value="value" selected>Total Value</option>
+          <option value="qty">Quantity</option>
+          <option value="posts">Posts</option>
+          <option value="avg_sell">Avg Sell</option>
+          <option value="avg_buy">Avg Buy</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:10px; font-size:12px; opacity:.75;">
+      Tip: Search supports partial matches (e.g. “plank”, “nail”).
+    </div>
+  </div>
+
+  <!-- Results -->
+    <div id="tradeResults" class="trade-grid">
+    <div style="opacity:.7;">Loading...</div>
+    </div>
+
+    <div class="pager" id="pager" style="display:none;"></div>
+
+<!-- Item Popup -->
+<div id="itemModalBackdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="itemModalTitle">
+    <div class="modal-header">
+      <div class="modal-title" style="min-width:0;">
+        <div class="m-icon"><img id="modalIcon" src="" onerror="this.src='/static/img/fallback.png'"></div>
+        <div style="min-width:0;">
+          <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+            <div id="itemModalTitle" class="m-name" style="min-width:0;">Loading…</div>
+            <span id="modalTrend" class="trend-badge trend-flat" style="display:none;"></span>
+          </div>
+        </div>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+
+  <div class="modal-body">
+    <div class="modal-grid">
+
+      <div class="modal-card">
+        <div style="font-weight:800; margin-bottom:10px;">Overview</div>
+        <div class="modal-stats" id="modalStats">
+          <div style="opacity:.7;">Loading…</div>
+        </div>
+      </div>
+
+      <div class="modal-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+          <div style="font-weight:800;">Price over time</div>
+
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="modalBucket" class="input" style="padding:8px; width:auto;">
+              <option value="day" selected>Daily</option>
+              <option value="hour">Hourly</option>
+            </select>
+
+            <select id="modalRange" class="input" style="padding:8px; width:auto;">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last 365 days</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="priceChart"></canvas>
+        </div>
+        <div id="modalChartMeta" style="margin-top:10px; font-size:12px; opacity:.75;"></div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+</div>
+{% if is_staff %}
+<!-- Admin: Add / Fix item display -->
+<div id="adminItemBackdrop" class="modal-backdrop" aria-hidden="true" onclick="closeAdminItemModal(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminItemTitle" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" style="min-width:0;">
+        <div style="min-width:0;">
+          <div id="adminItemTitle" class="m-name">Add / Update Item Display</div>
+          <div class="m-sub">This only affects website display (name/icon/aliases) for keys already in DB.</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeAdminItemModal()">Close</button>
+    </div>
+
+    <div class="modal-body">
+      <div style="display:grid; gap:12px;">
+        <div>
+          <div class="control-label">Item Key (must match DB item_key)</div>
+          <input id="adminItemKey" class="input" placeholder="e.g. tar_bucket">
+        </div>
+
+        <div>
+          <div class="control-label">Display Name</div>
+          <input id="adminItemName" class="input" placeholder="e.g. Tar Bucket">
+        </div>
+
+        <div>
+          <div class="control-label">Aliases (optional, comma separated)</div>
+          <input id="adminItemAliases" class="input" placeholder="e.g. tar bucket, tar buckets">
+        </div>
+
+        <div>
+          <div class="control-label">Source URL (optional)</div>
+          <input id="adminItemSourceUrl" class="input" placeholder="https://...">
+        </div>
+
+        <div>
+          <div class="control-label">Icon Upload (optional)</div>
+          <input id="adminItemImage" type="file" class="input" accept=".png,.jpg,.jpeg,.webp">
+          <div class="m-sub" style="margin-top:6px;">Saved to /static/img/items/custom/&lt;item_key&gt;.&lt;ext&gt;</div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; margin-top:6px;">
+          <button class="btn hero-refresh" onclick="submitAdminItem()">Save</button>
+          <button class="btn hero-refresh" onclick="deleteAdminItem()" style="background:#b33;">Delete</button>
+          <div id="adminItemStatus" class="m-sub"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  
+let CURRENT_PAGE = 1;
+let MODAL_ITEM = null;
+let PRICE_CHART = null;
+
+function showModal(){
+  const b = document.getElementById("itemModalBackdrop");
+  b.classList.add("show");
+  b.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function hideModal(){
+  const b = document.getElementById("itemModalBackdrop");
+  b.classList.remove("show");
+  b.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  MODAL_ITEM = null;
+  if(PRICE_CHART){
+    PRICE_CHART.destroy();
+    PRICE_CHART = null;
+  }
+}
+{% if is_staff %}
+function openAdminItemModal(){
+  const el = document.getElementById("adminItemBackdrop");
+  if (el) el.classList.add("show");
+}
+
+function closeAdminItemModal(e){
+  const el = document.getElementById("adminItemBackdrop");
+  if (!el) return;
+  if (!e || e.target === el) el.classList.remove("show");
+}
+
+async function deleteAdminItem(){
+  const status = document.getElementById("adminItemStatus");
+  const key = (document.getElementById("adminItemKey").value || "").trim();
+
+  if (!key){
+    status.textContent = "Missing item key.";
+    return;
+  }
+
+  if (!confirm(`Delete manual override for "${key}"?`)){
+    return;
+  }
+
+  status.textContent = "Deleting...";
+
+  const fd = new FormData();
+  fd.append("item_key", key);
+
+  const res = await fetch("/admin/trading/override/delete", { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data.ok){
+    status.textContent = (data && data.error) ? data.error : "Failed.";
+    return;
+  }
+
+  status.textContent = "Deleted ✅";
+  closeAdminItemModal();
+  loadTrading(1);
+}
+
+
+async function submitAdminItem(){
+  const status = document.getElementById("adminItemStatus");
+  const key = (document.getElementById("adminItemKey").value || "").trim();
+  const name = (document.getElementById("adminItemName").value || "").trim();
+  const aliases = (document.getElementById("adminItemAliases").value || "").trim();
+  const sourceUrl = (document.getElementById("adminItemSourceUrl").value || "").trim();
+  const imageFile = document.getElementById("adminItemImage").files[0];
+
+  if (!key || !name){
+    status.textContent = "Missing item key or name.";
+    return;
+  }
+
+  status.textContent = "Saving...";
+
+
+  const fd = new FormData();
+  fd.append("item_key", key);
+  fd.append("name", name);
+  if (aliases) fd.append("aliases", aliases);
+  if (sourceUrl) fd.append("source_url", sourceUrl);
+  if (imageFile) fd.append("image", imageFile);
+
+  const res = await fetch("/admin/trading/override", { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data.ok){
+    status.textContent = (data && data.error) ? data.error : "Failed.";
+    return;
+  }
+
+  status.textContent = "Saved ✅";
+  closeAdminItemModal();
+  loadTrading(1);
+}
+{% endif %}
+document.addEventListener("DOMContentLoaded", () => {
+  const backdrop = document.getElementById("itemModalBackdrop");
+  document.getElementById("modalCloseBtn").onclick = hideModal;
+
+  backdrop.addEventListener("click", (e) => {
+    if(e.target === backdrop) hideModal();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if(e.key === "Escape" && backdrop.classList.contains("show")) hideModal();
+  });
+
+  document.getElementById("modalBucket").addEventListener("change", () => {
+    if (MODAL_ITEM) loadItemHistory(MODAL_ITEM.item_key);
+  });
+  document.getElementById("modalRange").addEventListener("change", () => {
+    if (MODAL_ITEM) loadItemHistory(MODAL_ITEM.item_key);
+  });
+
+});
+
+function trendPillHTML(pct){
+  if(pct === null || pct === undefined || !isFinite(pct)) {
+    return `<span class="trend-badge trend-flat">—</span>`;
+  }
+  const p = Number(pct);
+  const sign = p > 0 ? "+" : "";
+  const arrow = p > 0 ? "▲" : (p < 0 ? "▼" : "•");
+  const cls = p > 0 ? "trend-up" : (p < 0 ? "trend-down" : "trend-flat");
+  return `<span class="trend-badge ${cls}">${arrow} ${sign}${p.toFixed(1)}%</span>`;
+}
+function dualTrendHTML(sellPct, buyPct){
+  const format = (label, pct) => {
+    if(pct === null || pct === undefined || !isFinite(pct)){
+      return `<span style="opacity:.5;">${label} —</span>`;
+    }
+
+    const p = Number(pct);
+    const sign = p > 0 ? "+" : "";
+    const arrow = p > 0 ? "▲" : (p < 0 ? "▼" : "•");
+    const cls = p > 0 ? "trend-up" : (p < 0 ? "trend-down" : "trend-flat");
+
+    return `<span class="${cls}" style="font-weight:800;">${label} ${arrow} ${sign}${p.toFixed(1)}%</span>`;
+  };
+
+  return `
+    <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:12px;">
+      ${format("Sell", sellPct)}
+      <span style="opacity:.4;">/</span>
+      ${format("Buy", buyPct)}
+    </div>
+  `;
+}
+
+
+function renderModalStats(item){
+  const el = document.getElementById("modalStats");
+
+  const spread = (item.avg_sell != null && item.avg_buy != null)
+    ? (Number(item.avg_sell) - Number(item.avg_buy))
+    : null;
+
+  el.innerHTML = `
+    <div class="stat-box">
+      <div class="stat-label">Avg Sell</div>
+      <div class="stat-value">${fmtMoney(item.avg_sell)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Avg Buy</div>
+      <div class="stat-value">${fmtMoney(item.avg_buy)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Spread</div>
+      <div class="stat-value">${fmtMoney(spread)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Quantity</div>
+      <div class="stat-value">${fmt(item.total_qty)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Total Value</div>
+      <div class="stat-value">${fmt(item.total_value)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Posts</div>
+      <div class="stat-value">${fmt(item.total_posts)}</div>
+    </div>
+  `;
+}
+
+
+async function openItemModal(item){
+  MODAL_ITEM = item;
+
+  const icon = item.image_file
+    ? `/static/img/items/${encodeURIComponent(item.image_file)}`
+    : `/static/img/items/${encodeURIComponent(item.item_key)}.png`;
+  document.getElementById("modalIcon").src = icon;
+  document.getElementById("itemModalTitle").textContent = item.item_name || item.item_key || "Unknown item";
+  setModalTrendBadge(null);
+  document.getElementById("modalChartMeta").textContent = "";
+
+  renderModalStats(item);
+  showModal();
+  // Sync modal range with main Days filter by default
+  const days = document.getElementById("daysSelect")?.value || "7";
+  const rangeSelect = document.getElementById("modalRange");
+  if(rangeSelect) rangeSelect.value = String(days);
+  setModalDualTrend(item.trend_sell_pct, item.trend_buy_pct);
+  await loadItemHistory(item.item_key);
+}
+function computeTrendPct(preferredSeries, fallbackSeries){
+  // preferredSeries = sell[], fallbackSeries = buy[]
+  const pick = (arr) => {
+    if(!arr || !arr.length) return null;
+    let first = null, last = null;
+
+    for(let i = 0; i < arr.length; i++){
+      const v = arr[i];
+      if(v !== null && v !== undefined){
+        first = Number(v);
+        break;
+      }
+    }
+    for(let i = arr.length - 1; i >= 0; i--){
+      const v = arr[i];
+      if(v !== null && v !== undefined){
+        last = Number(v);
+        break;
+      }
+    }
+    if(first === null || last === null || !isFinite(first) || !isFinite(last) || first <= 0) return null;
+    return ((last - first) / first) * 100.0;
+  };
+
+  return pick(preferredSeries) ?? pick(fallbackSeries);
+}
+
+function setModalTrendBadge(pct){
+  const el = document.getElementById("modalTrend");
+  if(!el) return;
+
+  if(pct === null || pct === undefined || !isFinite(pct)){
+    el.style.display = "none";
+    return;
+  }
+
+  const p = Number(pct);
+  const sign = p > 0 ? "+" : "";
+  const arrow = p > 0 ? "▲" : (p < 0 ? "▼" : "•");
+  const cls = p > 0 ? "trend-up" : (p < 0 ? "trend-down" : "trend-flat");
+
+  el.className = `trend-badge ${cls}`;
+  el.textContent = `${arrow} ${sign}${p.toFixed(1)}%`;
+  el.style.display = "inline-flex";
+}
+
+function setModalDualTrend(sellPct, buyPct){
+  const el = document.getElementById("modalTrend");
+  if(!el) return;
+
+  const format = (label, pct) => {
+    if(pct === null || pct === undefined || !isFinite(pct)){
+      return `<span style="opacity:.5;">${label} —</span>`;
+    }
+
+    const p = Number(pct);
+    const sign = p > 0 ? "+" : "";
+    const arrow = p > 0 ? "▲" : (p < 0 ? "▼" : "•");
+    const cls = p > 0 ? "trend-up" : (p < 0 ? "trend-down" : "trend-flat");
+
+    return `<span class="${cls}" style="font-weight:800;">${label} ${arrow} ${sign}${p.toFixed(1)}%</span>`;
+  };
+
+  el.className = "trend-badge";
+  el.innerHTML = `
+    ${format("Sell", sellPct)}
+    <span style="opacity:.4;"> / </span>
+    ${format("Buy", buyPct)}
+  `;
+  el.style.display = "inline-flex";
+}
+
+async function loadItemHistory(itemKey){
+  const bucket = document.getElementById("modalBucket").value || "day";
+  const range = document.getElementById("modalRange").value || "30";
+
+  const url = `/api/trading/item/${encodeURIComponent(itemKey)}/history?bucket=${encodeURIComponent(bucket)}&range=${encodeURIComponent(range)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if(!data.ok){
+    document.getElementById("modalChartMeta").textContent = data.error || "Failed to load history.";
+    return;
+  }
+
+  const labels = data.labels || [];
+  const buy = data.buy || [];
+  const sell = data.sell || [];
+  const sellPct = computeTrendPct(sell, null);
+  const buyPct  = computeTrendPct(buy, null);
+
+  setModalDualTrend(sellPct, buyPct);
+  const buyPosts = data.buy_posts || [];
+  const sellPosts = data.sell_posts || [];
+
+  // Count real points (so you can display “Points: x”)
+  const activeBuckets = labels.reduce((acc, _, i) => {
+    const hasBuy = buy[i] !== null && buy[i] !== undefined;
+    const hasSell = sell[i] !== null && sell[i] !== undefined;
+    return acc + ((hasBuy || hasSell) ? 1 : 0);
+  }, 0);
+
+  const rangeText = (range === "all") ? "All time" : `Last ${range} days`;
+  const bucketText = (bucket === "hour") ? "Hourly" : "Daily";
+
+  document.getElementById("modalChartMeta").textContent =
+    `Showing ${bucketText} • ${rangeText} • ${activeBuckets} active ${bucket === "hour" ? "hours" : "days"}`;
+
+
+  const ctx = document.getElementById("priceChart");
+
+  if(PRICE_CHART){
+    PRICE_CHART.destroy();
+    PRICE_CHART = null;
+  }
+
+  PRICE_CHART = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Buy",
+          data: buy,
+          borderWidth: 3,
+          tension: 0,         // Option B: no smoothing
+          stepped: true,      // Option B: stock-like steps
+          spanGaps: false,    // Option B: don’t draw across missing buckets
+          pointRadius: 2,
+          pointHoverRadius: 5,
+        },
+        {
+          label: "Sell",
+          data: sell,
+          borderWidth: 3,
+          tension: 0,
+          stepped: true,
+          spanGaps: false,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: true },
+        tooltip: {
+          callbacks: {
+            // Show price + “Trades: X” in hover
+            afterLabel: (ctx) => {
+              const i = ctx.dataIndex;
+              const dsLabel = (ctx.dataset.label || "").toLowerCase();
+              const trades = dsLabel === "buy" ? (buyPosts[i] ?? 0) : (sellPosts[i] ?? 0);
+              return `Trades: ${trades}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: { beginAtZero: false }
+      }
+    }
+  });
+}
+
+function fmtMoney(n){
+  if(n === null || n === undefined) return "-";
+  const v = Number(n);
+  if(!isFinite(v)) return "-";
+  return v.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+
+function fmt(n){
+  if(n === null || n === undefined) return "-";
+  try {
+    return Number(n).toLocaleString("en-US");
+  } catch {
+    return String(n);
+  }
+}
+
+
+async function loadTrading(page = 1){
+  CURRENT_PAGE = page;
+
+  const q = document.getElementById("searchInput").value.trim();
+  const days = document.getElementById("daysSelect").value || "7";
+  const type = document.getElementById("typeSelect").value || "all";
+  const sort = document.getElementById("sortSelect").value || "value";
+
+  const container = document.getElementById("tradeResults");
+  const pager = document.getElementById("pager");
+
+  container.innerHTML = `<div style="opacity:.7;">Loading…</div>`;
+  pager.style.display = "none";
+  pager.innerHTML = "";
+
+  const url = `/api/trading/overview?days=${days}&type=${type}&sort=${sort}&page=${page}&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  container.innerHTML = "";
+
+  if(!data.items || data.items.length === 0){
+    container.innerHTML = `<div style="opacity:.7;">No results found.</div>`;
+    return;
+  }
+
+  for(const item of data.items.slice(0, 16)){
+    const icon = item.image_url
+      ? item.image_url
+      : (item.image_file
+          ? `/static/img/items/${encodeURIComponent(item.image_file)}`
+          : `/static/img/items/${encodeURIComponent(item.item_key)}.png`);
+
+    const avgBuy = fmtMoney(item.avg_buy);
+    const avgSell = fmtMoney(item.avg_sell);
+
+
+
+    const card = document.createElement("div");
+    card.className = "trade-card";
+    card.setAttribute("role", "link");
+    card.setAttribute("tabindex", "0");
+    card.onclick = () => openItemModal(item);
+    card.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") openItemModal(item);
+    };
+    card.innerHTML = `
+      <div class="trade-top">
+        <div class="trade-icon">
+          <img src="${icon}" onerror="this.src='/static/img/fallback.png'">
+        </div>
+
+        <div style="min-width:0;">
+          <div class="trade-head-col">
+            <div class="trade-name">${item.item_name || item.item_key || "Unknown item"}</div>
+            <div class="trade-trends">
+              ${dualTrendHTML(item.trend_sell_pct, item.trend_buy_pct)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trade-divider"></div>
+
+      <div class="trade-stats">
+        <div class="stat-box">
+          <div class="stat-label">Avg Sell</div>
+          <div class="stat-value">${avgSell}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Avg Buy</div>
+          <div class="stat-value">${avgBuy}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Quantity</div>
+          <div class="stat-value">${fmt(item.total_qty)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Total Value</div>
+          <div class="stat-value">${fmt(item.total_value)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Posts</div>
+          <div class="stat-value">${fmt(item.total_posts)}</div>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  }
+
+  const totalPages = data.total_pages || 1;
+  const cur = data.page || 1;
+
+  pager.style.display = totalPages > 1 ? "flex" : "none";
+  if(totalPages > 1){
+    pager.innerHTML = `
+      <button id="prevBtn" ${cur <= 1 ? "disabled" : ""}>⬅ Prev</button>
+      <div class="meta">Page <b>${cur}</b> / ${totalPages}</div>
+      <button id="nextBtn" ${cur >= totalPages ? "disabled" : ""}>Next ➡</button>
+    `;
+    document.getElementById("prevBtn").onclick = () => loadTrading(cur - 1);
+    document.getElementById("nextBtn").onclick = () => loadTrading(cur + 1);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const s = document.getElementById("searchInput");
+  const days = document.getElementById("daysSelect");
+  const type = document.getElementById("typeSelect");
+  const sort = document.getElementById("sortSelect");
+
+  s.addEventListener("keydown", (e) => { if(e.key === "Enter") loadTrading(1); });
+  days.addEventListener("change", () => loadTrading(1));
+  type.addEventListener("change", () => loadTrading(1));
+  sort.addEventListener("change", () => loadTrading(1));
+
+  loadTrading(1);
+});
+</script>
+{% endblock %}

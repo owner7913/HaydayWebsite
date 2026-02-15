@@ -1,0 +1,348 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+
+  <style>
+
+body.dark .dashboard-content {
+  background-color: #1e1e1e;
+}
+
+.card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+body.dark .card {
+  background: #2b2b2b;
+  color: white;
+}
+
+.toggle-row {
+  display: grid;
+  grid-template-columns: 180px 140px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.toggle-row label {
+  font-weight: bold;
+}
+
+.toggle-row select,
+.toggle-row input[type="text"],
+#prefix-input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+body.dark .toggle-row select,
+body.dark .toggle-row input[type="text"],
+body.dark #prefix-input {
+  background-color: #1e1e1e;
+  color: #eee;
+  border: 1px solid #444;
+}
+
+button {
+  margin-top: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background-color: #4caf50;
+  color: white;
+}
+
+button:hover {
+  background-color: #3e9141;
+}
+
+#save-status {
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+  {% include 'sidepanel.html' %}
+
+    <main class="dashboard-content">
+      <div class="card">
+        <h2>Welcome, {{ username }} 👋</h2>
+        <p>This is your new HayDay 🍀 bot dashboard.</p>
+      </div>
+
+    {% if session.get('discord_id') == '154282062973501441' %}
+      <div class="card">
+        <h3>Admin Tools</h3>
+        <form method="POST" action="/force-logout" onsubmit="return confirm('Are you sure you want to force logout all users?');" style="display:inline-block; margin-right: 20px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" style="background:#e74c3c;">🚨 Force Logout All</button>
+        </form>
+        <a href="/admin/interactions" style="background:#4caf50; color:white; padding:10px 16px; border-radius:6px; text-decoration:none;">📋 View Logs</a>
+      </div>
+    {% endif %}
+
+  <div class="card">
+    <h3>🛠️ Maintenance Banner</h3>
+    <div class="toggle-row">
+      <label>Enabled</label>
+      <select id="mb-enabled">
+        <option value="true">Enabled</option>
+        <option value="false">Disabled</option>
+      </select>
+      <div></div>
+    </div>
+
+    <div class="toggle-row">
+      <label>Require OK</label>
+      <select id="mb-require">
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+      <div></div>
+    </div>
+
+    <div class="toggle-row">
+      <label>Message</label>
+      <input type="text" id="mb-message" placeholder="Banner text...">
+      <div></div>
+    </div>
+
+    <div class="toggle-row">
+      <label>Version</label>
+      <input type="text" id="mb-version" placeholder="1">
+      <div></div>
+    </div>
+
+    <button type="button" onclick="saveMaintenanceBanner()">Save Banner</button>
+    <p id="mb-status"></p>
+  </div>
+
+      <div class="card">
+        <h3>🔒 Toggle Feature Buttons</h3>
+        <div id="button-settings"></div>
+      </div>
+
+    <div class="card">
+      <h3>🎟️ Ticket Role Settings</h3>
+      {% for type in ticket_types %}
+        <div class="toggle-row">
+          <label>{{ type }}</label>
+          <select onchange="updateSupportRole('{{ type }}', this.value)">
+            {% for role in roles %}
+              <option value="{{ role.id }}" {% if support_settings[type] == role.id %}selected{% endif %}>
+                {{ role.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <div></div> <!-- Empty column to match the 3-column layout -->
+        </div>
+      {% endfor %}
+    </div>
+
+
+
+
+
+
+      <div class="card">
+        <h3>Custom Prefix</h3>
+        <label for="prefix-input">Prefix:</label>
+        <input type="text" name="prefix" id="prefix-input" value="{{ prefix }}" style="margin-left:10px;">
+        <button type="button" onclick="updateSetting(event, 'prefix')">Save</button>
+        <p id="save-status" style="font-weight: bold; margin-top: 8px;"></p>
+      </div>
+    </main>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+async function loadMaintenanceBanner() {
+  // The banner config is already on every page render via Jinja (maintenance_banner)
+  // But fetch a fresh copy via endpoint if you prefer; otherwise hydrate from template vars.
+  const cfg = {{ maintenance_banner|tojson }};
+  document.getElementById('mb-enabled').value = String(!!cfg.enabled);
+  document.getElementById('mb-require').value = String(!!cfg.require_ack);
+  document.getElementById('mb-message').value = cfg.message || "";
+  document.getElementById('mb-version').value = String(cfg.version || 1);
+}
+async function saveMaintenanceBanner() {
+  const enabled = document.getElementById('mb-enabled').value === "true";
+  const requireAck = document.getElementById('mb-require').value === "true";
+  const message = document.getElementById('mb-message').value.trim();
+  const version = parseInt(document.getElementById('mb-version').value || "1", 10);
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const res = await fetch('/api/update-setting', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      key: 'maintenance_banner',
+      value: {
+        enabled: enabled,
+        message: message,
+        require_ack: requireAck,
+        version: isNaN(version) ? 1 : version
+      }
+    })
+  });
+
+  const p = document.getElementById('mb-status');
+  if (res.ok) {
+    p.textContent = '✅ Saved. If you increased the version, users will be prompted again.';
+    p.style.color = 'green';
+  } else {
+    p.textContent = '❌ Failed to save.';
+    p.style.color = 'red';
+  }
+  setTimeout(()=> p.textContent = '', 4000);
+}
+loadMaintenanceBanner();
+
+
+function updateSetting(event, key) {
+  event.preventDefault();
+
+  const value = document.querySelector(`[name="${key}"]`).value;
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  fetch('/api/update-setting', {
+    method: 'POST',
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
+    body: JSON.stringify({ key, value }),
+    credentials: 'include',
+    redirect: 'manual'
+  })
+  .then(async res => {
+    if (res.type === "opaqueredirect" || res.status === 0) {
+      const status = document.getElementById("save-status");
+      status.innerText = "❌ You're not logged in.";
+      status.style.color = "red";
+      setTimeout(() => status.innerText = "", 4000);
+      return;
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!res.ok || !contentType.includes("application/json")) {
+      const status = document.getElementById("save-status");
+      status.innerText = "❌ Unexpected error or login expired.";
+      status.style.color = "red";
+      setTimeout(() => status.innerText = "", 4000);
+      return;
+    }
+
+    const data = await res.json();
+    const status = document.getElementById("save-status");
+    if (data.message) {
+      status.innerText = "✅ " + data.message;
+      status.style.color = "green";
+    } else {
+      status.innerText = "❌ " + (data.error || "An unknown error occurred.");
+      status.style.color = "red";
+    }
+    setTimeout(() => status.innerText = "", 4000);
+  })
+  .catch(() => {
+    const status = document.getElementById("save-status");
+    status.innerText = "❌ Network error. Please try again.";
+    status.style.color = "red";
+    setTimeout(() => status.innerText = "", 4000);
+  });
+}
+  const features = ["staff_application", "support", "giveaway", "verification", "auction"];
+  async function loadButtonSettings() {
+    const container = document.getElementById("button-settings");
+    const res = await fetch("/api/button-toggles");
+    const toggles = await res.json();
+
+    features.forEach(feature => {
+      const row = document.createElement("div");
+      row.className = "toggle-row";
+
+      const label = document.createElement("label");
+      label.textContent = feature.replace("_", " ").toUpperCase();
+
+      const select = document.createElement("select");
+      select.innerHTML = `
+        <option value="true" ${toggles[feature]?.enabled ? "selected" : ""}>Enabled</option>
+        <option value="false" ${!toggles[feature]?.enabled ? "selected" : ""}>Disabled</option>
+      `;
+
+      const reasonInput = document.createElement("input");
+      reasonInput.type = "text";
+      reasonInput.placeholder = "Optional reason...";
+      reasonInput.value = toggles[feature]?.reason || "";
+
+      select.onchange = () => updateButtonToggle(feature, select.value, reasonInput.value);
+      reasonInput.onblur = () => updateButtonToggle(feature, select.value, reasonInput.value);
+
+      row.appendChild(label);
+      row.appendChild(select);
+      row.appendChild(reasonInput);
+      container.appendChild(row);
+    });
+  }
+
+  function updateSupportRole(ticketType, roleId) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    fetch("/dashboard/update-support-role", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
+      credentials: "include",
+      body: JSON.stringify({ ticket_type: ticketType, role_id: roleId })
+    }).then(res => {
+      if (!res.ok) {
+        console.error(`Failed to update role for ${ticketType}`);
+      }
+    }).catch(err => {
+      console.error("Network error:", err);
+    });
+  }
+
+
+  async function updateButtonToggle(key, enabled, reason) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    await fetch("/api/button-toggles", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
+      body: JSON.stringify({ key, enabled: enabled === "true", reason }),
+      credentials: "include"
+    });
+  }
+
+  loadButtonSettings();
+</script>
+{% endblock %}
+
+

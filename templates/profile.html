@@ -1,0 +1,1023 @@
+{% extends 'base.html' %}
+
+{% block title %}Your Profile - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+  <style>
+    .profile-container {
+      max-width: 600px;
+      margin: 120px auto 60px;
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      text-align: center;
+      font-family: 'Segoe UI', sans-serif;
+      z-index: 0;
+    }
+
+    body.dark .profile-container {
+      background: #1e1e1e;
+      color: #eee;
+    }
+
+    /* Avatar & Identity */
+    .avatar {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      margin-bottom: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    .discord-tag {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .discord-id {
+      font-size: 13px;
+      color: #bbb;
+      margin-top: 2px;
+    }
+
+    body.dark .discord-id {
+      color: #aaa;
+    }
+
+    .profile-header {
+      margin-bottom: 30px;
+      padding-bottom: 10px;
+    }
+
+    /* Stats Section */
+    .stats-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 18px 24px;
+      border-radius: 14px;
+      min-width: 120px;
+      max-width: 150px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: transform 0.2s ease;
+      flex: 1 1 120px;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .stat-card .emoji {
+      font-size: 16px;
+      margin: 0;
+      display: inline-block;
+      line-height: 1;
+    }
+
+    .stat-card .label {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #aaa;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .stat-card .value {
+      font-size: 24px;
+      font-weight: 700;
+      margin-top: 2px;
+      color: #111;
+    }
+
+    body.dark .stat-card .value {
+      color: white;
+    }
+
+    .stat-card.highlight {
+      background: linear-gradient(145deg, #ffca28, #f57c00);
+      color: black;
+      border: none;
+    }
+
+    body.dark .stat-card.highlight {
+      background: linear-gradient(145deg, #ffb300, #fb8c00);
+      color: #111;
+    }
+
+    /* XP Progress Bar */
+    .xp-progress-container {
+      margin-top: 25px;
+      text-align: center;
+    }
+
+    .xp-bar-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .xp-bar {
+      background: #e0e0e0;
+      border-radius: 10px;
+      height: 22px;
+      flex: 1;
+      min-width: 260px;
+      max-width: 400px;
+      position: relative;
+      overflow: hidden;
+    }
+
+  .xp-fill {
+    height: 100%;
+    background: linear-gradient(to right, #4caf50, #81c784);
+    border-radius: 10px 0 0 10px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    width: 0; /* Start at 0 */
+    transition: width 1s ease-in-out;
+  }
+
+  .xp-text-overlay {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 100%;
+    line-height: 22px;
+    font-size: 15px; /* ⬅️ was 13px */
+    font-weight: 700;
+    color: #111;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .xp-rank {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-top: 4px;
+  }
+
+    body.dark .xp-bar {
+      background: #333;
+    }
+
+  body.dark .xp-fill {
+    background: linear-gradient(to right, #66bb6a, #a5d6a7);
+  }
+
+    body.dark .xp-rank {
+      color: #ccc;
+    }
+
+    body.dark .xp-text-overlay {
+      color: #eee;
+    }
+
+    /* Role styling */
+    .role-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .role-badge {
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+      transition: transform 0.2s ease;
+    }
+
+    .role-badge:hover {
+      transform: scale(1.05);
+    }
+
+    .achievement-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      margin: 6px;
+      background: linear-gradient(to bottom, #f4f4f4, #dcdcdc);
+      border-radius: 30px;
+      border: 2px solid #bbb;
+      color: #333;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .achievement-badge:hover {
+      transform: translateY(-1px) scale(1.03);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+
+    body.dark .achievement-badge {
+      background: linear-gradient(to bottom, #333, #222);
+      color: #eee;
+      border: 2px solid #555;
+      box-shadow: inset 0 1px 0 #444, 0 2px 6px rgba(0,0,0,0.5);
+    }
+
+    .achievement-badge .icon {
+      font-size: 16px;
+    }
+
+  .achievement-badge.sparkle {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .achievement-badge.sparkle::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 60%);
+    transform: rotate(45deg);
+    animation: sparkleMove 2.8s infinite ease-in-out;
+    pointer-events: none;
+    opacity: 0.2;
+  }
+
+  @keyframes sparkleMove {
+    0% {
+      transform: translate(-100%, -100%) rotate(45deg);
+      opacity: 0;
+    }
+    40% {
+      transform: translate(50%, 50%) rotate(45deg);
+      opacity: 0.4;
+    }
+    70% {
+      transform: translate(120%, 120%) rotate(45deg);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(150%, 150%) rotate(45deg);
+      opacity: 0;
+    }
+  }
+  button#friend-btn:disabled {
+    opacity: 0.7;
+    cursor: pointer;
+  }
+
+
+    .xp-rank-link {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.2s ease;
+    }
+
+    .xp-rank-link:hover {
+      text-decoration: underline;
+      color: #2563eb;
+    }
+
+    body.dark .xp-rank-link {
+      color: #90c4ff;
+    }
+
+    body.dark .xp-rank-link:hover {
+      color: #60aaff;
+    }
+  .mentions-card {
+    background: #262626;
+    border: 1px solid #444;
+    color: white; /* dark mode */
+  }
+  body.light .mentions-card {
+    background: #f3f3f3;
+    border: 1px solid #ccc;
+    color: #111;
+  }
+  .mentions-card .label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #aaa;
+  }
+  .stat-card .text {
+    font-size: 13px;
+  }
+
+  @keyframes pulse-bar {
+    0% { box-shadow: 0 0 0px rgba(255, 255, 255, 0); }
+    50% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.6); }
+    100% { box-shadow: 0 0 0px rgba(255, 255, 255, 0); }
+  }
+
+  .xp-fill.pulse {
+    animation: pulse-bar 1.2s ease-in-out infinite;
+  }
+  button.toggle-privacy {
+    background: none;
+    border: none;
+    padding: 4px 12px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  button.toggle-privacy:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+  }
+  body.light button.toggle-privacy {
+    color: #222;
+  }
+
+  body.light button.toggle-privacy:hover {
+    background: rgba(0, 0, 0, 0.07);
+  }
+  .featured-badge {
+    font-size: 18px;
+    font-weight: 700;
+    padding: 6px 12px;
+    background: #fff8e1;
+    border: 2px solid #fdd835;
+    border-radius: 20px;
+    display: inline-block;
+    box-shadow: 0 0 6px rgba(0,0,0,0.1);
+    margin-bottom: 10px;
+  }
+
+  body.dark .featured-badge {
+    background: #4e4400;
+    color: #fff5c3;
+    border: 2px solid #ffe082;
+  }
+dialog#badgeModal {
+  max-width: 680px;
+  padding: 25px 30px;
+  border-radius: 12px;
+  background: #1e1e1e;
+  color: white;
+  border: none;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+dialog#badgeModal::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+dialog#badgeModal form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+dialog#badgeModal h3 {
+  margin: 0;
+  font-size: 18px;
+  text-align: center;
+}
+
+dialog#badgeModal button.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  font-size: 20px;
+  border: none;
+  background: none;
+  color: white;
+  cursor: pointer;
+}
+.profile-container {
+  position: relative;
+}
+
+
+.featured-badge-floating {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 6px;
+  background: linear-gradient(to bottom, #f4f4f4, #dcdcdc);
+  border-radius: 30px;
+  border: 2px solid #bbb;
+  color: #333;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+body.dark .featured-badge-floating {
+  background: linear-gradient(to bottom, #333, #222);
+  color: #eee;
+  border: 2px solid #555;
+  box-shadow: inset 0 1px 0 #444, 0 2px 6px rgba(0,0,0,0.5);
+}
+.featured-badge-floating.sparkle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 6px;
+  background: linear-gradient(to bottom, #f4f4f4, #dcdcdc);
+  border-radius: 30px;
+  border: 2px solid #bbb;
+  color: #333;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  z-index: 10;
+  overflow: hidden;
+}
+
+body.dark .featured-badge-floating.sparkle {
+  background: linear-gradient(to bottom, #333, #222);
+  color: #eee;
+  border: 2px solid #555;
+  box-shadow: inset 0 1px 0 #444, 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.featured-badge-floating.sparkle::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 60%);
+  transform: rotate(45deg);
+  animation: sparkleMove 2.8s infinite ease-in-out;
+  pointer-events: none;
+  opacity: 0.2;
+}
+.featured-badge-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.simple-button {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px solid #bbb;
+  border-radius: 8px;
+  background: #f9f9f9;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.simple-button:hover {
+  background: #f1f1f1;
+  border-color: #999;
+}
+
+body.dark .simple-button {
+  background: #333;
+  color: #eee;
+  border: 1.5px solid #666;
+}
+
+body.dark .simple-button:hover {
+  background: #2a2a2a;
+  border-color: #888;
+}
+.bio-box {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 10px 18px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #333;
+  white-space: pre-line;
+  line-height: 1.5;
+  margin: 12px auto;
+  max-width: 550px;
+  font-style: italic;
+  text-align: center;
+}
+body.dark .bio-box {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f1f1;
+}
+
+
+
+
+dialog.styled-modal {
+  max-width: 700px;
+  width: 90vw;
+  padding: 25px 30px;
+  border-radius: 12px;
+  background: #f4f4f4;
+  color: #111;
+  border: none;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.3s ease-in-out;
+}
+body.dark dialog.styled-modal {
+  background: #1e1e1e;
+  color: white;
+}
+dialog.styled-modal::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+@media (max-width: 600px) {
+  .profile-container {
+    margin: 100px 10px 60px;
+    padding: 20px;
+  }
+
+  .avatar {
+    width: 72px;
+    height: 72px;
+  }
+
+  .discord-tag {
+    font-size: 18px;
+  }
+
+  .stats-section {
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 14px 16px;
+    font-size: 14px;
+    min-width: 100px;
+  }
+
+  .stat-card .value {
+    font-size: 20px;
+  }
+
+  .xp-bar {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .xp-text-overlay {
+    font-size: 13px;
+  }
+
+  .role-badge, .achievement-badge {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  .featured-badge-floating {
+    top: 12px;
+    right: 12px;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .bio-box {
+    font-size: 14px;
+    padding: 10px;
+    margin: 10px auto;
+  }
+
+  .simple-button {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  .xp-rank {
+    font-size: 13px;
+  }
+}
+
+  </style>
+{% endblock %}
+
+{% block content %}
+
+<div class="profile-wrapper">
+  <div class="profile-container">
+
+    <div class="profile-header">
+    <img class="avatar" src="{{ avatar_url }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+    {% if user.featured_achievement %}
+      <div class="featured-badge-floating sparkle">
+        {{ user.featured_achievement }}
+      </div>
+    {% elif not is_owner %}
+      <div class="featured-badge-floating" style="opacity: 0.7; font-style: italic; font-weight: 500;">
+        🔒 No featured badge yet
+      </div>
+    {% endif %}
+
+   
+    {% if is_owner %}
+      <div style="text-align: center; margin-top: 8px;">
+        <div style="margin-bottom: 4px; font-size: 14px; font-weight: 500;">
+          {% if user.public_profile %}
+            🔓 <span style="color: #4caf50;">Public Profile</span>
+          {% else %}
+            🔒 <span style="color: #f44336;">Private Profile</span>
+          {% endif %}
+        </div>
+        <form method="POST" action="/toggle-privacy" style="display: inline-block;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="toggle-privacy">
+            {% if user.public_profile %}Make Private{% else %}Make Public{% endif %}
+          </button>
+        </form>
+      </div>
+    {% endif %}
+
+
+    {% if is_owner %}
+      <div class="featured-badge-actions">
+        <button class="simple-button" onclick="document.getElementById('badgeModal').showModal()">🎖️ Select Featured Achievement</button>
+        {% if user.featured_achievement %}
+          <form method="POST" action="/remove-featured-achievement" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="simple-button" type="submit">❌ Remove Badge</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if is_owner %}
+      <div class="featured-badge-actions">
+        <button class="simple-button" onclick="document.getElementById('bioModal').showModal()">📝 Edit Bio</button>
+      </div>
+    {% endif %}
+
+      
+    <div class="discord-tag">👤 {{ user.display_name }}</div>
+      <div class="discord-id">Discord ID: {{ discord_id }}</div>
+      {% if user.bio %}
+        <div class="bio-box">{{ user.bio | replace('\r\n', '\n') | trim }}</div>
+      {% endif %}
+
+    
+      {% if staff_badges %}
+        <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;">
+          {% for badge in staff_badges %}
+            <span class="role-badge
+              {% if badge == 'Owner' %}role-owner
+              {% elif badge == 'Co-Owner' %}role-coowner
+              {% elif badge == 'Head Admin' %}role-headadmin
+              {% elif badge == 'Moderator' %}role-moderator
+              {% elif badge == 'Trial Moderator' %}role-trialmoderator
+              {% elif badge == 'Verifier' %}role-verifier
+              {% elif badge == 'Giveaway Staff' %}role-giveaway
+              {% endif %}">
+              {% if badge == 'Owner' %}👑{% elif badge == 'Co-Owner' %}🧭
+              {% elif badge == 'Head Admin' %}📢
+              {% elif badge == 'Moderator' %}🛡️
+              {% elif badge == 'Trial Moderator' %}🧪
+              {% elif badge == 'Verifier' %}✅
+              {% elif badge == 'Giveaway Staff' %}🎁
+              {% endif %}
+              {{ badge }}
+            </span>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if level %}
+        <div class="stats-section">
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Level</span>
+              <span class="emoji">🆙</span>
+            </span>
+            <span class="value">{{ level }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">TOTAL XP</span>
+              <span class="emoji">✨</span>
+            </span>
+            <span class="value">{{ xp | format }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Messages</span>
+              <span class="emoji">💬</span>
+            </span>
+            <span class="value">{{ message_count | format }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Mentions</span>
+              <span class="emoji">🔔</span>
+            </span>
+            <span class="value">{{ mention_count | format }}</span>
+          </div>
+
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Streak</span>
+              <span class="emoji">🔥</span>
+            </span>
+            <span class="value">{{ streak }}</span>
+          </div>
+
+          <div class="stat-card">
+            <span class="label">
+              <span class="text">Coins</span>
+              <span class="emoji">💰</span>
+            </span>
+            <span class="value">{{ coins | format }}</span>
+          </div>
+          </div>
+      {% endif %}
+        {% if xp and level %}
+        <div class="xp-progress-container">
+          <div class="xp-bar-wrap">
+              <div class="xp-bar">
+                <div class="xp-fill" data-percent="{{ progress_percent }}"></div>
+                <span class="xp-text-overlay">{{ current_xp_formatted }} / {{ required_xp_formatted }}</span>
+              </div>
+            </div>
+            <div class="xp-rank"><a href="/leaderboard" class="xp-rank-link">#{{ rank }} in Server</a></div>
+          </div>
+        </div>
+        {% endif %}
+    {% if highest_role %}
+      <p style="margin-top: 25px;"><strong>Highest Role:</strong></p>
+      <div class="role-badge" style="background-color: {{ highest_role.color }};">
+        ⭐ {{ highest_role.name }}
+      </div>
+    {% endif %}
+    {% if achievements %}
+      <div style="margin-top: 30px;">
+        <h3>🏆 Achievements</h3>
+        <div class="achievement-container">
+          {% for badge in achievements %}
+            <span class="achievement-badge sparkle" title="{{ badge.tooltip }}">
+              {{ badge.label }}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleDarkMode() {
+  const body = document.body;
+  const toggleBtn = document.querySelector(".theme-toggle");
+
+  if (body.classList.contains("dark")) {
+    body.classList.remove("dark");
+    body.classList.add("light");
+    localStorage.setItem("theme", "light");
+    if (toggleBtn) toggleBtn.textContent = "🌙 Toggle Dark Mode";
+  } else {
+    body.classList.remove("light");
+    body.classList.add("dark");
+    localStorage.setItem("theme", "dark");
+    if (toggleBtn) toggleBtn.textContent = "☀️ Toggle Light Mode";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedTheme = "dark";
+  document.body.classList.remove("light", "dark");
+  document.body.classList.add(savedTheme);
+
+  const btn = document.querySelector(".theme-toggle");
+  if (btn) {
+    const isDark = document.body.classList.contains("dark");
+    btn.textContent = isDark ? "☀️ Toggle Light Mode" : "🌙 Toggle Dark Mode";
+    btn.addEventListener("click", toggleDarkMode);
+  } else {
+    console.warn("Dark mode toggle button not found.");
+  }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fill = document.querySelector('.xp-fill');
+  const percent = parseInt(fill.dataset.percent || 0);
+  const isDark = document.body.classList.contains("dark");
+
+  setTimeout(() => {
+    fill.style.width = percent + "%";
+  }, 100);
+
+  let gradient;
+  if (percent <= 25) {
+    gradient = isDark ? "linear-gradient(to right, #b71c1c, #ef6c00)" : "linear-gradient(to right, #e53935, #fb8c00)";
+  } else if (percent <= 50) {
+    gradient = isDark ? "linear-gradient(to right, #ef6c00, #fbc02d)" : "linear-gradient(to right, #fb8c00, #fdd835)";
+  } else if (percent <= 75) {
+    gradient = isDark ? "linear-gradient(to right, #fbc02d, #9ccc65)" : "linear-gradient(to right, #fdd835, #aed581)";
+  } else {
+    gradient = isDark ? "linear-gradient(to right, #9ccc65, #43a047)" : "linear-gradient(to right, #aed581, #66bb6a)";
+  }
+
+  fill.style.background = gradient;
+
+  if (percent >= 95) {
+    fill.classList.add("pulse");
+  }
+});
+</script>
+<dialog id="badgeModal">
+  <form method="dialog">
+    <h3>Select your featured badge</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+      {% for badge in achievements %}
+        <button class="achievement-badge" onclick="selectFeaturedBadge('{{ badge.label }}')">
+          {{ badge.label }}
+        </button>
+      {% endfor %}
+    </div>
+    <button type="button" class="close-btn" onclick="document.getElementById('badgeModal').close()">✖</button>
+  </form>
+</dialog>
+<dialog id="bioModal" class="styled-modal">
+  <form method="POST" action="/update-bio">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h3 style="margin-top: 0;">📝 Edit Your Bio</h3>
+    <textarea name="bio"
+              rows="6"
+              maxlength="300"
+              placeholder="Write something about yourself..."
+              style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; resize: vertical;">{{ user.bio or "" }}</textarea>
+    <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="submit" class="simple-button">💾 Save</button>
+      <button type="button" class="simple-button" onclick="document.getElementById('bioModal').close()">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+
+
+<script>
+  function selectFeaturedBadge(label) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    fetch("/set-featured-achievement", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": csrfToken 
+      },
+      body: `badge=${encodeURIComponent(label)}`
+    }).then(res => {
+      if (res.ok) location.reload();
+    });
+  }
+</script>
+<script>
+  const badgeModal = document.getElementById("badgeModal");
+  badgeModal.addEventListener("click", (e) => {
+    const rect = badgeModal.getBoundingClientRect();
+    if (
+      e.clientX < rect.left || e.clientX > rect.right ||
+      e.clientY < rect.top || e.clientY > rect.bottom
+    ) {
+      badgeModal.close();
+    }
+  });
+</script>
+<script>
+  document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+      document.getElementById("bioModal")?.close();
+    }
+  });
+</script>
+
+
+<script>
+async function sendFriendAction(e) {
+  e.preventDefault();
+
+  const form = document.getElementById("friend-form");
+  const button = e.submitter; // ✅ gets clicked button
+  const action = button?.dataset.action?.trim().toLowerCase();
+  const targetId = form.querySelector("input[name='target_id']").value;
+
+  if (!action || !targetId) {
+    alert("Missing target or action.");
+    return false;
+  }
+
+  button.disabled = true;
+
+  const url = ["add", "remove", "block", "unblock"].includes(action)
+    ? "/api/friend-action"
+    : "/api/friend-respond";
+
+  try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": csrfToken 
+      },
+      body: new URLSearchParams({ target_id: targetId, action })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      location.reload();
+    } else {
+      alert(data.error || "Something went wrong.");
+      button.disabled = false;
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong.");
+    button.disabled = false;
+  }
+
+  return false;
+}
+
+
+
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".friend-buttons button").forEach(button => {
+    button.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const form = button.closest(".friend-buttons");
+      const targetId = form.dataset.id;
+      const action = button.dataset.action.trim().toLowerCase();
+
+      button.disabled = true;
+
+      let url = "/api/friend-respond";
+      if (action === "remove") url = "/api/friend-action";
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrfToken 
+        },
+        body: new URLSearchParams({ target_id: targetId, action: action })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        location.reload(); // just refresh to reflect change
+      } else {
+        alert(data.error || "Something went wrong.");
+        button.disabled = false;
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

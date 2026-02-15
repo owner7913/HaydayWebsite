@@ -1,0 +1,3 @@
+{% if is_staff() and comp_id %}
+  <a class="btn" href="{{ url_for('admin_competition', comp_id=comp_id) }}">Admin</a>
+{% endif %}

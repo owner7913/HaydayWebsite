@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+{% block title %}Starboard Dashboard - HayDay 🍀{% endblock %}
+{% block head_extra %}
+
+  <style>
+    .dashboard-wrapper {
+      display: flex;
+      flex-direction: row;
+      min-height: 100vh;
+      margin-top: 60px;
+    }
+
+    .sidebar {
+      width: 240px;
+      background-color: #222;
+      color: white;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+
+    .sidebar h2 {
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .sidebar a {
+      display: block;
+      color: white;
+      text-decoration: none;
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .sidebar a:hover {
+      background-color: #333;
+    }
+
+    .dashboard-content {
+      flex-grow: 1;
+      padding: 40px;
+      background-color: #f4f4f4;
+    }
+
+    body.dark .dashboard-content {
+      background-color: #1e1e1e;
+    }
+
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+
+    body.dark .card {
+      background: #2b2b2b;
+      color: white;
+    }
+
+    .toggle-row {
+      display: grid;
+      grid-template-columns: 180px 140px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .toggle-row label {
+    font-weight: bold;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    display: flex;
+    align-items: center;
+    }
+
+
+    .toggle-row input[type="text"],
+    .toggle-row input[type="number"] {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    body.dark .toggle-row input[type="text"],
+    body.dark .toggle-row input[type="number"] {
+      background-color: #1e1e1e;
+      color: #eee;
+      border: 1px solid #444;
+    }
+
+    button {
+      padding: 8px 14px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background-color: #4caf50;
+      color: white;
+    }
+
+    button:hover {
+      background-color: #3e9141;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-wrapper {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        text-align: center;
+      }
+
+      .sidebar a {
+        display: inline-block;
+        margin: 6px;
+      }
+
+      .dashboard-content {
+        padding: 20px;
+      }
+
+      .toggle-row {
+        grid-template-columns: 1fr;
+      }
+    }
+.metadata {
+  font-size: 13px;
+  color: #ccc;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+.metadata code {
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+
+  </style>
+{% endblock %}
+
+{% block content %}
+
+  <div class="dashboard-wrapper">
+{% include 'sidepanel.html' %}
+
+    <main class="dashboard-content">
+      <h1>🌟 Starboard Settings</h1>
+
+      <div class="card">
+        <h3>Star Threshold</h3>
+            <div class="toggle-row">
+            <label for="star-threshold">Required Stars:</label>
+            <input type="number" id="star-threshold" min="1">
+            <div style="display: flex; justify-content: flex-start;">
+                <button onclick="saveStarThreshold()">Save</button>
+            </div>
+            </div>
+        <p id="star-status"></p>
+      </div>
+
+      <div class="card">
+        <h3>Delete Starboard Message</h3>
+            <div class="toggle-row">
+            <label for="delete-id">Starboard Message ID:</label>
+            <input type="text" id="delete-id" placeholder="⚠️ Not the original message ID">
+            <div style="display: flex; justify-content: flex-start;">
+                <button onclick="deleteStarboardMessage()">Delete</button>
+            </div>
+            </div>
+            <small style="color: #aaa; font-size: 13px;">This is the ID of the message posted in the ⭐ starboard channel, not the original user's message.</small>
+        <p id="delete-status"></p>
+      </div>
+
+      <div class="card">
+        <h3>Current Starboard Messages</h3>
+        <div id="starboard-cards" style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));"></div>
+      </div>
+    </main>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    async function loadThreshold() {
+    try {
+        const res = await fetch("/api/starboard/threshold");
+        const data = await res.json();
+        console.log("🔧 Loaded threshold:", data);
+
+        let value = data.threshold;
+        if (typeof value === "object" && "$numberInt" in value) {
+        value = parseInt(value.$numberInt);
+        }
+
+        if (typeof value === "number" && !isNaN(value)) {
+        document.getElementById("star-threshold").value = value;
+        } else {
+        document.getElementById("star-threshold").value = 5;
+        }
+    } catch (err) {
+        console.error("⚠️ Failed to load threshold:", err);
+        document.getElementById("star-threshold").value = 5;
+    }
+    }
+
+
+
+    async function saveStarThreshold() {
+      const value = parseInt(document.getElementById("star-threshold").value);
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      const res = await fetch("/api/starboard/threshold", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken 
+        },
+        body: JSON.stringify({ threshold: value })
+      });
+      const data = await res.json();
+      document.getElementById("star-status").innerText = data.message || data.error;
+    }
+
+    async function deleteStarboardMessage() {
+      const message_id = document.getElementById("delete-id").value;
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      const res = await fetch("/api/starboard/delete", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken 
+        },
+        body: JSON.stringify({ message_id })
+      });
+      const data = await res.json();
+      document.getElementById("delete-status").innerText = data.message || data.error;
+    }
+
+    async function loadStarboardData() {
+    const res = await fetch("/api/starboard/data");
+    const data = await res.json();
+
+    const container = document.getElementById("starboard-cards");
+    container.innerHTML = "";
+
+    data.entries.forEach(entry => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.background = "#1f1f1f";
+        card.style.color = "#f0f0f0";
+
+        let imageTag = "";
+        if (entry.image_url && entry.image_url.startsWith("http")) {
+        imageTag = `<img src="${entry.image_url}" style="max-width:100%; border-radius: 8px; margin-top:8px;">`;
+        }
+
+        card.innerHTML = `
+        <div style="font-weight:bold;">${entry.author_name}</div>
+        <div style="font-size: 14px; opacity: 0.8;">in <em>#${entry.channel_name}</em></div>
+        <div style="margin-top: 6px;">⭐ ${entry.star_count} ${entry.reaction_type || "⭐"}</div>
+        <div style="margin-top: 6px;"><a href="https://discord.com/channels/${entry.guild_id}/${entry.channel_id}/${entry.original_message_id}" target="_blank" style="color: #4dabf7;">Jump to Message</a></div>
+        <div style="margin-top: 8px;">${entry.description || "<i>(No text)</i>"}</div>
+        ${imageTag}
+        <div class="metadata">
+            <div>🗨️ Original Message ID:<br><code>${entry.original_message_id}</code></div>
+            <div>📌 Starboard ID:<br><code>${entry.starboard_message_id}</code></div>
+        </div>
+        `;
+        container.appendChild(card);
+    });
+    }
+
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadThreshold();
+      loadStarboardData();
+    });
+  </script>
+{% endblock %}

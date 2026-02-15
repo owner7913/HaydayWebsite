@@ -1,0 +1,553 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Submit{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* Scope everything to this page */
+  main.submit-page { margin-top: 96px; padding-bottom: 28px; max-width: 980px; }
+
+  /* Hero */
+  .submit-hero { position: static !important; top: auto !important; left: auto !important; z-index: auto !important; }
+  .submit-hero .eyebrow { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.72); }
+  .submit-hero .title { margin:4px 0 6px; font-size:clamp(1.8rem, 2.4vw, 2.2rem); font-weight:800; }
+  .submit-hero .subtitle { margin:0; color:rgba(255,255,255,.9); font-size:15.5px; line-height:1.6; }
+  .submit-hero .pills { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); }
+  .pill-green { background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .pill-blue  { background:#2563eb; border-color:#1e4fd1; color:#fff; }
+
+  .hero-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .hero-actions .btn{ display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; text-decoration:none; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#fff; font-weight:600; transition:transform .18s, background .18s, border-color .18s; }
+  .hero-actions .btn:hover{ background:rgba(255,255,255,0.08); transform:translateY(-1px); }
+  .hero-actions .btn-primary{ background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .hero-actions .btn-primary:hover{ background:#2e8441; }
+
+  .divider { border:0; height:1px; background:linear-gradient(to right, transparent, rgba(255,255,255,.12), transparent); margin:10px 0 16px; }
+
+  /* State panels */
+  .state-card.card { text-align:center; }
+  .state-card .btn { margin:4px; }
+
+  /* Current submission card */
+  .entry-preview { display:grid; grid-template-columns: 1fr; gap:14px; }
+  @media(min-width: 900px){ .entry-preview{ grid-template-columns: 1fr 1fr; } }
+
+  /* Form */
+  .form-card.card { padding: 18px; }
+  .form-title { margin:0 0 8px; font-weight:800; font-size:1.2rem; }
+
+  /* Dropzone */
+  .dropzone {
+    position:relative; border:1px dashed rgba(255,255,255,.22); background:rgba(255,255,255,.03);
+    border-radius:14px; padding:16px; text-align:center; transition:border-color .2s, background .2s;
+  }
+  .dropzone:hover { border-color:rgba(255,255,255,.4); background:rgba(255,255,255,.05); }
+  .dropzone input[type="file"]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .dz-title { font-weight:700; margin-bottom:4px; }
+  .dz-sub { font-size:12px; opacity:.85; }
+  .dz-preview { margin-top:12px; display:none; }
+  .dz-preview img { max-width:100%; height:auto; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,.35); }
+
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .input, .textarea {
+    width:100%; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.04); color:#fff; padding:10px 12px; outline:none;
+    transition: border-color .2s, background .2s;
+  }
+  .input:focus, .textarea:focus { border-color:rgba(255,255,255,.28); background:rgba(255,255,255,.06); }
+  .textarea { min-height:42px; resize:vertical; }
+
+  .form-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#fff; font-weight:600; text-decoration:none; cursor:pointer; transition:transform .18s, background .18s; }
+  .btn:hover{ background:rgba(255,255,255,0.08); transform:translateY(-1px); }
+  .btn-primary{ background:#2b7a3d; border-color:#276c35; color:#fff; }
+  .btn-primary:hover{ background:#2e8441; }
+
+  /* Light theme tweaks */
+  body.light .hero-actions .btn, body.light .btn { color:#111; background:#f6f6f6; border-color:#ddd; }
+  body.light .btn:hover{ background:#eee; }
+  body.light .btn-primary { color:#fff; background:#2b7a3d; border-color:#276c35; }
+  /* keep the page under the fixed header and off the footer */
+  main.submit-page { margin-top: 96px; padding-bottom: 28px; }
+
+  /* cap preview image size so it doesn't go giga */
+  .entry-preview img,
+  .preview-img {
+    width: 100%;
+    max-width: 720px;       /* never exceed this width */
+    max-height: 420px;      /* never exceed this height */
+    object-fit: contain;    /* no cropping */
+    display: block;
+    margin: 0 auto;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  }
+  /* Layout fixes and centering */
+main.submit-page {
+  /* centers the whole block and limits width */
+  margin: 110px auto 40px;          /* ⬅ gives extra top room for header */
+  padding: 0 20px 40px;
+  max-width: 960px;                 /* keep form nicely contained */
+}
+
+/* Center cards inside */
+main.submit-page > .card,
+main.submit-page > form,
+main.submit-page > section {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add gentle fade and spacing below hero */
+.submit-hero {
+  text-align: center;
+  justify-content: center;
+}
+.submit-hero > div {
+  max-width: 680px;
+}
+.divider {
+  margin-top: 18px;
+  margin-bottom: 22px;
+}
+.submit-page { 
+  --text: rgba(255,255,255,.92);
+  --muted: rgba(255,255,255,.65);
+  --h1: clamp(1.9rem, 2.6vw, 2.3rem);
+  --h2: 1.25rem;
+}
+
+.submit-page * {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hero */
+.submit-hero .title {
+  font-size: var(--h1);
+  line-height: 1.15;
+  letter-spacing: .2px;
+  margin: 6px 0 10px;
+}
+.submit-hero .subtitle {
+  color: var(--text);
+  font-size: 15.5px;
+  line-height: 1.6;
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.submit-hero .pills { margin-top: 10px; }
+
+/* Generic text colors */
+.submit-page p { color: var(--text); line-height: 1.6; }
+.submit-page .muted { color: var(--muted); }
+
+/* Section headings */
+.submit-page .section-title {
+  font-size: var(--h2);
+  font-weight: 800;
+  letter-spacing: .2px;
+  margin: 0 0 8px;
+}
+
+/* Current submission layout */
+.entry-preview {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .entry-preview { grid-template-columns: 1fr 1fr; }
+}
+.entry-preview .entry-copy { padding-top: 6px; }
+.entry-preview .entry-copy p { margin: 0 0 10px; }
+
+/* Keep forms readable */
+.form-title { margin: 0 0 10px; }
+.input, .textarea { font-size: 14.5px; }
+/* --- Center the hero content perfectly --- */
+.submit-hero{
+  display:flex;
+  flex-direction:column;
+  align-items:center;   /* centers the block itself */
+  text-align:center;    /* centers the text */
+}
+
+.submit-hero > div{
+  margin-left:auto;
+  margin-right:auto;    /* ensure the inner wrapper is centered */
+}
+
+/* center the pill row */
+.submit-hero .pills{
+  justify-content:center;
+}
+
+/* center the buttons row */
+.hero-actions{
+  justify-content:center;
+  margin: 10px auto 0;
+}
+
+/* Same frame for both cards */
+.submit-page .card.same-frame{
+  max-width: 740px;   /* pick a number you like (720–760). Use the same for both */
+  width: 100%;
+  margin: 0 auto 16px;
+  box-sizing: border-box;     /* include padding in that width */
+}
+
+/* keep preview image inside the frame */
+.submit-page .preview-img{
+  max-width: 100%;
+  max-height: 420px;
+}
+/* Preview + meta line */
+.dz-preview { margin-top:12px; display:none; text-align:left; }
+.dz-meta {
+  display:flex; gap:10px; align-items:center; margin-top:8px;
+  font-size:12.5px; opacity:.9; flex-wrap:wrap;
+}
+.btn-link {
+  background:transparent; border:0; color:#9bd4ff; cursor:pointer; padding:0;
+  text-decoration:underline; font-weight:600;
+}
+.btn-link:hover { opacity:.8; }
+
+</style>
+{% endblock %}
+
+
+{% block content %}
+<main class="container submit-page mx-auto px-4 py-6">
+
+  <!-- Hero -->
+  <div class="submit-hero">
+    <div>
+      <div class="eyebrow">Farm Design</div>
+      <h1 class="title">Submit your design — {{ month_label or comp_id }}</h1>
+      <p class="subtitle">
+        This month’s theme is <strong>{{ theme.title }}</strong> — {{ theme.desc }}
+      </p>
+      <div class="pills">
+        {% if phase == 'submit' %}
+          <span class="pill pill-green">Submissions open</span>
+        {% elif phase == 'voting' %}
+          <span class="pill pill-blue">Voting phase</span>
+        {% else %}
+          <span class="pill">Results phase</span>
+        {% endif %}
+        <span class="pill">PNG/JPG ≤ 25&nbsp;MB</span>
+        <span class="pill">Caption ≤ 35 chars</span>
+        <span class="pill">Theme: {{ theme.title }}</span>
+      </div>
+    </div>
+
+    <nav class="hero-actions">
+      <a class="btn" href="{{ url_for('competition_home') }}">Back to info</a>
+      <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
+      {% if submit_status == 'not_logged_in' %}
+        <a class="btn btn-primary" href="{{ url_for('login') }}">🔒 Login to submit</a>
+      {% elif submit_status == 'not_in_guild' %}
+        <a class="btn btn-primary" href="https://discord.gg/YOUR_INVITE_CODE">📩 Join server</a>
+      {% elif submit_status == 'not_verified' %}
+        <a class="btn btn-primary" href="https://discord.com/channels/{{ GUILD_ID }}">🔑 Get verified</a>
+      {% endif %}
+      {% include 'partials/competition_admin_button.html' %}
+    </nav>
+  </div>
+
+<hr class="divider">
+
+{# --- Current submission (if any) --- #}
+{% if entry %}
+<section class="card p-4 mb-4 same-frame">
+  <h2 class="section-title">Your current submission</h2>
+
+  <div class="entry-preview">
+    <div>
+      <img
+        src="{{ entry.image_url }}?v={{ (entry.created_at.timestamp() | int) if entry and entry.created_at else 0 }}"
+        data-fullsrc="{{ entry.image_url }}"
+        alt="Your submission"
+        class="js-zoom preview-img"
+      >
+      <div class="muted mt-1" style="font-size:12px">Click image to enlarge</div>
+    </div>
+
+    <div class="entry-copy">
+      {% if entry.caption %}
+        <p><strong>Caption:</strong> <span id="currentCaption">{{ entry.caption }}</span></p>
+      {% else %}
+        <p class="muted"><em>No caption set yet.</em></p>
+      {% endif %}
+
+      {% if phase == 'submit' %}
+        <form id="captionForm" class="row" action="{{ url_for('competition_update_caption') }}" method="post" onsubmit="return false;">
+          <input class="input" type="text" name="caption" id="captionInput" maxlength="35"
+                 placeholder="Edit title (max 35 chars)" value="{{ entry.caption or '' }}">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <small class="muted"><span id="capCount">0</span>/35</small>
+            <button class="btn btn-primary" id="captionSaveBtn" type="button">Save title</button>
+          </div>
+          <small id="captionMsg" class="muted" style="display:none;"></small>
+        </form>
+        <p class="muted" style="margin-top:8px">Tip: You can change the title anytime while submissions are open.</p>
+        <p class="muted">You can replace your image until submissions close.</p>
+
+        <form action="{{ url_for('competition_delete') }}" method="post"
+              onsubmit="return confirm('Are you sure you want to delete your submission?');"
+              style="margin-top:10px">
+          <button type="submit" class="btn" style="background:#8b0000;border-color:#700000;color:#fff;">
+            🗑 Delete submission
+          </button>
+        </form>
+      {% else %}
+        <p class="muted">🛑 Edits are locked during voting/results.</p>
+      {% endif %}
+    </div>  {# /.entry-copy #}
+  </div>  {# /.entry-preview #}
+
+  {% if phase == 'voting' and my_vote %}
+    <hr class="divider">
+    <div class="card p-3" style="margin-top:8px">
+      <h3 class="section-title" style="margin-bottom:8px">Your vote</h3>
+      <div class="muted" style="margin-bottom:8px">You’ve voted for this image:</div>
+      <img src="{{ entries_map[my_vote.entry_id] if entries_map is defined else '' }}"
+           alt="Your selected vote"
+           style="max-width:320px;width:100%;border-radius:10px;display:block">
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# --- Submit / Replace form (visible only when allowed) --- #}
+{% if submit_status == "ok" and phase == "submit" %}
+  <form class="form-card card same-frame" action="{{ url_for('competition_submit') }}" method="post" enctype="multipart/form-data">
+    <h2 class="form-title">Submit your farm design</h2>
+
+    <label class="dropzone" id="dropzone">
+      <input type="file" name="image" id="fileInput" accept=".png,.jpg,.jpeg" required>
+      <div class="dz-copy">
+        <div class="dz-title">Drag & drop your PNG/JPG here</div>
+        <div class="dz-sub">or click to choose a file (max 25 MB)</div>
+      </div>
+      <div class="dz-preview" id="dzPreview" aria-live="polite">
+  <img id="dzImg" alt="Selected image preview">
+  <div class="dz-meta">
+    <span id="dzName"></span>
+    <span id="dzSize"></span>
+    <button type="button" id="dzClear" class="btn-link">Remove</button>
+  </div>
+  <small id="dzError" class="muted" style="display:none;color:#ffaaaa"></small>
+</div>
+    </label>
+
+    <div class="row">
+      <input class="input" type="text" name="caption" maxlength="35" placeholder="Short caption (optional, 35 chars)">
+    </div>
+
+    <input type="hidden" name="fingerprint" id="fp">
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ entry and 'Replace submission' or 'Submit' }}</button>
+      <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
+    </div>
+  </form>
+{% else %}
+  {% if submit_status != "ok" and phase == "submit" %}
+    <section class="state-card card p-6 mt-4" style="max-width:720px; margin:auto;">
+      {% if submit_status == "not_logged_in" %}
+        <h3 class="section-title">Login Required</h3>
+        <p class="muted">Log in with Discord to submit your farm design.</p>
+        <a class="btn btn-primary" href="{{ url_for('login') }}">🔒 Login with Discord</a>
+      {% elif submit_status == "not_in_guild" %}
+        <h3 class="section-title">Join our Discord</h3>
+        <p class="muted">You must be a member of our Discord to enter.</p>
+        <a class="btn btn-primary" href="https://discord.gg/YOUR_INVITE_CODE">📩 Join Server</a>
+      {% elif submit_status == "not_verified" %}
+        <h3 class="section-title">Get Verified</h3>
+        <p class="muted">Finish verification in the server to submit.</p>
+        <a class="btn btn-primary" href="https://discord.com/channels/{{ GUILD_ID }}">🔑 Open Discord</a>
+      {% endif %}
+    </section>
+  {% elif phase != "submit" %}
+    <section class="state-card card p-6 mt-4" style="max-width:720px; margin:auto;">
+      <h3 class="section-title">Edits locked</h3>
+      <p class="muted">You can’t change your submission while voting/results are active.</p>
+      <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
+    </section>
+  {% endif %}
+{% endif %}
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox" aria-hidden="true">
+  <div class="lightbox__dialog">
+    <button class="lightbox__close" type="button" data-close>✕</button>
+    <img id="lightboxImg" class="lightbox__img" alt="">
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Lightbox (keep your version if already present)
+  (function () {
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lightboxImg');
+    document.addEventListener('click', (e) => {
+      const thumb = e.target.closest('.js-zoom');
+      if (thumb) { img.src = thumb.dataset.fullsrc || thumb.src; lb.classList.add('open'); lb.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+      if (e.target.closest?.('[data-close]') || e.target === lb) { lb.classList.remove('open'); lb.setAttribute('aria-hidden','true'); img.src=''; document.body.style.overflow=''; }
+    });
+    document.addEventListener('keydown', (e) => { if (e.key==='Escape' && lb.classList.contains('open')) { lb.classList.remove('open'); lb.setAttribute('aria-hidden','true'); img.src=''; document.body.style.overflow=''; }});
+  })();
+</script>
+
+<script>
+(function () {
+  const dz      = document.getElementById('dropzone');
+  const input   = document.getElementById('fileInput');
+  const preview = document.getElementById('dzPreview');
+  const img     = document.getElementById('dzImg');
+  const nameEl  = document.getElementById('dzName');
+  const sizeEl  = document.getElementById('dzSize');
+  const clearEl = document.getElementById('dzClear');
+  const errEl   = document.getElementById('dzError');
+
+  const MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+  let currentURL = null;
+
+  function fmtSize(bytes){
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
+    return `${(bytes/1024/1024).toFixed(2)} MB`;
+  }
+
+  function showError(msg){
+    if (!errEl) return;
+    errEl.textContent = msg;
+    errEl.style.display = '';
+  }
+  function clearError(){
+    if (!errEl) return;
+    errEl.textContent = '';
+    errEl.style.display = 'none';
+  }
+
+
+
+  function clearPreview(){
+    clearError();
+    if (img) img.removeAttribute('src');
+    if (nameEl) nameEl.textContent = '';
+    if (sizeEl) sizeEl.textContent = '';
+    if (preview) preview.style.display = 'none';
+    if (input) input.value = '';
+  }
+  function okType(file){
+    // Prefer MIME, but fall back to extension (some browsers leave type empty)
+    return /image\/(png|jpe?g)/i.test(file.type || "") || /\.(png|jpe?g)$/i.test(file.name || "");
+  }
+
+  function showPreview(file){
+    if (!file) return;
+    clearError();
+
+    if (!okType(file)) {
+      clearPreview();
+      showError('Please choose a PNG or JPG image.');
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      clearPreview();
+      showError('File is too large. Max allowed is 25 MB.');
+      return;
+    }
+
+    // Use data URL so CSP with no 'blob:' still works
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (img)   img.src = reader.result;    // data:image/png;base64,....
+      if (nameEl) nameEl.textContent = file.name;
+      if (sizeEl) sizeEl.textContent = `• ${fmtSize(file.size)}`;
+      if (preview) preview.style.display = 'block';
+    };
+    reader.onerror = () => {
+      clearPreview();
+      showError('Could not read the file.');
+    };
+    reader.readAsDataURL(file);
+  }
+
+
+  // File picker
+  input?.addEventListener('change', e => showPreview(e.target.files[0]));
+
+  // Drag & drop
+  dz?.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor='rgba(255,255,255,.45)'; });
+  dz?.addEventListener('dragleave', () => { dz.style.borderColor='rgba(255,255,255,.22)'; });
+  dz?.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.style.borderColor='rgba(255,255,255,.22)';
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      // reflect drop into the input so it submits
+      input.files = e.dataTransfer.files;
+      showPreview(file);
+    }
+  });
+
+  // Remove button
+  clearEl?.addEventListener('click', clearPreview);
+})();
+
+  (function () {
+  const form   = document.getElementById('captionForm');
+  if (!form) return;
+
+  const input  = document.getElementById('captionInput');
+  const save   = document.getElementById('captionSaveBtn');
+  const count  = document.getElementById('capCount');
+  const msg    = document.getElementById('captionMsg');
+  const cur    = document.getElementById('currentCaption');
+
+  function updateCount() {
+    count.textContent = String(input.value.length);
+  }
+  updateCount();
+  input.addEventListener('input', updateCount);
+
+  async function saveCaption() {
+    save.disabled = true; msg.style.display = 'none';
+    try {
+      const body = new URLSearchParams();
+      body.set('caption', input.value);
+
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+        body
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to save title.');
+
+      // Update on page
+      if (cur) cur.textContent = data.caption || '';
+      msg.textContent = 'Saved.';
+      msg.style.display = '';
+    } catch (err) {
+      msg.textContent = err.message || 'Something went wrong.';
+      msg.style.display = '';
+    } finally {
+      save.disabled = false;
+    }
+  }
+
+  save.addEventListener('click', saveCaption);
+})();
+</script>
+{% endblock %}

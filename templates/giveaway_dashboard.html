@@ -1,0 +1,577 @@
+{% extends 'base.html' %}
+{% block title %}Giveaway Dashboard - HayDay 🍀{% endblock %}
+{% block head_extra %}
+
+  <style>
+.dashboard-wrapper {
+  display: flex;
+  min-height: 100vh;
+  margin-top: 60px;
+  flex-direction: row;
+}
+
+.sidebar {
+  width: 240px;
+  background-color: #222;
+  color: white;
+  padding: 20px;
+  font-family: sans-serif;
+}
+
+.sidebar h2 {
+  font-size: 20px;
+  margin-bottom: 16px;
+}
+
+.sidebar a {
+  display: block;
+  color: white;
+  text-decoration: none;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.sidebar a:hover {
+  background-color: #333;
+}
+
+.dashboard-content {
+  flex-grow: 1;
+  padding: 40px;
+  background-color: #f4f4f4;
+}
+
+body.dark .dashboard-content {
+  background-color: #1e1e1e;
+}
+
+.card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+body.dark .card {
+  background: #2b2b2b;
+  color: white;
+}
+
+.giveaway-box {
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: #eee;
+  border-radius: 8px;
+}
+
+body.dark .giveaway-box {
+  background-color: #1a1a1a;
+}
+
+.giveaway-box strong {
+  font-size: 16px;
+}
+
+.giveaway-controls {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.giveaway-controls button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+}
+
+.card .grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.75);
+  display: none;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.modal-content {
+  background: white;
+  padding: 30px;
+  margin: auto;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+body.dark .modal-content {
+  background: #1f1f1f;
+  color: #eee;
+}
+
+#reroll-user-list button {
+  display: block;
+  padding: 8px 12px;
+  margin: 6px 0;
+  width: 100%;
+  text-align: left;
+}
+
+input[type="text"],
+input[type="number"] {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+button {
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .dashboard-wrapper {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .sidebar a {
+    display: inline-block;
+    margin: 6px;
+  }
+
+  .dashboard-content {
+    padding: 20px;
+  }
+
+  .giveaway-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-content {
+    margin-top: 10%;
+    padding: 20px;
+  }
+
+  .card h2, .card h3 {
+    font-size: 1.2rem;
+  }
+
+  .giveaway-box strong {
+    font-size: 15px;
+  }
+
+  .card .grid {
+    flex-direction: column;
+  }
+}
+
+
+  </style>
+{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-wrapper">
+  {% include 'sidepanel.html' %}
+
+    <main class="dashboard-content">
+      <div class="card">
+        <h2>🎁 Active Giveaways</h2>
+        <div id="giveaway-list" class="grid">
+        <p>Loading giveaways...</p>
+        </div>
+
+
+      </div>
+        <div class="card">
+        <h2>🕒 Recently Ended Giveaways</h2>
+        <div id="recent-giveaway-list" class="grid"></div>
+        <div style="text-align:center; margin-top: 10px;">
+        <button onclick="prevPage()">⬅ Prev</button>
+        <button onclick="nextPage()">Next ➡</button>
+        </div>
+        </div>
+
+    <div id="editModal" class="modal-overlay">
+      <div class="modal-content">
+        <h2>Edit Giveaway</h2>
+        <form id="editForm">
+          <label>🎁 Prize:</label><br>
+          <input type="text" id="editPrize" required style="width: 100%;"><br><br>
+
+          <label>🏆 Winners:</label><br>
+          <input type="number" id="editWinners" required style="width: 100%;"><br><br>
+
+          <label>👤 Host ID:</label><br>
+          <input type="text" id="editHost" required style="width: 100%;"><br><br>
+
+          <label>🎯 Required Role ID:</label><br>
+          <input type="text" id="editRole" style="width: 100%;"><br><br>
+
+          <label>🎨 Embed Color (Hex):</label><br>
+          <input type="text" id="editColor" placeholder="#FF69B4" style="width: 100%;"><br><br>
+
+          <input type="hidden" id="editMessageId">
+          <div style="text-align: right;">
+            <button type="submit">💾 Save</button>
+            <button type="button" onclick="closeEditModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    </main>
+  </div>
+<div id="rerollModal" class="modal-overlay">
+  <div class="modal-content">
+    <h2>Select a user to reroll</h2>
+    <div id="reroll-user-list"><p>Loading winners...</p></div>
+    <button onclick="closeRerollModal()">Cancel</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script>
+  let currentPage = 1;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    loadGiveaways();
+    loadRecentGiveaways(currentPage);
+  });
+  async function loadGiveaways() {
+    const activeContainer = document.getElementById("giveaway-list");
+    const endedContainer = document.getElementById("recent-giveaway-list");
+
+    try {
+      const res = await fetch("/api/giveaways", { credentials: "include" });
+      const data = await res.json();
+
+    // === ACTIVE ===
+    const active = data.active || [];
+    activeContainer.innerHTML = "";
+    if (!active.length) {
+      activeContainer.innerHTML = "<p>No active giveaways found.</p>";
+    } else {
+      active.forEach(g => {
+        const messageId = String(g.message_id);
+        const box = document.createElement("div");
+        const participantCount = g.participants ? Object.keys(g.participants).length : 0;
+        const totalEntries = g.participants ? Object.values(g.participants).reduce((a, b) => a + b, 0) : 0;
+
+        box.className = "giveaway-box";
+        box.innerHTML = `
+          <strong>${g.prize}</strong><br>
+          🧍 ${g.winners} winner(s)<br>
+          ⏳ Ends in ${g.ends_in}<br>
+          <p><strong>Participants:</strong> ${g.participant_count}</p>
+          <p><strong>Total Entries:</strong> ${g.entry_count}</p>
+          <div class="giveaway-controls">
+            <button onclick="endGiveaway('${messageId}', this)">✅ End</button>
+            <button onclick='openEditModal(${JSON.stringify(g)})'>✏️ Edit</button>
+            <button style="background-color: crimson; color: white;" onclick="deleteGiveaway('${g.message_id}')">❌ Force Delete</button>
+          </div>
+        `;
+        activeContainer.appendChild(box);
+      });
+    }
+
+
+      // === ENDED ===
+      const ended = data.ended || [];
+      endedContainer.innerHTML = "";
+      if (!ended.length) {
+        endedContainer.innerHTML = "<p>No recently ended giveaways.</p>";
+      } else {
+        ended.forEach(g => {
+          const messageId = String(g.message_id);
+          const box = document.createElement("div");
+          box.className = "giveaway-box";
+          box.innerHTML = `
+            <strong>${g.prize}</strong><br>
+            🧍 ${g.winners} winners<br>
+            🆔 ID: ${g.message_id}<br>
+            🕓 Ended at ${g.ended_at}
+            <div class="giveaway-controls" id="controls-${g.message_id}"></div>
+          `;          
+          endedContainer.appendChild(box);
+        });
+      }
+
+    } catch (err) {
+      activeContainer.innerHTML = "<p>Error loading giveaways.</p>";
+      endedContainer.innerHTML = "<p>Error loading ended giveaways.</p>";
+    }
+  }
+
+  async function rerollGiveaway(id) {
+    console.log("Rerolling giveaway ID:", id, typeof id);
+    if (!confirm("Reroll this giveaway?")) return;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const res = await fetch(`/api/giveaways/reroll/${id}`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken},
+      credentials: "include"
+    });
+    const result = await res.json();
+
+    if (res.ok) {
+      alert("🔁 Rerolled.");
+    } else {
+      alert("❌ " + (result?.error || "Unknown error"));
+      console.error("Reroll error:", result);
+    }
+  }
+
+  function endGiveaway(messageId, button) {
+    if (!confirm("Are you sure you want to end this giveaway?")) return;
+
+    button.disabled = true;
+    const originalText = button.innerText;
+    button.innerText = "⏳ Ending...";
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    fetch(`/api/giveaways/end/${messageId}`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken},
+      credentials: "include"
+    })
+
+      .then(res => res.json())
+      .then(data => {
+        if (data.message) {
+          alert("✅ Giveaway ended.");
+          location.reload();
+        } else {
+          alert("❌ Error: " + data.error);
+          button.disabled = false;
+          button.innerText = originalText;
+        }
+      })
+      .catch(err => {
+        alert("❌ Failed to contact bot.");
+        console.error(err);
+        button.disabled = false;
+        button.innerText = originalText;
+      });
+  }
+  
+
+  async function loadRecentGiveaways(page = 1) {
+    const container = document.getElementById("recent-giveaway-list");
+    const limit = 9;
+    const skip = (page - 1) * limit;
+
+    try {
+      const res = await fetch(`/api/giveaways/recent?skip=${skip}&limit=${limit}`, {
+        credentials: "include"
+      });
+
+      const data = await res.json();
+      container.innerHTML = "";
+
+      if (!data.length) {
+        container.innerHTML = "<p>No ended giveaways found.</p>";
+        return;
+      }
+
+      data.forEach(g => {
+        const messageId = String(g.message_id);
+        const box = document.createElement("div");
+        box.className = "giveaway-box";
+        box.innerHTML = `
+          <strong>${g.prize}</strong><br>
+          🧍 ${g.winners} winners<br>
+          🆔 ID: ${g.message_id}<br>
+          🕓 Ended at ${g.ended_at}<br>
+          <img src="${g.host_avatar}" width="28" height="28" style="border-radius: 50%; vertical-align: middle; margin-top: 4px;"> 
+          Host: ${g.host_name}<br>
+          <div class="giveaway-controls" id="controls-${g.message_id}" style="margin-top: 8px;"></div>
+        `;
+        const controls = box.querySelector(`#controls-${g.message_id}`);
+        if (Array.isArray(g.winner_buttons)) {
+          g.winner_buttons.forEach(winner => {
+            const btn = document.createElement("button");
+            btn.innerHTML = `🔁 Reroll ${winner.name}`;
+            btn.onclick = () => rerollWithUser(g.message_id, winner.id);
+            controls.appendChild(btn);
+          });
+        }
+        container.appendChild(box);
+      });
+
+    } catch (err) {
+      container.innerHTML = "<p>Error loading ended giveaways.</p>";
+    }
+  }
+
+  function nextPage() {
+    currentPage++;
+    loadRecentGiveaways(currentPage);
+  }
+
+  function prevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      loadRecentGiveaways(currentPage);
+    }
+  }
+
+function openEditModal(giveaway) {
+  document.getElementById("editPrize").value = giveaway.prize;
+  document.getElementById("editWinners").value = giveaway.winners;
+  document.getElementById("editHost").value = giveaway.host_id || "";
+  document.getElementById("editRole").value = giveaway.required_role_id || "";
+  document.getElementById("editColor").value = giveaway.color ? `#${giveaway.color.toString(16)}` : "#FF69B4";
+  document.getElementById("editMessageId").value = giveaway.message_id;
+  document.getElementById("editModal").style.display = "block";
+}
+
+function closeEditModal() {
+  document.getElementById("editModal").style.display = "none";
+}
+
+document.getElementById("editForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const messageId = document.getElementById("editMessageId").value;
+  const data = {
+    prize: document.getElementById("editPrize").value,
+    winners: document.getElementById("editWinners").value,
+    host_id: document.getElementById("editHost").value,
+    required_role_id: document.getElementById("editRole").value || "",  // force blank if empty
+    color: document.getElementById("editColor").value
+  };
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const res = await fetch(`/api/giveaways/edit/${messageId}`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
+    credentials: "include",
+    body: JSON.stringify(data)
+  });
+
+  const result = await res.json();
+
+  if (res.ok) {
+    alert("✅ Giveaway updated.");
+    closeEditModal();
+    location.reload();
+  } else {
+    alert("❌ Error: " + result.error);
+  }
+});
+
+</script>
+<script>
+async function showRerollModal(messageId) {
+  document.getElementById("rerollModal").style.display = "block";
+  const rerollUserList = document.getElementById("reroll-user-list");
+  rerollUserList.innerHTML = "<p>Loading winners...</p>";
+
+  try {
+    const res = await fetch(`/api/giveaways/winners/${messageId}`);
+    const winners = await res.json();
+
+    rerollUserList.innerHTML = "";
+
+    if (!winners.length) {
+      rerollUserList.innerHTML = "<p>No winners found.</p>";
+      return;
+    }
+
+    winners.forEach(w => {
+      const btn = document.createElement("button");
+      btn.innerHTML = `
+        <img src="${w.avatar || '/static/img/default.png'}" width="28" height="28" style="border-radius:50%; vertical-align:middle; margin-right:8px;">
+        ${w.username} (${w.id})
+      `;
+      btn.onclick = () => rerollWithUser(messageId, w.id);
+      rerollUserList.appendChild(btn);
+    });
+
+  } catch (err) {
+    rerollUserList.innerHTML = "<p>Error loading winners.</p>";
+    console.error(err);
+  }
+}
+
+function closeRerollModal() {
+  document.getElementById("rerollModal").style.display = "none";
+}
+
+function rerollWithUser(messageId, userId) {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  fetch("/api/giveaways/reroll-specific", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken 
+    },
+    credentials: "include",
+    body: JSON.stringify({ message_id: messageId, user_id: userId })
+  })
+    .then(res => res.json())
+    .then(result => {
+      alert(result.message || "🔁 Rerolled.");
+      closeRerollModal();
+    })
+    .catch(() => {
+      alert("❌ Failed to reroll.");
+      closeRerollModal();
+    });
+}
+
+async function deleteGiveaway(messageId) {
+  if (!confirm("Are you sure you want to permanently delete this giveaway?")) return;
+
+  try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const res = await fetch("/api/giveaways/delete", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken 
+      },
+      body: JSON.stringify({ message_id: messageId })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      alert("✅ Giveaway deleted successfully.");
+      location.reload(); // Optional: refresh the page to reflect change
+    } else {
+      alert("❌ Error: " + data.error);
+    }
+  } catch (err) {
+    alert("❌ Request failed: " + err.message);
+  }
+}
+
+</script>
+
+{% endblock %}

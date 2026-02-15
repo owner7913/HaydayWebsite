@@ -1,0 +1,370 @@
+{% extends 'base.html' %}
+
+{% block title %}Leaderboard - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+<style>
+  .body {
+    font-family: 'Segoe UI', sans-serif;
+  }
+  .leaderboard-container {
+    max-width: 700px;
+    margin: 120px auto 60px;
+    background: var(--bg-color);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', sans-serif;
+    color: var(--text-color);
+  }
+
+  .leaderboard-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .rank {
+    font-weight: bold;
+    width: 40px;
+    text-align: center;
+  }
+
+  .user-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+  }
+
+    .username {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2; /* Helps prevent clipping */
+    min-height: 20px;  /* Guarantees room for 16px icon */
+    }
+
+  .level,
+  .xp {
+    width: 80px;
+    text-align: right;
+    font-size: 14px;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .pagination a {
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--button-bg);
+    text-decoration: none;
+    font-weight: 500;
+    color: var(--button-text);
+    transition: background 0.2s ease;
+  }
+
+  .pagination a:hover {
+    background: var(--button-hover);
+  }
+
+  h2 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  /* Theme variables */
+    :root {
+    --bg-color: #ffffff;
+    --text-color: #111111;
+    --border-color: #dddddd;
+    --button-bg: #eeeeee;
+    --button-hover: #dddddd;
+    --button-text: #333333;
+    }
+
+    body.dark {
+    --bg-color: #1e1e1e;
+    --text-color: #eeeeee;
+    --border-color: #444444;
+    --button-bg: #333333;
+    --button-hover: #444444;
+    --button-text: #eeeeee;
+    }
+
+    .leaderboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-color);
+    opacity: 0.6;
+    }
+
+    body.dark .leaderboard-header {
+    color: var(--text-color);
+        }
+
+    .leaderboard-header .user-info {
+    text-align: center;
+    flex: 1;
+    }
+    .leaderboard-container h2 {
+    color: var(--text-color);
+    }
+    body, .leaderboard-container {
+    transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .username {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    line-height: 1.4;
+    }
+
+    .boost-icon {
+    height: 20px;
+    width: auto;
+    margin-left: 4px;
+    display: inline-block;
+    position: relative;
+    top: 2px;
+    }
+
+.leaderboard-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 40px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-tabs a {
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  text-decoration: none;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.leaderboard-tabs a:hover {
+  background: var(--button-hover);
+}
+
+.leaderboard-tabs .active {
+  background: #4caf50;
+  color: white;
+}
+.highlighted-user {
+  background-color: #2e7d32;  /* A nice green highlight */
+  color: white;
+  font-weight: bold;
+  border-radius: 10px;
+}
+@media (max-width: 600px) {
+  .leaderboard-entry {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .leaderboard-header {
+    display: none;
+  }
+
+  .rank {
+    width: auto;
+    text-align: left;
+  }
+
+  .user-info {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .level,
+  .xp {
+    width: auto;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+
+  .leaderboard-tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 10px;
+  }
+
+  .pagination {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="leaderboard-container">
+  <div class="leaderboard-tabs">
+  <a href="/leaderboard?type=level" class="{{ 'active' if type == 'level' else '' }}">Level</a>
+  <a href="/leaderboard?type=messages" class="{{ 'active' if type == 'messages' else '' }}">Messages</a>
+  <a href="/leaderboard?type=mentions" class="{{ 'active' if type == 'mentions' else '' }}">Mentions</a>
+  <a href="/leaderboard?type=hosted" class="{{ 'active' if type == 'hosted' else '' }}">Giveaways Hosted</a>
+  <a href="/leaderboard?type=wins" class="{{ 'active' if type == 'wins' else '' }}">Giveaway Wins</a>
+  <a href="/leaderboard?type=streak" class="{{ 'active' if type == 'streak' else '' }}">Daily Streak</a>
+  <a href="/leaderboard?type=trivia" class="{{ 'active' if type == 'trivia' else '' }}">Trivia Accuracy</a>
+  {% if is_staff %}
+    <a href="/leaderboard?type=verifications" class="{{ 'active' if type == 'verifications' else '' }}">Staff Verifications</a>
+  {% endif %}
+
+
+
+
+
+</div>
+  <h2 style="text-align:center;">🏆 Leaderboard</h2>
+{% if type == "trivia" %}
+<p style="text-align: center; margin-bottom: 20px; color: var(--text-color); font-size: 0.95rem;">
+  📌 Only users who have answered at least <strong>5 trivia questions</strong> appear on this leaderboard.
+</p>
+{% endif %}
+<div class="leaderboard-header">
+  <div class="rank">Rank</div>
+  <div class="user-info">User</div>
+
+  {% if type == "messages" %}
+    <div class="level">Messages</div>
+  {% elif type == "hosted" %}
+    <div class="level">Hosted</div>
+  {% elif type == "wins" %}
+    <div class="level">Wins</div>
+  {% elif type == "streak" %}
+    <div class="level">Streak</div>
+  {% elif type == "mentions" %}
+    <div class="level">Mentions</div>
+  {% elif type == "trivia" %}
+    <div class="level" style="min-width: 180px;">Accuracy</div>
+  {% elif type == "verifications" %}
+    <div class="level">Verifications</div>
+  {% else %}
+    <div class="level">Level</div>
+    <div class="xp">XP</div>
+  {% endif %}
+</div>
+
+
+
+{% for user in users %}
+<div class="leaderboard-entry {% if viewer_id == user._id|string %}highlighted-user{% endif %}">
+  <div class="rank">
+    {% if user.rank == 1 %}🥇
+    {% elif user.rank == 2 %}🥈
+    {% elif user.rank == 3 %}🥉
+    {% else %}#{{ user.rank }}
+    {% endif %}
+  </div>
+  <div class="user-info">
+    <img src="{{ user.avatar_url }}" class="user-avatar">
+    <span class="username">
+      {{ user.display_name }}
+      {% if viewer_id == user._id|string %}<span style="opacity: 0.6;">(You)</span>{% endif %}
+    </span>
+  </div>
+
+  {% if type == "trivia" %}
+    <div class="level" style="min-width: 180px;">{{ user.trivia_percent }}% <small>({{ user.trivia_total }} answered)</small></div>
+  {% elif type == "messages" %}
+    <div class="level">{{ user.message_count | format }}</div>
+  {% elif type == "hosted" %}
+    <div class="level">{{ user.hosted_count | format }}</div>
+  {% elif type == "wins" %}
+    <div class="level">{{ user.won_count | format }}</div>
+  {% elif type == "streak" %}
+    <div class="level">{{ user.streak | format }}</div>
+  {% elif type == "mentions" %}
+    <div class="level">{{ user.mention_count | format }}</div>
+  {% elif type == "verifications" %}
+    <div class="level">{{ user.verifications | format }}</div>
+  {% else %}
+    <div class="level">Level {{ user.level }}</div>
+    <div class="xp">{{ user.xp_formatted }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+
+
+
+<div class="pagination">
+  {% if page > 1 %}
+    <a href="{{ url_for('leaderboard', page=page-1, type=type) }}">⬅ Prev</a>
+  {% endif %}
+  {% if page < total_pages %}
+    <a href="{{ url_for('leaderboard', page=page+1, type=type) }}">Next ➡</a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script>
+function toggleDarkMode() {
+  const body = document.body;
+  const toggleBtn = document.querySelector(".theme-toggle");
+
+  if (body.classList.contains("dark")) {
+    body.classList.remove("dark");
+    body.classList.add("light");
+    localStorage.setItem("theme", "light");
+    toggleBtn.textContent = "🌙 Toggle Dark Mode";
+  } else {
+    body.classList.remove("light");
+    body.classList.add("dark");
+    localStorage.setItem("theme", "dark");
+    toggleBtn.textContent = "☀️ Toggle Light Mode";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedTheme = "dark";
+  document.body.classList.remove("light", "dark");
+  document.body.classList.add(savedTheme);
+
+  const toggleBtn = document.querySelector(".theme-toggle");
+  if (toggleBtn) {
+    toggleBtn.textContent = savedTheme === "dark"
+      ? "☀️ Toggle Light Mode"
+      : "🌙 Toggle Dark Mode";
+    toggleBtn.addEventListener("click", toggleDarkMode);
+  } else {
+    console.warn("No .theme-toggle button found.");
+  }
+});
+</script>
+{% endblock %}

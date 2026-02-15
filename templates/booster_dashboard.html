@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+{% block title %}Booster Dashboard - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+
+  <style>
+    .booster-list {
+      max-width: 1000px;
+      margin: 100px auto;
+      padding: 0 16px;
+    }
+
+    .booster-card {
+      background: white;
+      padding: 16px;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    body.dark .booster-card {
+      background: #1f1f1f;
+      color: white;
+    }
+
+    .booster-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .booster-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+    }
+
+    .booster-info {
+      flex: 1;
+    }
+
+    .booster-info strong {
+      font-size: 16px;
+    }
+
+    form label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+
+    form input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    body.dark form input {
+      background-color: #222;
+      color: #eee;
+      border: 1px solid #555;
+    }
+
+    form button {
+      margin-top: 12px;
+      padding: 10px 16px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    form button:hover {
+      background: #3e9141;
+    }
+
+    .color-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 4px;
+      border: 1px solid #ccc;
+    }
+
+    @media (min-width: 600px) {
+      .booster-card {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      form {
+        flex: 1;
+        margin-left: 20px;
+      }
+
+      form button {
+        width: auto;
+        margin-left: auto;
+      }
+    }
+.dashboard-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 20px;
+}
+
+.sidebar {
+  flex: 0 0 220px;
+  background: #1e1e1e;
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-right: 20px;
+  min-height: 300px;
+}
+
+.sidebar a {
+  color: #ccc;
+  display: block;
+  margin: 10px 0;
+  text-decoration: none;
+}
+
+.sidebar a:hover {
+  color: white;
+}
+
+.dashboard-content {
+  flex: 1;
+}
+img.booster-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+}
+.pickr {
+  margin-bottom: 10px;
+}
+.disabled-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+  background: #2c2c2c;
+  padding: 8px;
+  border-radius: 8px;
+  opacity: 0.5;
+}
+
+.disabled-color-picker .color-preview {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #555;
+}
+
+.disabled-color-picker .disabled-text {
+  color: #ccc;
+  font-size: 14px;
+}
+.form-group {
+  margin-bottom: 16px;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.disabled-color-block {
+  background: #2a2a2a;
+  padding: 10px;
+  border-radius: 8px;
+  opacity: 0.8;
+}
+
+.disabled-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.color-preview {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #555;
+}
+
+.disabled-text {
+  color: #ccc;
+  font-size: 14px;
+}
+
+.warning-note {
+  display: block;
+  margin-top: 6px;
+  color: #ffa500;
+  font-size: 13px;
+}
+
+  </style>
+
+{% endblock %}  
+
+{% block content %}
+<div class="dashboard-wrapper">
+{% include 'sidepanel.html' %}
+
+  <main class="dashboard-content">  
+  <div class="booster-list">
+    <h2>🎁 Staff Booster Role Dashboard</h2>
+    {% if message %}
+      <p style="margin-bottom: 20px;">{{ message }}</p>
+    {% endif %}
+        {% for b in boosters %}
+        <div class="booster-card">
+            <div class="booster-header">
+            <img class="booster-avatar" src="{{ b.avatar_url }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+            <div class="booster-info">
+                <strong>{{ b.display_name }}</strong><br>
+                <small>@{{ b.username }}</small><br>
+                <small>Current Role: <b>{{ b.role_name }}</b>
+                <span class="color-swatch" style="background-color: {{ b.color2 or '#cccccc' }}; opacity: 0.5;" title="Gradient second color – not supported yet"></span>
+                </small>
+            </div>
+            </div>
+            <form method="POST" action="/booster-dashboard">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="target_id" value="{{ b.user_id }}">
+
+            <div class="form-group">
+                <label for="role_name_{{ loop.index }}">New Role Name:</label>
+                <input type="text" name="role_name" id="role_name_{{ loop.index }}" value="{{ b.role_name }}" placeholder="New Role Name">
+            </div>
+
+            <div class="form-group">
+                <label for="role_color_{{ loop.index }}">New Role Color (Hex):</label>
+                <div class="color-picker-row">
+                <div id="color-picker-{{ loop.index }}"></div>
+                <input type="hidden" name="role_color" id="role_color_{{ loop.index }}" value="{{ b.color }}">
+                </div>
+            </div>
+
+            <div class="form-group disabled-color-block">
+                <label>Second Role Color (Gradient):</label>
+                <div class="disabled-color-picker" title="Gradient roles not yet supported">
+                <div class="color-preview" style="background: {{ b.color2 or '#888888' }}"></div>
+                <span class="disabled-text">Gradient not supported</span>
+                </div>
+                <small class="warning-note">⚠️ Display only — not editable yet</small>
+            </div>
+
+            <button type="submit">Update Role</button>
+            </form>
+
+        </div>
+        {% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    {% for b in boosters %}
+        const pickr{{ loop.index }} = Pickr.create({
+        el: '#color-picker-{{ loop.index }}',
+        theme: 'classic',
+        default: '{{ b.color }}',
+        showAlways: true,
+        inline: true,
+        components: {
+            preview: true,
+            opacity: false,
+            hue: true,
+            interaction: {
+            hex: true,
+            input: true,
+            save: true
+            }
+        }
+        });
+      pickr{{ loop.index }}.on('save', (color) => {
+        document.getElementById('role_color_{{ loop.index }}').value = color.toHEXA().toString();
+      });
+    {% endfor %}
+  });
+</script>
+  
+{% endblock %}

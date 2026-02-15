@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% block title %}📋 Interaction Logs{% endblock %}
+{% block head_extra %}
+  <style>
+    body {
+      padding: 30px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .search-bar input, .search-bar select {
+      padding: 8px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background-color: #1f1f1f;
+      color: #eee;
+    }
+
+    .log-card {
+      background: #1f1f1f;
+      color: #eee;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #333;
+    }
+
+    .log-meta {
+      font-size: 13px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+
+    .log-action {
+      font-weight: bold;
+      font-size: 17px;
+    }
+
+    pre {
+      background-color: #111;
+      padding: 10px;
+      overflow-x: auto;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .toggle-json {
+      cursor: pointer;
+      color: #88c6ff;
+      margin-left: 8px;
+      font-size: 13px;
+      margin-top: 6px;
+      display: inline-block;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      margin-top: 30px;
+      gap: 10px;
+    }
+
+    .pagination a {
+      padding: 8px 14px;
+      background-color: #333;
+      color: #eee;
+      text-decoration: none;
+      border-radius: 6px;
+    }
+
+    .pagination .active {
+      background-color: #4caf50;
+      color: white;
+    }
+
+    .stats {
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    .flagged {
+      color: #ff5f5f;
+      font-weight: bold;
+    }
+  </style>
+{% endblock %}
+{% block content %}
+
+  <main style="margin-top: 80px;">
+    <h1>📋 Interaction Logs ({{ total }} total)</h1>
+
+    <div class="stats">
+      ✅ Today: <strong>{{ stats.today }}</strong> · Past 7 Days: <strong>{{ stats.week }}</strong> · Anonymous Users: <strong>{{ stats.anon }}</strong>
+    </div>
+  <h2 style="margin-top: 24px;">📊 Top Pages (by views)</h2>
+  <div class="log-card" style="overflow-x:auto;">
+    {% if top_pages and total_views %}
+      <table style="width:100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #333;">Path</th>
+            <th style="text-align:right; padding:8px; border-bottom:1px solid #333;">Views</th>
+            <th style="text-align:right; padding:8px; border-bottom:1px solid #333;">% of Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in top_pages %}
+          <tr>
+            <td style="padding:8px; border-bottom:1px solid #222;">{{ p._id }}</td>
+            <td style="padding:8px; text-align:right; border-bottom:1px solid #222;">{{ p.count|default(0) }}</td>
+            <td style="padding:8px; text-align:right; border-bottom:1px solid #222;">
+              {{ (((p.count|default(0)) / total_views) * 100) | round(2) }}%
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="log-meta" style="margin-top:8px;">Total page views recorded: {{ total_views }}</div>
+    {% else %}
+      <div>No page view data yet.</div>
+    {% endif %}
+  </div>
+
+    <form class="search-bar" method="get" action="/admin/interactions">
+      <input type="text" name="search" placeholder="Search logs..." value="{{ search }}">
+      <select name="action">
+        <option value="">All Actions</option>
+        {% for act in stats.actions %}
+          <option value="{{ act }}" {% if action_filter == act %}selected{% endif %}>{{ act }}</option>
+        {% endfor %}
+      </select>
+      <label><input type="checkbox" name="anon" value="1" {% if anon_only %}checked{% endif %}> Anonymous only</label>
+      <button type="submit">🔍 Filter</button>
+      <a href="/admin/interactions?export=1&search={{ search }}&action={{ action_filter }}&anon={% if anon_only %}1{% endif %}" style="margin-left: auto;">📤 Export CSV</a>
+    </form>
+
+    {% for log in logs %}
+      <div class="log-card">
+        <div class="log-action">
+          {% set label = log.details.text or "Unknown" %}
+          {% if log.action == "Clicked A" %}
+            🔗 Link Click: <strong>{{ label }}</strong>
+            {% if log.details.href %}
+              — <a href="{{ log.details.href }}" target="_blank" style="color:#88c6ff;">{{ log.details.href }}</a>
+            {% endif %}
+          {% elif log.action == "Clicked BUTTON" %}
+            🖱️ Button Click: <strong>{{ label }}</strong>
+          {% elif log.action == "Clicked INPUT" %}
+            ⌨️ Input Click: <strong>{{ label }}</strong>
+          {% else %}
+            ⚙️ {{ log.action }}
+          {% endif %}
+        </div>
+        <div class="log-meta">
+          {% if log.username %}
+            User: {{ log.username }} ({{ log.discord_id }}) ·
+          {% else %}
+            Anonymous ·
+          {% endif %}
+          {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+        </div>
+
+        {% if log.details %}
+          <span class="toggle-json" onclick="toggleDetails(this)">▶ Show details</span>
+          <pre>{{ log.details | tojson(indent=2) }}</pre>
+        {% endif %}
+
+        <div class="log-meta {% if 'curl' in log.user_agent.lower() or 'python' in log.user_agent.lower() or 'bot' in log.user_agent.lower() %}flagged{% endif %}">
+          {{ log.user_agent }}
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="pagination">
+      {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&search={{ search }}&action={{ action_filter }}&anon={% if anon_only %}1{% endif %}">◀ Prev</a>
+      {% endif %}
+      <a class="active">{{ page }}</a>
+      {% if (page * limit) < total %}
+        <a href="?page={{ page + 1 }}&search={{ search }}&action={{ action_filter }}&anon={% if anon_only %}1{% endif %}">Next ▶</a>
+      {% endif %}
+    </div>
+  </main>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    function toggleDetails(el) {
+      const pre = el.nextElementSibling;
+      if (pre.style.display === "block") {
+        pre.style.display = "none";
+        el.textContent = "▶ Show details";
+      } else {
+        pre.style.display = "block";
+        el.textContent = "▼ Hide details";
+      }
+    }
+  </script>
+{% endblock %}

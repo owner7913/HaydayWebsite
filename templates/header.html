@@ -1,0 +1,293 @@
+<header class="site-header">
+  <nav class="navbar">
+    <div class="nav-logo">
+      <a href="/">🌾 HayDay 🍀</a>
+    </div>
+
+    <!-- Mobile Menu Button -->
+     <div class="nav-toggle" id="nav-toggle" onclick="toggleMenu()">☰</div>
+     <div class="nav-close" id="nav-close" onclick="toggleMenu()">✖</div>
+
+      <ul class="nav-links" id="nav-links">
+        <li class="{% if request.path == '/' %}active{% endif %}"><a href="/">Home</a></li>
+
+        <!-- NEW: HayDay Tools dropdown -->
+        <li class="dropdown {% if request.path.startswith('/production') or request.path.startswith('/production_guide') or request.path.startswith('/builder') %}active{% endif %}">
+          <a href="#">HayDay Tools ▼</a>
+          <ul class="dropdown-content">
+            <li><a href="/production_guide">Production</a></li>
+            <li><a href="/trading" class="nav-link">Trading</a></li>
+            <li><a href="/#">Builder</a></li>
+          </ul>
+        </li>
+
+        <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') %}active{% endif %}">
+          <a href="#">Community & Events ▼</a>
+          <ul class="dropdown-content">
+            <li><a href="/giveaways">Giveaways</a></li>
+            <li><a href="/auctions">Live Auctions</a></li>
+            <li><a href="/leaderboard">Leaderboards</a></li>
+            <li><a href="/competition">Farm Design Contest</a></li>
+          </ul>
+        </li>
+
+        <li class="{% if request.path.startswith('/staff') %}active{% endif %}"><a href="/staff">Staff Members</a></li>
+
+        {% if session.get("staff_role") %}
+        <li class="{% if request.path.startswith('/dashboard') %}active{% endif %}"><a href="/dashboard">Dashboard</a></li>
+        {% endif %}
+
+        <li class="dropdown {% if request.path.startswith('/profile') %}active{% endif %}">
+          {% if session.get("discord_id") %}
+            <a href="#">Profile ▼</a>
+            <ul class="dropdown-content">
+              <li><a href="/profile">My Profile</a></li>
+              <li class="{% if request.path.startswith('/profile-directory') %}active{% endif %}"><a href="/profile-directory">Members</a></li>
+              <li><a href="/shop">Shop</a></li>
+              <li><a href="/logout?next=/">Logout</a></li>
+            </ul>
+          {% else %}
+            <a href="/login?next={{ request.path }}">Login</a>
+          {% endif %}
+        </li>
+      </ul>
+
+  </nav>
+</header>
+
+
+<style>
+.main-header {
+  background: #2c2c2c;
+  padding: 10px 20px;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  position: relative;
+}
+
+.nav-logo a {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #fff;
+  text-decoration: none;
+}
+
+.nav-toggle,
+.nav-close {
+  display: none; 
+}
+
+.nav-links {
+  display: flex;
+  list-style: none;
+  gap: 14px;
+}
+
+.nav-links li {
+  position: relative;
+}
+
+.nav-links a {
+  color: #eee;
+  text-decoration: none;
+  padding: 8px 12px;
+  display: block;
+  border-radius: 6px;
+  transition: background 0.3s;
+}
+
+.nav-links a:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.nav-links .active > a {
+  background-color: #4caf50;
+  color: white;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background: #333;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  overflow: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.dropdown:hover .dropdown-content,
+.dropdown:focus-within .dropdown-content {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dropdown-content li a {
+  padding: 10px 14px;
+}
+
+@media (max-width: 767px) {
+  .nav-toggle,
+  .nav-close {
+    position: fixed;
+    top: 14px;
+    right: 20px;
+    font-size: 28px;
+    color: white;
+    z-index: 1002;
+    cursor: pointer;
+  }
+
+  .nav-toggle.show,
+  .nav-close.show {
+    display: block;
+  }
+
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: rgba(30, 30, 30, 0.98);
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+    pointer-events: none;
+  }
+
+  .nav-links.show {
+    display: flex;
+    pointer-events: auto;
+  }
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background: #333; 
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  overflow: hidden;
+  opacity: 1 !important; 
+  pointer-events: none;
+  transition: none;
+}
+
+
+  .dropdown-content li a {
+    padding: 10px 16px;
+    border-bottom: 1px solid #444;
+  }
+
+  .dropdown-content li:last-child a {
+    border-bottom: none;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+body.no-scroll {
+  overflow: hidden;
+  height: 100vh;
+}
+
+</style>
+
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+
+<script> /* Xavi's original. I left it here in case you need to use it.
+  function toggleMenu() {
+    document.getElementById("nav-links").classList.toggle("show");
+  } */
+</script>
+
+<script> // Added by Magzie, ensuring it'll work at all times. 
+  function toggleMenu() {
+    const navLinks = document.getElementById("nav-links");
+    const navToggle = document.getElementById("nav-toggle");
+    const navClose = document.getElementById("nav-close");
+    const body = document.body;
+
+    const isOpen = navLinks.classList.toggle("show");
+
+    if (isOpen) {
+      navToggle.classList.remove("show");
+      navClose.classList.add("show");
+      body.classList.add("no-scroll"); 
+    } else {
+      navToggle.classList.add("show");
+      navClose.classList.remove("show");
+      body.classList.remove("no-scroll");
+    }
+  }
+
+  function updateToggleVisibility() {
+    const navToggle = document.getElementById("nav-toggle");
+    const navClose = document.getElementById("nav-close");
+    const navLinks = document.getElementById("nav-links");
+    const body = document.body;
+
+    if (window.innerWidth < 768) {
+      if (navLinks.classList.contains("show")) {
+        navToggle.classList.remove("show");
+        navClose.classList.add("show");
+        body.classList.add("no-scroll"); 
+      } else {
+        navToggle.classList.add("show");
+        navClose.classList.remove("show");
+        body.classList.remove("no-scroll"); 
+      }
+    } else {
+      navToggle.classList.remove("show");
+      navClose.classList.remove("show");
+      navLinks.classList.remove("show");
+      body.classList.remove("no-scroll");
+    }
+  }
+
+  window.addEventListener("DOMContentLoaded", updateToggleVisibility);
+  window.addEventListener("resize", updateToggleVisibility);
+  
+function showCompetitionBanner() {
+  const banner = document.getElementById("competition-banner");
+  if (!banner || localStorage.getItem("competitionBannerClosed") === "true") return;
+  setTimeout(() => banner.classList.add("show"), 800);
+}
+
+function closeCompetitionBanner() {
+  const banner = document.getElementById("competition-banner");
+  if (banner) {
+    banner.classList.remove("show");
+    localStorage.setItem("competitionBannerClosed", "true");
+  }
+}
+
+window.addEventListener("DOMContentLoaded", showCompetitionBanner);
+
+
+</script>

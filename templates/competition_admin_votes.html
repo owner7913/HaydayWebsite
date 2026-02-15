@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Voters{% endblock %}
+
+{% block head_extra %}
+{# Extra CSS if needed — theme.css is already in base.html #}
+{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-6" style="margin-top:80px">
+  <div class="adm-toolbar">
+    <div class="adm-toolbar-left">
+      <h1 class="page-title">Voters</h1>
+      <span class="badge">Entry {{ entry._id }}</span>
+    </div>
+    <div class="adm-toolbar-right">
+      <a class="btn" href="{{ url_for('admin_competition', comp_id=entry.comp_id) }}">Back to Competition</a>
+      <form method="post" action="{{ url_for('admin_competition_vote_delete_all', entry_id=entry._id) }}"
+            onsubmit="return confirm('Delete ALL votes for this entry?');">
+        <button class="btn btn-danger">Delete all votes</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="entry-card" style="margin-bottom:16px;">
+    <div class="entry-media" style="max-width:560px;">
+      <img src="{{ entry.thumb_url or entry.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+    </div>
+    <div class="entry-body">
+      <div><strong>Caption:</strong> {{ entry.caption or '—' }}</div>
+      <div class="muted">Submitted by: {{ entry.username or entry.user or entry.user_id }}</div>
+    </div>
+  </div>
+
+  <div class="card p-3">
+    <h2 class="section-title">Votes ({{ votes|length }})</h2>
+    {% if votes|length == 0 %}
+      <div class="muted">No votes yet.</div>
+    {% else %}
+      <ul style="margin:0; padding-left:0; list-style:none;">
+        {% for v in votes %}
+          <li style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08);">
+            <div style="flex:1 1 auto;">
+              <div><strong>{{ v.voter_name }}</strong> <span class="muted">({{ v.voter_id }})</span></div>
+              <div class="muted">{{ v.created_at or '' }}</div>
+            </div>
+            <form method="post" action="{{ url_for('admin_competition_vote_delete', entry_id=entry._id, vote_id=v._id) }}"
+                  onsubmit="return confirm('Delete this vote?');">
+              <button class="btn btn-danger">Delete</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+{% endblock %}

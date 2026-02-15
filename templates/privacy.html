@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}Privacy Policy - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+  <style>
+    .privacy-container {
+      max-width: 800px;
+      margin: 120px auto 60px;
+      padding: 30px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      font-family: 'Segoe UI', sans-serif;
+    }
+    body.dark .privacy-container {
+      background: #1e1e1e;
+      color: #e0e0e0;
+    }
+    .privacy-container h1 {
+      margin-bottom: 20px;
+      font-size: 2rem;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+    }
+    .privacy-container h2 {
+      margin-top: 30px;
+      font-size: 1.4rem;
+      color: #4caf50;
+    }
+    .privacy-container ul {
+      padding-left: 20px;
+      margin-top: 10px;
+    }
+    .privacy-container p {
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+    body.dark .privacy-container h2 {
+      color: #7abfff;
+    }
+    a {
+      color: #007acc;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    body.dark a {
+      color: #88c6ff;
+    }
+@media (max-width: 600px) {
+  .privacy-container {
+    margin: 100px 10px 40px;
+    padding: 20px;
+    font-size: 15px;
+  }
+
+  .privacy-container h1 {
+    font-size: 1.5rem;
+  }
+
+  .privacy-container h2 {
+    font-size: 1.2rem;
+  }
+}
+
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="privacy-container">
+    <h1>Privacy Policy</h1>
+    <em>Effective date: August 12, 2025</em>
+
+    <p>
+      At <strong>HayDay 🍀</strong>, your privacy is important to us. This policy explains what data we collect, why we collect it, and your rights as a user of this site.
+    </p>
+
+  <h2>🔍 What We Collect</h2>
+  <ul>
+    <li>Your Discord ID and username when you log in</li>
+    <li>Your IP address (used for abuse protection and rate limiting)</li>
+    <li>Your browser’s user agent string</li>
+    <li>Interaction logs (e.g., button clicks, link visits)</li>
+    <li>Cookies that store your login session and security preferences</li>
+  </ul>
+
+  <h2>📌 Why We Collect This</h2>
+  <p>This data is collected to:</p>
+  <ul>
+    <li>Enable Discord login</li>
+    <li>Keep you logged in between visits (via cookies)</li>
+    <li>Prevent scams, bots, and fraudulent behavior</li>
+    <li>Block suspicious activity like website spam or DDoS attacks</li>
+    <li>Improve site performance and debug errors</li>
+  </ul>
+
+  <h2>🛡 How We Use and Store Your Data</h2>
+  <p>
+    Cookies are small text files stored in your browser to maintain your session after login and remember preferences.  
+    We do <strong>not</strong> use cookies for advertising or tracking outside of hayday.info.
+  </p>
+  <p>
+    All data is securely stored in a private database. Only trusted staff have access. We do <strong>not</strong> sell or share your data with third parties.
+  </p>
+  <p>
+    IP addresses, interaction logs, and cookies are used strictly for security and essential functionality. Logs are auto-deleted after <strong>30 days</strong>.
+  </p>
+
+
+    <details style="margin-top: 30px;">
+      <summary style="font-size: 17px; cursor: pointer;"><strong>🔒 How We Detect and Block Abuse (Click to expand)</strong></summary>
+      <div style="margin-top: 12px;">
+        <p>
+          To protect the HayDay 🍀 website and community from malicious activity, we use automated protections that monitor incoming traffic for abuse.
+        </p>
+        <ul>
+          <li>🚫 <strong>Block</strong> IPs that repeatedly access suspicious or invalid paths (e.g., WordPress files)</li>
+          <li>⏱ <strong>Rate limit</strong> excessive requests to avoid server overload</li>
+          <li>🛡️ <strong>Auto-ban</strong> IPs after 20+ abuse triggers within a short period</li>
+        </ul>
+        <p>
+          These systems help defend against spam, bots, and DDoS attempts. 
+          All abuse bans are temporary (7 days) and stored securely. Only trusted staff can view or clear them.
+        </p>
+      </div>
+    </details>
+
+    <h2>⚖️ Your Rights</h2>
+    <p>
+      You may request access to your data or ask for it to be deleted at any time. Please contact the site owner or staff via Discord.
+    </p>
+
+    <h2>🔄 Changes to This Policy</h2>
+    <p>
+      We will notify users through the website or our Discord server if any significant changes are made to this policy.
+    </p>
+
+    <h2>📬 Contact</h2>
+    <p>
+      For questions or data requests, contact us through our
+      <a href="https://discord.gg/invite/haydayy" target="_blank"><strong>Discord server</strong></a>
+      or message
+      <a href="https://discord.com/users/154282062973501441" target="_blank"><strong>XavierDK</strong></a>.
+    </p>
+  </div>
+
+{% endblock %}

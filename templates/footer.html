@@ -1,0 +1,78 @@
+<!-- Discord Reminder Winglet -->
+<div id="discord-winglet">
+  <img src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png" alt="Discord" class="discord-icon">
+  <div class="discord-text">
+    <strong>JOIN OUR DISCORD TODAY</strong><br>
+    <a href="https://discord.gg/invite/haydayy" target="_blank">discord.gg/hayday</a>
+  </div>
+</div>
+
+<!-- templates/footer.html -->
+<footer>
+  <div class="footer-content">
+    <span>&copy; {{ year }} HayDay 🍀</span>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/terms">Terms of Service</a>
+    <span>Made by Xavi</span>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="disclaimer">
+    Disclaimer: HayDay 🍀 is an independent fan community and is <strong>not affiliated with, endorsed by, or in any way officially connected to Supercell or Hay Day</strong>.
+  </div>
+
+<!-- Cookie Consent Banner -->
+<div id="cookie-consent" style="
+  display:none;
+  position:fixed;
+  bottom:-120px;
+  left:0;
+  right:0;
+  background:#1f1f1f;
+  color:#fff;
+  padding:15px 20px;
+  z-index:9999;
+  font-size:14px;
+  text-align:center;
+  box-shadow:0 -2px 6px rgba(0,0,0,0.3);
+  opacity:0;
+  transition:bottom 0.5s ease, opacity 0.5s ease;
+">
+  We use essential cookies to keep you logged in, secure your account, and remember your settings.
+  <a href="/privacy" style="color:#4caf50; font-weight:bold; text-decoration:underline;">Learn more</a>.
+  <button id="accept-cookies" style="margin-left:15px; padding:6px 14px; background:#4caf50; border:none; color:#fff; cursor:pointer; border-radius:20px; font-weight:bold; transition:background 0.2s;">
+    Got it
+  </button>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const banner = document.getElementById("cookie-consent");
+
+  if (!localStorage.getItem("cookiesAccepted")) {
+    banner.style.display = "block";
+    setTimeout(() => {
+      banner.style.bottom = "0";
+      banner.style.opacity = "1";
+    }, 50); // small delay so transition applies
+  }
+
+  document.getElementById("accept-cookies").addEventListener("click", function() {
+    localStorage.setItem("cookiesAccepted", "true");
+    banner.style.bottom = "-120px";
+    banner.style.opacity = "0";
+    setTimeout(() => {
+      banner.style.display = "none";
+    }, 500);
+  });
+});
+</script>
+
+<style>
+#accept-cookies:hover {
+  background: #45a049;
+}
+</style>
+
+
+</footer>

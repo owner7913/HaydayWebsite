@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>{% block title %}HayDay 🍀{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}"> 
+  <meta name="google-site-verification" content="XytNN-ofO92AjDuNxZaJNX_4ItyUMYsHj1pgQ4B-Hp4" />
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  {% set META = meta|default({
+    'title': 'HayDay 🍀 — Your Community for Giveaways & Competitions',
+    'description': 'Join exciting giveaways and monthly farm design competitions — connect with fellow Hay Day farmers and win great prizes.',
+    'url': 'https://www.hayday.info/',
+    'image': url_for('static', filename='img/share.jpg', _external=True)
+  }) %}
+  <!-- Social sharing / Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HayDay 🍀">
+  <meta property="og:title" content="{{ META.title }}">
+  <meta property="og:description" content="{{ META.description }}">
+  <meta property="og:url" content="{{ META.url }}">
+  <meta property="og:image" content="{{ META.image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ META.title }}">
+  <meta name="twitter:description" content="{{ META.description }}">
+  <meta name="twitter:image" content="{{ META.image }}">
+  <meta name="theme-color" content="#4CAF50">
+  <link rel="canonical" href="{{ META.url }}">
+
+  
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="light">
+  <div class="background-blur"></div>
+  <div class="overlay"></div>
+{% if maintenance_banner.enabled %}
+  <div id="maint-banner" class="maint-banner" hidden>
+    <div class="maint-inner">
+      <span class="maint-text">🛠️ {{ maintenance_banner.message or
+        "We’re performing maintenance. Small connection issues may occur." }}</span>
+      <button id="maint-ok" class="maint-ok">OK</button>
+    </div>
+  </div>
+<script>
+  (function() {
+    const cfg = {
+      requireAck: {{ 'true' if maintenance_banner.require_ack else 'false' }},
+      version: {{ maintenance_banner.version|int }},
+    };
+    const key = "maintenance_ack_v" + cfg.version;
+    const banner = document.getElementById("maint-banner");
+    const okBtn = document.getElementById("maint-ok");
+
+    function show() {
+      banner.hidden = false;
+      // After layout, compute height for push-down
+      requestAnimationFrame(() => {
+        document.documentElement.style.setProperty('--maint-banner-height', banner.offsetHeight + 'px');
+        document.body.classList.add('has-maint-banner');
+      });
+    }
+
+    function hide() {
+      banner.hidden = true;
+      document.body.classList.remove('has-maint-banner');
+      document.documentElement.style.removeProperty('--maint-banner-height');
+    }
+
+    const alreadyAcked = !!localStorage.getItem(key);
+    const shouldShow = cfg.requireAck ? !alreadyAcked : true;
+    if (shouldShow) show();
+
+    okBtn?.addEventListener('click', function() {
+      if (cfg.requireAck) localStorage.setItem(key, String(Date.now()));
+      hide();
+    });
+
+    // Optional: allow Esc to dismiss (non-required mode only)
+    document.addEventListener('keydown', (e) => {
+      if (!cfg.requireAck && e.key === 'Escape') hide();
+    });
+  })();
+</script>
+
+{% endif %}
+
+  {% include 'header.html' %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include 'footer.html' %}
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  {% block scripts %}{% endblock %}
+
+</body>
+</html>

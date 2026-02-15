@@ -1,0 +1,723 @@
+{% extends 'base.html' %}
+
+{% block title %}Competition — Results{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ---- Results page scoped styles ---- */
+  .results-page { 
+  margin-top: 104px;   /* was 84px */
+  padding-bottom: 64px;
+  }
+  .results-hero {
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    margin-bottom: 12px;
+  }
+  .results-hero .title {
+    font-size: clamp(20px, 2.4vw, 28px); font-weight: 800; letter-spacing: .2px;
+  }
+  .results-hero .sub { opacity: .75; font-size: 14px; }
+
+  .divider {
+    border:0; height:1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,.14), transparent);
+    margin: 10px 0 18px;
+  }
+  body:not(.dark) .divider { background: linear-gradient(to right, transparent, rgba(0,0,0,.12), transparent); }
+
+  /* ---- Podium (clean 3-spot layout) ---- */
+  .podium {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr 1fr;
+    grid-template-areas: "second first third";
+    gap: 14px;
+    align-items: stretch;
+    margin-bottom: 18px;
+  }
+  .podium .first  { grid-area: first; }
+  .podium .second { grid-area: second; }
+  .podium .third  { grid-area: third; }
+
+  /* Uniform card sizing + nicer look */
+  .podium-card {
+    position: relative;
+    display: flex; flex-direction: column;
+    border-radius: 14px; overflow: hidden;
+    background: rgba(255,255,255,.04);
+    box-shadow: 0 8px 22px rgba(0,0,0,.16);
+    min-height: 320px;
+  }
+  body:not(.dark) .podium-card { background: rgba(0,0,0,.04); }
+
+  /* Make #1 a touch taller for emphasis without breaking the row */
+  .podium .first .image-wrap { aspect-ratio: 16/9; }
+  .podium .second .image-wrap,
+  .podium .third .image-wrap { aspect-ratio: 16/9; }
+  .podium .first { transform: translateY(-2px); }
+
+  .image-wrap { width: 100%; overflow: hidden; }
+  .image-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .podium-badge {
+    position:absolute; top:10px; left:10px; z-index:2;
+    padding:6px 10px; border-radius:999px; font-weight:700; font-size:13px;
+    backdrop-filter: blur(6px);
+    background: linear-gradient(135deg, rgba(0,0,0,.65), rgba(0,0,0,.35));
+    color:#fff; display:flex; align-items:center; gap:8px;
+  }
+  .podium-badge .medal { font-size:16px; }
+
+  .podium-body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; }
+  .podium-user { font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .podium-caption { opacity:.75; font-size:13px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+
+  /* Mobile: stack cleanly, no weird gaps */
+  @media (max-width: 880px) {
+    .podium {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "first"
+        "second"
+        "third";
+    }
+    .podium .first { transform: none; }
+  }
+
+  /* ---- Scoreboard ---- */
+  .score-card {
+    border-radius: 14px; padding: 8px; background: rgba(255,255,255,.04);
+    box-shadow: 0 6px 16px rgba(0,0,0,.14); margin-bottom: 18px;
+  }
+  body:not(.dark) .score-card { background: rgba(0,0,0,.04); }
+
+  .score-head {
+    display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 10px 12px;
+  }
+  .score-title { font-weight:800; }
+
+  .table-wrap { overflow:auto; border-radius: 12px; }
+  table.leaderboard {
+    width:100%; border-collapse: collapse; font-size: 14px; min-width: 680px;
+  }
+  .leaderboard thead th {
+    position:sticky; top:0; z-index:1; text-align:left; font-weight:800;
+    background: rgba(0,0,0,.12);
+    padding: 10px 12px;
+  }
+  body.dark .leaderboard thead th { background: rgba(255,255,255,.06); }
+  .leaderboard tbody td { padding: 10px 12px; vertical-align: middle; }
+  .leaderboard tbody tr:nth-child(odd) { background: rgba(0,0,0,.04); }
+  body.dark .leaderboard tbody tr:nth-child(odd) { background: rgba(255,255,255,.03); }
+  .cell-rank { width:48px; font-weight:800; }
+  .cell-preview img { height:54px; width:96px; object-fit: cover; border-radius:8px; display:block; }
+  .cell-user { font-weight:600; }
+  .cell-votes strong { font-feature-settings: "tnum"; letter-spacing:.3px; }
+
+  /* ---- Gallery grid (uniform cards) ---- */
+  .grid {
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px;
+  }
+  .grid-card {
+    border-radius: 12px; overflow:hidden; background: rgba(255,255,255,.04);
+    box-shadow: 0 4px 12px rgba(0,0,0,.12);
+  }
+  body:not(.dark) .grid-card { background: rgba(0,0,0,.04); }
+
+  .grid-card img { width:100%; aspect-ratio: 16/9; object-fit: cover; display:block; }
+  .grid-meta { padding: 8px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .grid-meta .name { font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .grid-meta .votes { opacity:.85; font-size:12px; }
+
+  /* Small badge utility */
+  .badge-soft {
+    padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight:700;
+    background: rgba(0,0,0,.12); color: inherit;
+  }
+  body.dark .badge-soft { background: rgba(255,255,255,.08); }
+  /* make the hero + podium more compact */
+  .results-hero { margin-bottom: 8px; }
+  .results-hero .title { font-size: clamp(18px, 2.0vw, 24px); }
+
+  /* slightly smaller podium cards */
+  .podium-card { min-height: 260px; }      /* was 320px */
+  .podium .first { transform: translateY(0); } /* remove lift for tighter row */
+
+  /* denser scoreboard */
+  table.leaderboard { font-size: 13px; }   /* was 14px */
+  .cell-preview img { height: 48px; width: 86px; }  /* was 54×96 */
+
+  .leaderboard { width:100%; border-collapse:separate; border-spacing:0 6px; font-size:13px; }
+  .leaderboard td, .leaderboard th { padding:12px 14px; }
+  .cell-preview img { width:86px; height:48px; object-fit:cover; border-radius:8px; }
+  .truncate { max-width: 460px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pager { display:flex; align-items:center; gap:12px; margin:12px 0 24px; }
+  .pager .btn.disabled { pointer-events:none; opacity:.5; }
+  
+  /* Pagination */
+  .pagination {
+    display:flex; align-items:center; gap:8px; margin:12px 0 24px;
+  }
+  .page-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:34px; height:34px; padding:0 12px;
+    border-radius:999px; font-weight:700; font-size:13px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    text-decoration:none; transition: .15s ease;
+  }
+  body:not(.dark) .page-btn {
+    background: rgba(0,0,0,.04);
+    border-color: rgba(0,0,0,.08);
+  }
+  .page-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+  .page-btn.is-active { background: #22c55e; color:#0b1b10; border-color: transparent; }
+  .page-btn.is-disabled { opacity:.45; pointer-events:none; }
+  .page-info { opacity:.7; font-size:12px; margin-left:6px; }
+  /* All-entries cards: lock layout + avoid text spill */
+.entry-card { display:flex; flex-direction:column; }
+.entry-card img { aspect-ratio: 16/9; border-bottom: 1px solid rgba(255,255,255,.06); }
+body:not(.dark) .entry-card img { border-bottom-color: rgba(0,0,0,.06); }
+
+.grid-meta{
+  padding: 8px 10px;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.grid-meta .name{
+  font-weight:600; font-size:13px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  max-width: 70%;
+}
+.grid-meta .votes{ opacity:.85; font-size:12px; }
+
+/* Subtle hover polish so it feels aligned with the rest */
+.entry-card:hover{ transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.22); }
+.entry-card{ transition: transform .15s ease, box-shadow .15s ease; }
+/* 4-up responsive grid for All entries */
+.competition-grid{
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:12px;
+}
+@media (max-width: 1100px){ .competition-grid{ grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 780px){  .competition-grid{ grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px){  .competition-grid{ grid-template-columns: 1fr; } }
+
+/* Match card styling to the rest */
+.entry-card{
+  border-radius:12px;
+  overflow:hidden;
+  background: rgba(255,255,255,.04);
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+}
+body:not(.dark) .entry-card{ background: rgba(0,0,0,.04); }
+/* Pro banner */
+.notice{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 16px; border-radius:14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+}
+body:not(.dark) .notice{
+  background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.02));
+  border-color: rgba(0,0,0,.10);
+}
+.notice-left{ display:flex; align-items:center; gap:10px; }
+.notice .dot{
+  width:10px; height:10px; border-radius:999px; background:#22c55e;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.15);
+}
+.notice .notice-text{ font-weight:600; opacity:.95; }
+/* Empty state */
+.empty{
+  display:grid; place-items:center; text-align:center;
+  padding:26px; border-radius:16px;
+  background: rgba(255,255,255,.03);
+  border:1px dashed rgba(255,255,255,.16);
+}
+body:not(.dark) .empty{ background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.12); }
+.empty-icon{ font-size:28px; margin-bottom:6px; }
+.empty-title{ font-weight:800; margin:2px 0; }
+.empty-text{ opacity:.8; margin:6px 0 10px; }
+/* Section accent */
+.section-title{
+  font-weight:800; letter-spacing:.2px;
+  margin: 8px 0 10px;
+}
+.section-title::after{
+  content:""; display:block; width:78px; height:3px; border-radius:999px; margin-top:6px;
+  background: linear-gradient(90deg,#ffd77a,#ff8f5a 60%, #ff62a1);
+  opacity:.9;
+}
+
+/* Scoreboard card polish */
+.table-card{
+  padding: 8px 10px 12px;
+  border-radius:14px;
+  background: rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow: 0 4px 18px rgba(0,0,0,.18);
+}
+body:not(.dark) .table-card{
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.10);
+}
+
+/* Row hover + subtle separators */
+.leaderboard tbody tr{ transition: background .12s ease; }
+.leaderboard tbody tr:hover{ background: rgba(255,255,255,.06); }
+body:not(.dark) .leaderboard tbody tr:hover{ background: rgba(0,0,0,.06); }
+.leaderboard tbody td + td{ border-left: 1px solid rgba(255,255,255,.06); }
+body:not(.dark) .leaderboard tbody td + td{ border-left-color: rgba(0,0,0,.06); }
+
+/* Tighter pager inside card */
+.pagination--tight{ margin:10px 6px 4px; display:flex; align-items:center; gap:8px; }
+.pagination--tight .ml-auto{ margin-left:auto; }
+
+/* Month menu */
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.month-nav-label {
+  font-size: 13px;
+  opacity: .75;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.month-chip-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.month-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.03);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s ease, transform .12s ease, box-shadow .12s ease;
+}
+
+body:not(.dark) .month-chip {
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.10);
+}
+
+.month-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
+}
+
+.month-chip.is-active {
+  background: #22c55e;
+  color: #0b1b10;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(34,197,94,.45);
+  font-weight: 700;
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-6 results-page">
+  <!-- Hero -->
+  <div class="results-hero">
+    {% include 'partials/competition_admin_button.html' %}
+    <div>
+      <div class="sub">
+        Farm Design — Results
+        {% if theme %} · Theme: {{ theme.title }}{% endif %}
+      </div>
+      <h1 class="title">Winners — {{ month_label or comp_id }}</h1>
+    </div>
+    <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
+  </div>
+
+  {% if banner %}
+    <div class="notice" role="status">
+      <div class="notice-left">
+        <span class="dot"></span>
+        <div class="notice-text">{{ banner.text }}</div>
+      </div>
+      <a class="btn btn-primary" href="{{ banner.cta_href }}">{{ banner.cta_label }}</a>
+    </div>
+  {% endif %}
+  <hr class="divider">
+
+  {# 🔹 Month switcher (always shown if we have options) #}
+  {% if month_options %}
+  <nav class="month-nav">
+    <span class="month-nav-label">Browse month:</span>
+    <div class="month-chip-row">
+      {% for opt in month_options %}
+        <a
+          class="month-chip {% if opt.comp_id == comp_id %}is-active{% endif %}"
+          href="{{ url_for('competition_results', comp_id=opt.comp_id, score_page=1, grid_page=1) }}"
+        >
+          {{ opt.label }}
+        </a>
+      {% endfor %}
+    </div>
+  </nav>
+  {% endif %}
+
+  {% set ranked = entries %}
+  {% if ranked|length == 0 %}
+    <div class="empty">
+      <div class="empty-icon">🏁</div>
+      <h3 class="empty-title">No results to show yet.</h3>
+      <p class="empty-text">
+        Winners will appear here after results are announced.
+        {% if banner %} Meanwhile, {{ banner.text|lower }}{% endif %}
+      </p>
+      {% if banner %}
+        <a class="btn btn-primary" href="{{ banner.cta_href }}">{{ banner.cta_label }}</a>
+      {% endif %}
+    </div>
+  {% else %}
+
+  {% if is_admin %}
+  <div class="card table-card" style="display:flex; gap:8px; align-items:center; justify-content:space-between; padding:10px 12px; margin-bottom:12px;">
+    <div style="font-weight:700;">Admin tools — Discord export</div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <button class="btn btn-primary" id="copyTop3">Copy Top 3</button>
+      <button class="btn" id="copyTop10">Copy Top 10</button>
+      <button class="btn" id="copyScoreboardPage">Copy Current Page (scoreboard)</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Podium (Top 3) -->
+  <section class="podium">
+    {% set first  = ranked[0] if ranked|length > 0 else None %}
+    {% set second = ranked[1] if ranked|length > 1 else None %}
+    {% set third  = ranked[2] if ranked|length > 2 else None %}
+
+    {% if second %}
+      {% set v = (counts|default({})).get(second._id|string, 0) %}
+      <article class="podium-card second">
+        <div class="podium-badge"><span class="medal">🥈</span><span>#2</span><span class="badge-soft">{{ v }} votes</span></div>
+        <div class="image-wrap">
+          <img src="{{ second.image_url }}" alt="Second place" loading="lazy" referrerpolicy="no-referrer">
+        </div>
+        <div class="podium-body">
+          <div class="podium-user"><span>{{ second.display_name or second.username or second.user or 'Anonymous' }}</span></div>
+          {% if second.caption %}<div class="podium-caption">{{ second.caption }}</div>{% endif %}
+        </div>
+      </article>
+    {% endif %}
+
+    {% if first %}
+      {% set v = (counts|default({})).get(first._id|string, 0) %}
+      <article class="podium-card first">
+        <div class="podium-badge"><span class="medal">🥇</span><span>#1</span><span class="badge-soft">{{ v }} votes</span></div>
+        <div class="image-wrap">
+          <img src="{{ first.image_url }}" alt="First place" loading="lazy" referrerpolicy="no-referrer">
+        </div>
+        <div class="podium-body">
+          <div class="podium-user"><span>{{ first.display_name  or first.username  or first.user  or 'Anonymous' }}</span></div>
+          {% if first.caption %}<div class="podium-caption">{{ first.caption }}</div>{% endif %}
+        </div>
+      </article>
+    {% endif %}
+
+    {% if third %}
+      {% set v = (counts|default({})).get(third._id|string, 0) %}
+      <article class="podium-card third">
+        <div class="podium-badge"><span class="medal">🥉</span><span>#3</span><span class="badge-soft">{{ v }} votes</span></div>
+        <div class="image-wrap">
+          <img src="{{ third.image_url }}" alt="Third place" loading="lazy" referrerpolicy="no-referrer">
+        </div>
+        <div class="podium-body">
+          <div class="podium-user"><span>{{ third.display_name  or third.username  or third.user  or 'Anonymous' }}</span></div>
+          {% if third.caption %}<div class="podium-caption">{{ third.caption }}</div>{% endif %}
+        </div>
+      </article>
+    {% endif %}
+  </section>
+
+  <h2 class="section-title">Full scoreboard</h2>
+
+  <section class="card table-card">
+    <div class="table-wrap">
+      <table class="leaderboard">
+        <thead>
+          <tr><th>#</th><th>Preview</th><th>User</th><th>Caption</th><th>Votes</th></tr>
+        </thead>
+        <tbody>
+          {% set base_rank = (score_page - 1) * 10 %}
+          {% for row in score_items %}
+            {% set i = base_rank + loop.index %}
+            {% set votes = (counts|default({})).get(row._id|string, 0) %}
+            {% set preview = row.thumb_url or row.image_url %}
+            <tr>
+              <td class="cell-rank">{{ i }}</td>
+              <td class="cell-preview">
+                <img src="{{ preview }}" alt="preview" loading="lazy" referrerpolicy="no-referrer">
+              </td>
+              <td class="cell-user">{{ row.display_name or row.username or row.user or 'Anonymous' }}</td>
+              <td class="truncate">{{ row.caption or '' }}</td>
+              <td class="cell-votes"><strong>{{ votes }}</strong></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% set pages = range(1, score_pages + 1) %}
+    <nav class="pagination pagination--tight">
+      <a class="page-btn {% if score_page <= 1 %}is-disabled{% endif %}"
+         href="{{ url_for('competition_results', comp_id=comp_id, score_page=(score_page-1 if score_page>1 else 1), grid_page=grid_page) }}">Prev</a>
+
+      {# windowed pages + ellipses #}
+      {% for p in pages %}
+        {% if p == 1 or p == score_pages or (p >= score_page-2 and p <= score_page+2) %}
+          <a class="page-btn {% if p == score_page %}is-active{% endif %}"
+             href="{{ url_for('competition_results', comp_id=comp_id, score_page=p, grid_page=grid_page) }}">{{ p }}</a>
+        {% elif p == 2 and score_page > 4 %}
+          <span class="page-info">…</span>
+        {% elif p == score_pages-1 and score_page < score_pages-3 %}
+          <span class="page-info">…</span>
+        {% endif %}
+      {% endfor %}
+
+      <a class="page-btn {% if score_page >= score_pages %}is-disabled{% endif %}"
+         href="{{ url_for('competition_results', comp_id=comp_id, score_page=(score_page+1 if score_page<score_pages else score_pages), grid_page=grid_page) }}">Next</a>
+
+      <span class="page-info ml-auto">Page {{ score_page }} / {{ score_pages }} · {{ score_total }} entries</span>
+    </nav>
+  </section>
+
+  <!-- Uniform gallery grid (all entries) -->
+  <section>
+    <h3 class="section-title" style="margin: 0 0 8px 2px;">All entries</h3>
+
+    <div class="competition-grid">
+      {% for e in grid_items %}
+        {% set votes = (counts|default({})).get(e._id|string, 0) %}
+        <article class="entry-card">
+          <img src="{{ e.thumb_url or e.image_url }}" alt="Entry {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
+          <div class="grid-meta">
+            <span class="name">{{ e.display_name or e.username or 'Anonymous' }}</span>
+            <span class="votes">{{ votes }} votes</span>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+
+    {% set gpages = range(1, grid_pages + 1) %}
+    <nav class="pagination">
+      <a class="page-btn {% if grid_page <= 1 %}is-disabled{% endif %}"
+         href="{{ url_for('competition_results', comp_id=comp_id, score_page=score_page, grid_page=(grid_page-1 if grid_page>1 else 1)) }}">Prev</a>
+
+      {% for p in gpages %}
+        {% if p == 1 or p == grid_pages or (p >= grid_page-2 and p <= grid_page+2) %}
+          <a class="page-btn {% if p == grid_page %}is-active{% endif %}"
+             href="{{ url_for('competition_results', comp_id=comp_id, score_page=score_page, grid_page=p) }}">{{ p }}</a>
+        {% elif p == 2 and grid_page > 4 %}
+          <span class="page-info">…</span>
+        {% elif p == grid_pages-1 and grid_page < grid_pages-3 %}
+          <span class="page-info">…</span>
+        {% endif %}
+      {% endfor %}
+
+      <a class="page-btn {% if grid_page >= grid_pages %}is-disabled{% endif %}"
+         href="{{ url_for('competition_results', comp_id=comp_id, score_page=score_page, grid_page=(grid_page+1 if grid_page<grid_pages else grid_pages)) }}">Next</a>
+
+      <span class="page-info">Page {{ grid_page }} / {{ grid_pages }} · {{ grid_total }} entries</span>
+    </nav>
+
+  </section>
+
+  {% endif %} {# end if ranked #}
+</main>
+
+<!-- ✅ Lightbox -->
+<div id="lightbox" class="lightbox" aria-hidden="true">
+  <button class="lightbox__nav prev" type="button" data-prev aria-label="Previous">‹</button>
+
+  <div class="lightbox__dialog">
+    <button class="lightbox__close" type="button" data-close aria-label="Close">✕</button>
+    <img id="lightboxImg" class="lightbox__img" alt="">
+    <div id="lightboxCounter" class="lightbox__counter" aria-live="polite"></div>
+    <div id="lightboxCaption" class="lightbox__caption"></div>
+  </div>
+
+  <button class="lightbox__nav next" type="button" data-next aria-label="Next">›</button>
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+{% if is_admin %}
+<script>
+console.log("Ranked:", {{ ranked|length }}, "Month:", {{ month_label|tojson }});
+(function () {
+  const MONTH = {{ (month_label or comp_id)|tojson }};
+
+// Full ranked list (from server)
+const RANKED_ALL = [
+  {% for row in entries %}
+  {
+    rank: {{ loop.index }},
+    user: {{ ("<@" ~ (row.user_id or row.discord_id or '') ~ ">")|tojson }},
+    votes: {{ (counts|default({})).get(row._id|string, 0) }},
+    caption: {{ (row.caption or '')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+// Current scoreboard page (already in your script)
+const SCOREBOARD_PAGE = [
+  {% set base_rank = (score_page - 1) * 10 %}
+  {% for row in score_items %}
+  {
+    rank: {{ base_rank + loop.index }},
+    user: {{ ("<@" ~ (row.user_id or row.discord_id or '') ~ ">")|tojson }},
+    votes: {{ (counts|default({})).get(row._id|string, 0) }},
+    caption: {{ (row.caption or '')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+// ✅ Safe fallback if entries list is empty (RANKED_ALL.length === 0)
+const RANKED_SAFE = RANKED_ALL.length ? RANKED_ALL : SCOREBOARD_PAGE;
+
+// Then use RANKED_SAFE in your formatters:
+function fmtTop3() {
+  const medal = (p) => p === 1 ? '🥇' : p === 2 ? '🥈' : '🥉';
+  const top3 = RANKED_SAFE.slice(0, 3);
+  const lines = [`🎉 **Farm Design — ${MONTH} Winners** 🎉`];
+  if (!top3.length) return lines.concat('_No winners yet._').join('\n');
+  top3.forEach((row, i) => {
+    const cap = row.caption ? ` — *${row.caption}*` : '';
+    lines.push(`${medal(i+1)} **#${i+1}** — **${row.user}** (${row.votes} votes)${cap}`);
+  });
+  lines.push('', '🏆 Prizes: 1st — 1,000,000 coins · 2nd — 700,000 · 3rd — 500,000');
+  return lines.join('\n');
+}
+
+function fmtTopN(n) {
+  const medal = (i) => i === 1 ? '🥇' : i === 2 ? '🥈' : i === 3 ? '🥉' : `#${i}`;
+  const items = RANKED_SAFE.slice(0, n);
+  const lines = [`**Farm Design — ${MONTH} — Top ${n}**`];
+  if (!items.length) return lines.concat('_No entries._').join('\n');
+  items.forEach((row, idx) => {
+    const tag = idx < 3 ? medal(idx + 1) : `#${row.rank}`;
+    const cap = row.caption ? ` — *${row.caption}*` : '';
+    lines.push(`${tag} **${row.user}** — ${row.votes} votes${cap}`);
+  });
+  return lines.join('\n');
+}
+
+  function fmtScoreboardPage() {
+    const lines = [`**Farm Design — ${MONTH} — Scoreboard (Page {{ score_page }}/{{ score_pages }})**`];
+    if (!SCOREBOARD_PAGE.length) return lines.concat('_No entries on this page._').join('\n');
+    SCOREBOARD_PAGE.forEach(row => {
+      const cap = row.caption ? ` — *${row.caption}*` : '';
+      lines.push(`#${row.rank} **${row.user}** — ${row.votes} votes${cap}`);
+    });
+    lines.push(`_Showing ${SCOREBOARD_PAGE.length} of {{ score_total }} entries_`);
+    return lines.join('\n');
+  }
+
+  async function copyToClipboard(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(btn, 'Copied ✔');
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); flash(btn, 'Copied ✔'); }
+      catch { alert('Copy failed — select and copy manually:\n\n' + text); }
+      finally { document.body.removeChild(ta); }
+    }
+  }
+
+  function flash(btn, msg) {
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.textContent = msg;
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1000);
+  }
+
+  document.getElementById('copyTop3')?.addEventListener('click', (e) => copyToClipboard(fmtTop3(), e.currentTarget));
+  document.getElementById('copyTop10')?.addEventListener('click', (e) => copyToClipboard(fmtTopN(10), e.currentTarget));
+  document.getElementById('copyScoreboardPage')?.addEventListener('click', (e) => copyToClipboard(fmtScoreboardPage(), e.currentTarget));
+})();
+</script>
+<script>
+/* ------- Lightbox for Results Page ------- */
+(function () {
+  const lb = document.getElementById('lightbox');
+  const imgEl = document.getElementById('lightboxImg');
+  const counter = document.getElementById('lightboxCounter');
+  const caption = document.getElementById('lightboxCaption');
+  const btnPrev = lb.querySelector('[data-prev]');
+  const btnNext = lb.querySelector('[data-next]');
+
+  const imgs = Array.from(document.querySelectorAll('.podium-card img, .competition-grid img'));
+  const slides = imgs.map(img => ({
+    src: img.src,
+    caption: img.alt || img.closest('.entry-card')?.querySelector('.name')?.textContent || ''
+  }));
+  let idx = 0;
+
+  function open(i) {
+    idx = i;
+    show(i);
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  function show(i) {
+    const s = slides[i];
+    if (!s) return;
+    imgEl.src = s.src;
+    caption.textContent = s.caption;
+    counter.textContent = `${i + 1} / ${slides.length}`;
+  }
+  function next() { idx = (idx + 1) % slides.length; show(idx); }
+  function prev() { idx = (idx - 1 + slides.length) % slides.length; show(idx); }
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('.podium-card img, .competition-grid img');
+    if (t) open(imgs.indexOf(t));
+    if (e.target === lb || e.target.hasAttribute?.('data-close')) close();
+  });
+  btnPrev.addEventListener('click', e => { e.stopPropagation(); prev(); });
+  btnNext.addEventListener('click', e => { e.stopPropagation(); next(); });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowRight') next();
+    if (e.key === 'ArrowLeft') prev();
+  });
+})();
+</script>
+
+{% endif %}
+
+
+{% endblock %}

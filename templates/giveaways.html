@@ -1,0 +1,701 @@
+{% extends 'base.html' %}
+{% block title %}🎉 Giveaways - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+  <style>
+.giveaway-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 30px;
+  box-sizing: border-box;
+}
+
+.giveaway-card {
+  background-color: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  transition: all 0.3s ease;
+}
+
+body.dark .giveaway-card {
+  background-color: #1e1e1e;
+  color: #eee;
+}
+
+.giveaway-card h3 {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+  color: #4caf50;
+}
+
+.giveaway-card p {
+  font-size: 15px;
+  line-height: 1.4;
+  margin: 6px 0;
+}
+
+.giveaway-card p strong {
+  color: #ccc;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.countdown {
+  font-weight: bold;
+  color: #ff9800;
+}
+
+
+.you-entered {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  display: inline-block;
+  background: #2e7d32;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+.you-entered.show {
+  opacity: 1;
+}
+.giveaway-card details {
+  margin-top: 10px;
+}
+
+.giveaway-card details summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #0077cc;
+}
+
+.view-participants-btn {
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 14px;
+  border: none;
+  background-color: #0077cc;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.participants-modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.8);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.participants-modal.show {
+  display: flex;
+}
+
+.modal-content {
+  background: #1e1e1e;
+  padding: 20px;
+  max-height: 85vh;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 500px;
+  border-radius: 12px;
+  color: #eee;
+  box-sizing: border-box;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+.modal-content::-webkit-scrollbar {
+  display: none;
+}
+.close-button {
+  float: right;
+  background: none;
+  border: none;
+  color: #eee;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.participant-list {
+  margin-top: 20px;
+}
+
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.name {
+  font-weight: bold;
+}
+
+.entries {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.participant-row.me {
+  background: #1e5e2e;
+  border-radius: 6px;
+}
+
+body {
+  font-family: 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+}
+
+.verify-warning {
+  background: #a32d2d;
+  color: white;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  margin-top: 10px;
+  line-height: 1.4;
+}
+
+.verify-warning a {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.refresh-btn {
+  background: #d32f2f;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-block;
+  margin: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.1s ease;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+.refresh-btn:hover {
+  background: #b72b2b;
+  transform: scale(1.03);
+}
+input[type="text"] {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2c2c2c;
+  color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .giveaway-card {
+    padding: 16px;
+  }
+
+  .giveaway-card h3 {
+    font-size: 1rem;
+  }
+
+  .view-participants-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+  }
+
+  .participants-modal {
+    padding: 10px;
+  }
+
+  .modal-content {
+    padding: 15px;
+    max-height: 85vh;
+    font-size: 0.95rem;
+  }
+
+  .participant-row {
+    flex-direction: row;
+    align-items: center;
+    font-size: 14px;
+  }
+
+  .countdown {
+    font-size: 0.95rem;
+  }
+
+  .you-entered {
+    font-size: 0.75rem;
+    width: 100%;
+    text-align: center;
+  }
+
+  .verify-warning {
+    font-size: 0.85rem;
+  }
+}
+.giveaway-card form {
+  background: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  display: block;
+}
+
+.giveaway-card form label {
+  margin-top: 10px;
+  display: block;
+  font-size: 0.9rem;
+  color: inherit;
+}
+
+.giveaway-card input[type="checkbox"] {
+  margin-right: 6px;
+  transform: scale(1.1);
+  vertical-align: middle;
+}
+
+.dm-host-btn {
+  background-color: #5865F2;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 8px;
+  text-align: center;
+  text-decoration: none;
+}
+.dm-host-btn:hover {
+  background-color: #4752C4;
+}
+
+
+
+  </style>
+</style>
+{% endblock %}
+
+{% block content %}
+
+<main style="padding-top: 80px; padding-bottom: 80px;">
+
+{% if discord_id %}
+<section id="won-section" style="padding: 20px;">
+  <h2 style="text-align:center;">🏆 Recently Won Giveaways</h2>
+  <div id="won-giveaway-cards" class="giveaway-grid"></div>
+  <div id="won-pagination" style="text-align:center; margin-top: 10px;"></div>
+</section>
+{% endif %}
+
+
+<h1 style="text-align:center;">🎉 Ongoing Giveaways</h1>
+
+<div class="giveaway-grid">
+  {% for g in giveaways %}
+  <div class="giveaway-card">
+    <h3>{{ g.prize }}</h3>
+    <p style="display: flex; align-items: center; gap: 10px;">
+      {% if g.host_avatar %}
+      <img src="{{ g.host_avatar }}" alt="avatar" style="width: 26px; height: 26px; border-radius: 50%;">
+      {% endif %}
+      <strong>Host:</strong> {{ g.host_display }}
+    </p>
+    <p><strong>Ends:</strong> <span class="countdown" data-end="{{ g.end_time_ts }}"></span></p>
+    <p><strong>Winners:</strong> {{ g.winners }}</p>
+    <p><strong>Entries:</strong> <span class="entry-count" data-msgid="{{ g.message_id }}">{{ g.entry_count }}</span></p>
+    {% if g.required_role_display %}
+      <p><strong>Required Roles (OR):</strong>
+        <span style="color:#ff6666;">{{ g.required_role_display }}</span>
+      </p>
+    {% endif %}
+    <p><strong>Link:</strong> <a href="https://discord.com/channels/{{ g.guild_id }}/{{ g.channel_id }}/{{ g.message_id }}" target="_blank">Jump to Giveaway</a></p>
+
+    <!-- ✅ FORM WRAPPER -->
+    <div class="giveaway-action-wrapper" data-msgid="{{ g.message_id }}" data-has-bypass="{{ '1' if g.has_bypass else '0' }}">
+      {% if discord_id in g.participants %}
+        <div class="you-entered">You’ve joined! ({{ g.participants[discord_id] }} entries)</div>
+        <form class="leave-form" style="margin-top: 10px;">
+          <input type="hidden" name="message_id" value="{{ g.message_id }}">
+          <button type="submit" class="view-participants-btn" style="background-color: #d32f2f;">❌ Leave Giveaway</button>
+        </form>
+
+      {% elif g.not_in_guild %}
+        <div class="you-entered" style="background-color: #a32d2d;">
+          🔒 Please <a href="https://discord.gg/haydayy" target="_blank" style="color: white; text-decoration: underline;">join our Discord server</a> to join giveaways.<br>
+          <small>If you just joined, <a href="/logout?next=/login?next=/giveaways" style="color: white; text-decoration: underline;">↻ refresh login</a>.</small>
+        </div>
+
+      {% elif not g.can_join %}
+        <div class="you-entered" style="background-color: #a32d2d;">❌ Not eligible to join this giveaway</div>
+
+      {% else %}
+        <form class="join-form" data-msgid="{{ g.message_id }}" data-has-bypass="{{ '1' if g.has_bypass else '0' }}" style="margin-top: 10px;">
+          <input type="hidden" name="message_id" value="{{ g.message_id }}">
+
+        {% if g.has_bypass %}
+        <label>
+          <input type="checkbox" name="confirm" required id="confirm-{{ g.message_id }}">
+          I confirm I’ve read the giveaway title and understand all additional requirements.
+        </label>form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
+        {% endif %}
+
+          <button type="submit"
+                  class="view-participants-btn"
+                  style="background-color: #4caf50;">
+            🎉 Join Giveaway
+          </button>
+        </form>
+      {% endif %}
+    </div>
+    <!-- ✅ END WRAPPER -->
+
+    <button onclick="openParticipantsModal({{ loop.index0 }})" class="view-participants-btn">🔍 View Entry Stats & Participants</button>
+
+    <div class="participants-modal" id="modal-{{ loop.index0 }}">
+      <div class="modal-content">
+        <button class="close-button" onclick="closeParticipantsModal({{ loop.index0 }})">✖</button>
+        <h3>🎉 Participants</h3>
+
+        <!-- Search Input -->
+        <input id="search-input-{{ loop.index0 }}"
+               oninput="loadParticipantPage({{ loop.index0 }}, 1)"
+               placeholder="🔍 Search name..."
+               style="width: 100%; padding: 6px; margin: 10px 0; border-radius: 6px; border: 1px solid #444; background: #2c2c2c; color: white;">
+
+        <!-- Participant List -->
+        <div class="participant-list" id="participant-list-{{ loop.index0 }}">
+          {% for p in g.participant_info %}
+          <div class="participant-row{% if p.id == discord_id %} me{% endif %}"
+               data-name="{{ p.name | lower }}"
+               data-entries="{{ p.count }}"
+               style="display: none;">
+            {% if p.avatar %}
+            <img src="{{ p.avatar }}" class="avatar">
+            {% endif %}
+            <div>
+              <div class="name">{{ p.name }}</div>
+              <div class="entries">{{ p.count }} entries ({{ p.percent }}%)</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination-{{ loop.index0 }}" style="text-align:center; margin-top: 10px;"></div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+  </main>
+
+{% endblock %}
+{% block scripts %}
+  <script>
+    function openParticipantsModal(index) {
+      document.getElementById("modal-" + index).classList.add("show");
+      loadParticipantPage(index, 1); // IMPORTANT for pagination init
+    }
+
+    function closeParticipantsModal(index) {
+      document.getElementById("modal-" + index).classList.remove("show");
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "Escape") {
+        document.querySelectorAll(".participants-modal.show").forEach(modal => {
+          modal.classList.remove("show");
+        });
+      }
+    });
+async function loadWonGiveaways(page = 1) {
+  const res = await fetch(`/api/giveaways/won?page=${page}`);
+  const data = await res.json();
+
+  const container = document.getElementById("won-giveaway-cards");
+  const pagination = document.getElementById("won-pagination");
+  container.innerHTML = "";
+  pagination.innerHTML = "";
+
+  if (Array.isArray(data.giveaways)) {
+    data.giveaways.forEach(g => {
+      const card = document.createElement("div");
+      card.className = "giveaway-card";
+      card.innerHTML = `
+        <h3>${g.prize}</h3>
+        <p style="display:flex; align-items:center; gap:8px;">
+          ${g.host_avatar ? `<img src="${g.host_avatar}" style="width:24px; height:24px; border-radius:50%;">` : ""}
+          <strong>Host:</strong> ${g.host_display || "Unknown"}
+        </p>
+        <p><strong>Ended:</strong> ${new Date(g.end_time_ts * 1000).toLocaleString()}</p>
+        <p><strong>Message:</strong> <a href="https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id}" target="_blank">View</a></p>
+        ${g.host_id ? `<a href="https://discord.com/users/${g.host_id}" target="_blank" class="view-participants-btn" style="background:#5865F2;">💬 DM Host</a>` : ""}
+      `;
+
+
+      container.appendChild(card);
+    });
+  } else {
+    container.innerHTML = `<p style="text-align:center;">No giveaways found.</p>`;
+  }
+
+
+  const totalPages = Math.ceil(data.total / data.limit);
+  if (totalPages > 1) {
+    if (page > 1) {
+      pagination.innerHTML += `<a class="refresh-btn" onclick="loadWonGiveaways(${page - 1})">⬅ Prev</a>`;
+    }
+    pagination.innerHTML += `<span style="margin: 0 10px;">Page ${page} of ${totalPages}</span>`;
+    if (page < totalPages) {
+      pagination.innerHTML += `<a class="refresh-btn" onclick="loadWonGiveaways(${page + 1})">Next ➡</a>`;
+    }
+  }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  {% if discord_id %} loadWonGiveaways(); {% endif %}
+});
+
+  function checkConfirm(messageId) {
+  const checkbox = document.getElementById(`confirm-${messageId}`);
+  if (!checkbox || checkbox.checked) return true;
+  alert("❗ Please confirm you’ve read the giveaway title and understand the extra requirements.");
+  return false;
+}
+
+function loadParticipantPage(index, page) {
+  const modal = document.getElementById(`modal-${index}`);
+  const input = document.getElementById(`search-input-${index}`);
+  const searchTerm = input?.value?.toLowerCase() || "";
+
+  const allRows = modal.querySelectorAll(".participant-row");
+  const matchingRows = [];
+
+  allRows.forEach(row => {
+    const name = row.dataset.name || "";
+    if (name.includes(searchTerm)) {
+      matchingRows.push(row);
+    } else {
+      row.style.display = "none";
+    }
+  });
+
+  const perPage = 10;
+  const totalPages = Math.ceil(matchingRows.length / perPage);
+  const pagination = document.getElementById(`pagination-${index}`);
+  pagination.innerHTML = "";
+
+  const start = (page - 1) * perPage;
+  const end = start + perPage;
+  matchingRows.forEach((row, i) => {
+    row.style.display = (i >= start && i < end) ? "" : "none";
+  });
+
+  if (totalPages > 1) {
+    if (page > 1) {
+      pagination.innerHTML += `<a class="refresh-btn" onclick="loadParticipantPage(${index}, ${page - 1})">⬅ Prev</a>`;
+    }
+    pagination.innerHTML += `<span style="margin: 0 10px;">Page ${page} of ${totalPages}</span>`;
+    if (page < totalPages) {
+      pagination.innerHTML += `<a class="refresh-btn" onclick="loadParticipantPage(${index}, ${page + 1})">Next ➡</a>`;
+    }
+  }
+}
+
+function updateCountdowns() {
+  document.querySelectorAll(".countdown").forEach(el => {
+    const end = parseInt(el.dataset.end, 10) * 1000; // convert to ms
+    if (!end) {
+      el.textContent = "—";
+      return;
+    }
+    const now = Date.now();
+    let diff = Math.max(0, end - now);
+
+    const hours = Math.floor(diff / 3600000);
+    diff %= 3600000;
+    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+
+    if (end <= now) {
+      el.textContent = "Ended";
+    } else {
+      el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+    }
+  });
+}
+setInterval(updateCountdowns, 1000);
+updateCountdowns();
+
+function bindJoinForms() {
+  document.querySelectorAll('.join-form').forEach(form => {
+    if (form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const msgId = form.dataset.msgid;
+      const hasBypass = form.dataset.hasBypass === "1";
+      const checkbox = document.getElementById(`confirm-${msgId}`);
+
+      if (hasBypass && checkbox && !checkbox.checked) {
+        alert("❗ Please confirm you’ve read the giveaway title.");
+        return;
+      }
+
+      const formData = new FormData(form);
+
+      try {
+        const submitButton = form.querySelector("button[type=submit]");
+        submitButton.disabled = true;
+        submitButton.textContent = "Joining...";
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const res = await fetch('/giveaway/join', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            "X-CSRFToken": csrfToken 
+          }
+        });
+
+        submitButton.disabled = false;
+        submitButton.textContent = "🎉 Join Giveaway";
+
+        if (res.ok) {
+          const data = await res.json();              // ✅ read {"entries": 1|2}
+          const gained = Number(data?.entries) || 1;  // fallback to 1
+
+          const entryCountSpan = document.querySelector(`.entry-count[data-msgid="${msgId}"]`);
+          if (entryCountSpan) {
+            const current = parseInt(entryCountSpan.textContent) || 0;
+            entryCountSpan.textContent = current + gained;   // ✅ add 2 for boosters
+          }
+
+          const wrapper = form.closest(".giveaway-action-wrapper");
+          wrapper.innerHTML = `
+            <div class="you-entered">You’ve joined! (${gained} entries)</div>
+            <form class="leave-form" style="margin-top: 10px;">
+              <input type="hidden" name="message_id" value="${msgId}">
+              <button type="submit" class="view-participants-btn" style="background-color: #d32f2f;">
+                ❌ Leave Giveaway
+              </button>
+            </form>
+          `;
+          bindLeaveForms();
+          } else {
+            form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
+
+            // ⏳ After 2 seconds, restore the join form
+            setTimeout(() => {
+              const msgId = form.dataset.msgid;
+              const hasBypass = form.dataset.hasBypass === "1";
+
+              form.innerHTML = `
+                <input type="hidden" name="message_id" value="${msgId}">
+                ${hasBypass ? `
+                  <label style="display:block; margin-top: 8px;">
+                    <input type="checkbox" id="confirm-${msgId}">
+                    I confirm I’ve read the giveaway title and understand all additional requirements.
+                  </label>` : ""}
+                <button type="submit" class="view-participants-btn" style="background-color: #4caf50;">
+                  🎉 Join Giveaway
+                </button>
+              `;
+
+              bindJoinForms(); // rebind the event listener
+            }, 1200);
+          }
+
+      } catch {
+        form.innerHTML = `<div style="color:red;">❌ Network error. Please retry.</div>`;
+      }
+    });
+  });
+}
+
+
+function bindLeaveForms() {
+  document.querySelectorAll('.leave-form').forEach(form => {
+    if (form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const msgId = formData.get("message_id");
+
+      try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const res = await fetch('/giveaway/leave', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            "X-CSRFToken": csrfToken 
+          }
+        });
+
+        const data = await res.json(); // ✅ Parse response body
+
+        if (res.ok && data.success) {
+          const entryCountSpan = document.querySelector(`.entry-count[data-msgid="${msgId}"]`);
+          if (entryCountSpan) {
+            const current = parseInt(entryCountSpan.textContent) || 1;
+            entryCountSpan.textContent = Math.max(current - 1, 0);
+          }
+
+          const wrapper = form.closest(".giveaway-action-wrapper");
+          const hasBypass = wrapper?.dataset.hasBypass === "1"; // ✅ Assign correctly
+
+          wrapper.innerHTML = `
+            <form class="join-form" data-msgid="${msgId}" data-has-bypass="${hasBypass ? '1' : '0'}" style="margin-top: 10px;">
+              <input type="hidden" name="message_id" value="${msgId}">
+              ${hasBypass ? `
+                <label style="display:block; margin-top: 8px;">
+                  <input type="checkbox" id="confirm-${msgId}">
+                  I confirm I’ve read the giveaway title and understand all additional requirements.
+                </label>` : ""}
+              <button type="submit" class="view-participants-btn" style="background-color: #4caf50;">
+                🎉 Join Giveaway
+              </button>
+            </form>
+          `;
+          bindJoinForms();
+        } else {
+          form.innerHTML = `<div style="color:red;">❌ Failed to leave. Try again.</div>`;
+        }
+      } catch (err) {
+        console.error("Leave error:", err); // Optional: debug
+        form.innerHTML = `<div style="color:red;">❌ Network error. Please retry.</div>`;
+      }
+    });
+  });
+}
+
+
+bindJoinForms();
+bindLeaveForms();
+
+
+  </script>
+{% endblock %}
+
