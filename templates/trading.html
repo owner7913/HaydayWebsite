@@ -270,9 +270,9 @@ canvas{ max-width: 100%; }
 }
 /* Professional toolbar */
 .trade-controls{
-  margin-top:14px;
-  padding:14px;
-  border-radius: 14px;
+  margin-top:12px;
+  padding:10px 12px;
+  border-radius: 12px;
   background: rgba(255,255,255,0.035);
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 10px 30px rgba(0,0,0,0.22);
@@ -280,9 +280,9 @@ canvas{ max-width: 100%; }
 
 .trade-controls-grid{
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 12px;
-  align-items: end;
+  grid-template-columns: 2.2fr .8fr .8fr .9fr;
+  gap: 10px;
+  align-items: center;
 }
 
 @media (max-width: 900px){
@@ -293,9 +293,9 @@ canvas{ max-width: 100%; }
 }
 
 .control-label{
-  font-size: 12px;
-  opacity: .8;
-  margin-bottom: 6px;
+  font-size: 11px;
+  opacity: .72;
+  margin-bottom: 4px;
 }
 
 .trade-controls .input:focus{
@@ -343,16 +343,26 @@ canvas{ max-width: 100%; }
 /* Prevent weird vertical centering in some browsers */
 .trade-controls .input{
   width: 100%;
-  height: 42px;
+  height: 38px;
   box-sizing: border-box;
-  padding: 11px 12px;
+  padding: 9px 10px;
   line-height: 20px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.10);
   background: rgba(0,0,0,0.20);
   color: inherit;
 }
+body.dark #searchInput{
+  color: #eaeaea !important;
+}
+body.dark #searchInput::placeholder{
+  color: rgba(234,234,234,.45) !important;
+}
 
+/* Also keep selects readable in dark */
+body.dark .trade-controls select.input{
+  color: #eaeaea !important;
+}
 .trade-head-row{
   display:flex;
   align-items:flex-start;
@@ -453,7 +463,63 @@ body.light .trade-controls select.input option{
   padding: 12px 16px;
   font-weight: 700;
 }
+.posts-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
 
+.post-row{
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.post-top{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+.post-meta{
+  font-size:12px;
+  opacity:.75;
+}
+
+.post-values{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  font-size:13px;
+}
+
+.post-values b{ font-weight:900; }
+
+.post-jump{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  text-decoration:none;
+  font-weight:800;
+  font-size:13px;
+  opacity:.95;
+}
+
+.post-jump:hover{ text-decoration:underline; }
+  .flash {
+    animation: flashPulse .6s ease-out;
+  }
+  @keyframes flashPulse {
+    0%   { box-shadow: 0 0 0 rgba(110,231,168,0); }
+    35%  { box-shadow: 0 0 24px rgba(110,231,168,.25); }
+    100% { box-shadow: 0 0 0 rgba(110,231,168,0); }
+  }
 </style>
 
 {% endblock %}
@@ -471,12 +537,11 @@ body.light .trade-controls select.input option{
   </div>
 
 <div class="trade-hero-right" style="display:flex; gap:10px; align-items:center;">
-  <button class="btn hero-refresh" onclick="loadTrading()">Refresh Data</button>
-
   {% if is_staff %}
   <button class="btn hero-refresh" onclick="openAdminItemModal()">Admin: Add Item</button>
   {% endif %}
 </div>
+
 
 
   <!-- Controls -->
@@ -485,6 +550,10 @@ body.light .trade-controls select.input option{
       <div>
         <div class="control-label">Search</div>
         <input id="searchInput" class="input search-input" placeholder="Search items…">
+      </div>
+      <div>
+        <div class="control-label">&nbsp;</div>
+        <button class="btn hero-refresh" style="width:100%;" onclick="clearSearch()">Clear</button>
       </div>
 
       <div>
@@ -521,7 +590,7 @@ body.light .trade-controls select.input option{
       </div>
     </div>
 
-    <div style="margin-top:10px; font-size:12px; opacity:.75;">
+    <div style="margin-top:6px; font-size:12px; opacity:.7;">
       Tip: Search supports partial matches (e.g. “plank”, “nail”).
     </div>
   </div>
@@ -590,6 +659,27 @@ body.light .trade-controls select.input option{
   </div>
   </div>
 </div>
+<!-- Point Posts Popup -->
+<div id="pointPostsBackdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pointPostsTitle">
+    <div class="modal-header">
+      <div class="modal-title" style="min-width:0;">
+        <div style="min-width:0;">
+          <div id="pointPostsTitle" class="m-name" style="min-width:0;">Posts</div>
+          <div id="pointPostsSub" class="m-sub" style="opacity:.75; font-size:12px; margin-top:2px;"></div>
+        </div>
+      </div>
+      <button class="modal-close" id="pointPostsCloseBtn">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div id="pointPostsList" class="posts-list">
+        <div style="opacity:.7;">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% if is_staff %}
 <!-- Admin: Add / Fix item display -->
 <div id="adminItemBackdrop" class="modal-backdrop" aria-hidden="true" onclick="closeAdminItemModal(event)">
@@ -645,10 +735,112 @@ body.light .trade-controls select.input option{
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
+function clearSearch(){
+  document.getElementById("searchInput").value = "";
+  CURRENT_PAGE = 1;
+  LIVE_PRIMED = false;
+  LAST_SNAPSHOT.clear();
+  loadTrading(1);
+}
   
+let LIVE_TIMER = null;
+let LAST_SNAPSHOT = new Map();
+let LIVE_PRIMED = false;
 let CURRENT_PAGE = 1;
+
 let MODAL_ITEM = null;
 let PRICE_CHART = null;
+
+function showPointPostsModal(){
+  const b = document.getElementById("pointPostsBackdrop");
+  b.classList.add("show");
+  b.setAttribute("aria-hidden", "false");
+}
+
+function hidePointPostsModal(){
+  const b = document.getElementById("pointPostsBackdrop");
+  b.classList.remove("show");
+  b.setAttribute("aria-hidden", "true");
+}
+
+document.getElementById("pointPostsCloseBtn")?.addEventListener("click", hidePointPostsModal);
+
+// close if clicking backdrop
+document.getElementById("pointPostsBackdrop")?.addEventListener("click", (e) => {
+  if (e.target && e.target.id === "pointPostsBackdrop") hidePointPostsModal();
+});
+
+// ESC closes
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hidePointPostsModal();
+});
+
+async function openPointPosts(itemKey, bucket, atLabel, postType){
+  const title = document.getElementById("pointPostsTitle");
+  const sub = document.getElementById("pointPostsSub");
+  const list = document.getElementById("pointPostsList");
+
+  title.textContent = `${(postType || "").toUpperCase()} posts • ${atLabel}`;
+  sub.textContent = `Loading…`;
+
+  showPointPostsModal();
+  list.innerHTML = `<div style="opacity:.7;">Loading…</div>`;
+
+  const url =
+    `/api/trading/item/${encodeURIComponent(itemKey)}/posts` +
+    `?bucket=${encodeURIComponent(bucket)}` +
+    `&at=${encodeURIComponent(atLabel)}` +
+    `&type=${encodeURIComponent(postType)}` +
+    `&limit=300`;
+
+  const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+
+  if(!res.ok || !data.ok){
+    sub.textContent = data.error || "Failed.";
+    list.innerHTML = `<div style="opacity:.7;">${data.error || "Failed to load posts."}</div>`;
+    return;
+  }
+
+  sub.textContent = `${data.count} posts`;
+
+  if(!data.posts || !data.posts.length){
+    list.innerHTML = `<div style="opacity:.7;">No posts found for this point.</div>`;
+    return;
+  }
+
+  list.innerHTML = data.posts.map(p => {
+    const when = p.ts ? new Date(p.ts).toLocaleString() : "-";
+    const qty = (p.qty ?? "-");
+    const unit = (p.unit_price ?? "-");
+    const total = (p.total_value ?? "-");
+    const jump = p.jump_url ? p.jump_url : null;
+
+    const raw = (p.raw_text || "").toString().trim();
+    const safeRaw = raw
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+
+    return `
+      <div class="post-row">
+        <div class="post-top">
+          <div class="post-meta">${when}</div>
+          ${jump ? `<a class="post-jump" href="${jump}" target="_blank" rel="noopener">Jump to post →</a>` : `<span class="post-meta">No link</span>`}
+        </div>
+
+        <div class="post-values">
+          <span>Qty: <b>${qty}</b></span>
+          <span>Unit: <b>${unit}</b></span>
+          <span>Total: <b>${total}</b></span>
+        </div>
+
+        ${safeRaw ? `<div class="post-meta" style="white-space:pre-wrap;">${safeRaw}</div>` : ``}
+      </div>
+    `;
+  }).join("");
+}
+
 
 function showModal(){
   const b = document.getElementById("itemModalBackdrop");
@@ -1006,11 +1198,31 @@ async function loadItemHistory(itemKey){
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
+      onClick: (evt, elements) => {
+        if (!elements || !elements.length) return;
+
+        const el = elements[0];
+        const i = el.index;
+        const ds = el.datasetIndex;
+
+        // dataset 0 = Buy, dataset 1 = Sell (matches your datasets order)
+        const postType = (ds === 0) ? "buy" : "sell";
+        const atLabel = labels[i];
+
+        // optional: ignore empty points
+        const val = (postType === "buy") ? buy[i] : sell[i];
+        if (val === null || val === undefined) return;
+
+        const bucket = document.getElementById("modalBucket")?.value || "day";
+        if (!MODAL_ITEM) return;
+
+        openPointPosts(MODAL_ITEM.item_key, bucket, atLabel, postType);
+      },
+
       plugins: {
         legend: { display: true },
         tooltip: {
           callbacks: {
-            // Show price + “Trades: X” in hover
             afterLabel: (ctx) => {
               const i = ctx.dataIndex;
               const dsLabel = (ctx.dataset.label || "").toLowerCase();
@@ -1020,10 +1232,12 @@ async function loadItemHistory(itemKey){
           }
         }
       },
+
       scales: {
         y: { beginAtZero: false }
       }
     }
+
   });
 }
 
@@ -1152,6 +1366,12 @@ async function loadTrading(page = 1){
     document.getElementById("nextBtn").onclick = () => loadTrading(cur + 1);
   }
 }
+function resetAndLoad(){
+  CURRENT_PAGE = 1;
+  LIVE_PRIMED = false;
+  LAST_SNAPSHOT.clear();
+  loadTrading(1);
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   const s = document.getElementById("searchInput");
@@ -1159,12 +1379,95 @@ document.addEventListener("DOMContentLoaded", () => {
   const type = document.getElementById("typeSelect");
   const sort = document.getElementById("sortSelect");
 
-  s.addEventListener("keydown", (e) => { if(e.key === "Enter") loadTrading(1); });
-  days.addEventListener("change", () => loadTrading(1));
-  type.addEventListener("change", () => loadTrading(1));
-  sort.addEventListener("change", () => loadTrading(1));
+  s.addEventListener("keydown", (e) => { 
+    if(e.key === "Enter") resetAndLoad(); 
+  });
+
+  days.addEventListener("change", resetAndLoad);
+  type.addEventListener("change", resetAndLoad);
+  sort.addEventListener("change", resetAndLoad);
+
+  if(LIVE_TIMER) clearInterval(LIVE_TIMER);
+  LIVE_TIMER = setInterval(checkForUpdates, 15000); // every 15s
 
   loadTrading(1);
 });
+async function checkForUpdates(){
+  const q = document.getElementById("searchInput").value.trim();
+  const days = document.getElementById("daysSelect").value || "7";
+  const type = document.getElementById("typeSelect").value || "all";
+  const sort = document.getElementById("sortSelect").value || "value";
+
+  const url = `/api/trading/overview?days=${days}&type=${type}&sort=${sort}&page=${CURRENT_PAGE}&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+  if(!data.items) return;
+  if(!LIVE_PRIMED){
+
+    LAST_SNAPSHOT.clear();
+    for(const it of data.items.slice(0, 16)){
+      const snap = JSON.stringify({
+        avg_buy: it.avg_buy,
+        avg_sell: it.avg_sell,
+        total_qty: it.total_qty,
+        total_value: it.total_value,
+        total_posts: it.total_posts,
+        trend_sell_pct: it.trend_sell_pct,
+        trend_buy_pct: it.trend_buy_pct,
+      });
+      LAST_SNAPSHOT.set(it.item_key, snap);
+    }
+
+    LIVE_PRIMED = true;
+    return;
+  }
+
+  if(!data.items) return;
+
+  let changed = false;
+  for(const it of data.items.slice(0, 16)){
+    const snap = JSON.stringify({
+      avg_buy: it.avg_buy,
+      avg_sell: it.avg_sell,
+      total_qty: it.total_qty,
+      total_value: it.total_value,
+      total_posts: it.total_posts,
+      trend_sell_pct: it.trend_sell_pct,
+      trend_buy_pct: it.trend_buy_pct,
+    });
+
+    const prev = LAST_SNAPSHOT.get(it.item_key);
+    if(!prev || prev !== snap){
+      changed = true;
+      break;
+    }
+  }
+
+  if(changed){
+    await loadTrading(CURRENT_PAGE);
+
+    // flash grid quickly
+    const container = document.getElementById("tradeResults");
+    container.classList.remove("flash");
+    void container.offsetWidth;
+    container.classList.add("flash");
+  }
+
+  // Update snapshot after
+  LAST_SNAPSHOT.clear();
+  for(const it of data.items.slice(0, 16)){
+    const snap = JSON.stringify({
+      avg_buy: it.avg_buy,
+      avg_sell: it.avg_sell,
+      total_qty: it.total_qty,
+      total_value: it.total_value,
+      total_posts: it.total_posts,
+      trend_sell_pct: it.trend_sell_pct,
+      trend_buy_pct: it.trend_buy_pct,
+    });
+    LAST_SNAPSHOT.set(it.item_key, snap);
+  }
+}
+
 </script>
 {% endblock %}

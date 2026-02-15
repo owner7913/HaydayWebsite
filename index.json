@@ -9,6 +9,24 @@
     "sha1": "d6f6dde6a2a308560e4e350c777e36e66b98b38e"
   },
   {
+    "key": "apple_ginger_tea",
+    "name": "Apple Ginger Tea",
+    "category": "item",
+    "hash64": "0xf09c9c341d9b4ad8",
+    "file_title": "File:Apple Ginger Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e3/Apple_Ginger_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111044",
+    "sha1": "c2008e59c518d10f8124e8735ba8052cf225fc44"
+  },
+  {
+    "key": "apple_jam",
+    "name": "Apple Jam",
+    "category": "item",
+    "hash64": "0xe0c0e1ccc6cfcaf2",
+    "file_title": "File:Apple Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/6/6c/Apple_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208151258",
+    "sha1": "f0dce1a044b03bee2cfc3e83fc055d59f2963491"
+  },
+  {
     "key": "apple_juice",
     "name": "Apple Juice",
     "category": "item",
@@ -21,7 +39,7 @@
     "key": "apple_pie",
     "name": "Apple Pie",
     "category": "item",
-    "hash64": "0xf03470c8705000",
+    "hash64": "0x00f03470c8705000",
     "file_title": "File:Apple Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/fb/Apple_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207083954",
     "sha1": "77d19c2a87fe9620457eee809a19325731758146"
@@ -39,7 +57,7 @@
     "key": "asparagus_quiche",
     "name": "Asparagus Quiche",
     "category": "item",
-    "hash64": "0x3ce8b3149cc000",
+    "hash64": "0x003ce8b3149cc000",
     "file_title": "File:Asparagus Quiche.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/4/4b/Asparagus_Quiche.png/revision/latest/scale-to-width-down/128?cb=20240207145524",
     "sha1": "639384ad41f134740d15cfae4ee18404a036bbc6"
@@ -57,7 +75,7 @@
     "key": "axe",
     "name": "Axe",
     "category": "item",
-    "hash64": "0x6152f4edda161cd",
+    "hash64": "0x06152f4edda161cd",
     "file_title": "File:Axe.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/fb/Axe.png/revision/latest?cb=20191028130205",
     "sha1": "66d916186adf8f27c95ff65510340df4d58f0cc6"
@@ -75,7 +93,7 @@
     "key": "bacon_donut",
     "name": "Bacon Donut",
     "category": "item",
-    "hash64": "0xe8d4965d9ed000",
+    "hash64": "0x00e8d4965d9ed000",
     "file_title": "File:Bacon Donut.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/06/Bacon_Donut.png/revision/latest/scale-to-width-down/128?cb=20240212101525",
     "sha1": "cd07b4aa831166204609020fb374d2ff8a9a4f80"
@@ -84,7 +102,7 @@
     "key": "bacon_fondue",
     "name": "Bacon Fondue",
     "category": "item",
-    "hash64": "0x38d2a7cbc8f800",
+    "hash64": "0x0038d2a7cbc8f800",
     "file_title": "File:Bacon Fondue.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d0/Bacon_Fondue.png/revision/latest/scale-to-width-down/128?cb=20240411145310",
     "sha1": "e0545b0b7be9ac0f0ef45c2170b4b3c6a477f342"
@@ -102,7 +120,7 @@
     "key": "bacon_pie",
     "name": "Bacon Pie",
     "category": "item",
-    "hash64": "0xc8885ad4705000",
+    "hash64": "0x00c8885ad4705000",
     "file_title": "File:Bacon Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b4/Bacon_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207145633",
     "sha1": "f42325b4a493624214a789623cc5a8a1bdf62695"
@@ -120,7 +138,7 @@
     "key": "bacon_and_eggs",
     "name": "Bacon and Eggs",
     "category": "item",
-    "hash64": "0xc08cc0c8626000",
+    "hash64": "0x00c08cc0c8626000",
     "file_title": "File:Bacon and Eggs.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/a6/Bacon_and_Eggs.png/revision/latest/scale-to-width-down/128?cb=20240205164211",
     "sha1": "1ef3412935c1e050f08a7c42af99cdf1dab20a7c"
@@ -129,7 +147,7 @@
     "key": "bacon",
     "name": "Bacon",
     "category": "item",
-    "hash64": "0x63b6cb090c08080",
+    "hash64": "0x063b6cb090c08080",
     "file_title": "File:Bacon.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f6/Bacon.png/revision/latest/scale-to-width-down/128?cb=20191025193433",
     "sha1": "4f0389cf5667fec5e30e92a956f68a3fdcb48683"
@@ -165,7 +183,7 @@
     "key": "banana_split",
     "name": "Banana Split",
     "category": "item",
-    "hash64": "0xc6cb1c0a2c800",
+    "hash64": "0x000c6cb1c0a2c800",
     "file_title": "File:Banana Split.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/bd/Banana_Split.png/revision/latest/scale-to-width-down/128?cb=20240208104115",
     "sha1": "0891e48bc74f10e5dd2009cc8350688bfbbb8c63"
@@ -183,7 +201,7 @@
     "key": "bean_salad",
     "name": "Bean Salad",
     "category": "item",
-    "hash64": "0x8c8a16107c6e660",
+    "hash64": "0x08c8a16107c6e660",
     "file_title": "File:Bean Salad.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b4/Bean_Salad.png/revision/latest/scale-to-width-down/128?cb=20260126211155",
     "sha1": "6b096837885fbe2b39422e37436ee2a06b090c9e"
@@ -246,7 +264,7 @@
     "key": "big_sushi_roll",
     "name": "Big Sushi Roll",
     "category": "item",
-    "hash64": "0xd0b2a48ed95a00",
+    "hash64": "0x00d0b2a48ed95a00",
     "file_title": "File:Big Sushi Roll.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/a9/Big_Sushi_Roll.png/revision/latest/scale-to-width-down/128?cb=20240210101848",
     "sha1": "68e32e943342ad636ee8896e2642d0952d17a2d9"
@@ -264,10 +282,19 @@
     "key": "black_sesame_smoothie",
     "name": "Black Sesame Smoothie",
     "category": "item",
-    "hash64": "0xcf0c8d0d0745848",
+    "hash64": "0x0cf0c8d0d0745848",
     "file_title": "File:Black Sesame Smoothie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/3c/Black_Sesame_Smoothie.png/revision/latest/scale-to-width-down/128?cb=20240211171316",
     "sha1": "69d599b459cd1bb201a80c4e931d72ea9ec0e789"
+  },
+  {
+    "key": "blackberry_jam",
+    "name": "Blackberry Jam",
+    "category": "item",
+    "hash64": "0xf0c1e1f4ce8b96e2",
+    "file_title": "File:Blackberry Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/5/52/Blackberry_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208151625",
+    "sha1": "18d551253fb79ed67898360a637f9e3bef01442d"
   },
   {
     "key": "blackberry_muffin",
@@ -282,7 +309,7 @@
     "key": "blanket",
     "name": "Blanket",
     "category": "item",
-    "hash64": "0x8f090fcf9f07030",
+    "hash64": "0x08f090fcf9f07030",
     "file_title": "File:Blanket.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/3b/Blanket.png/revision/latest/scale-to-width-down/128?cb=20240411145624",
     "sha1": "5468fb7da51e61e4763a426aae9a99cb399e4041"
@@ -291,7 +318,7 @@
     "key": "blue_sweater",
     "name": "Blue Sweater",
     "category": "item",
-    "hash64": "0x7098aef863b600",
+    "hash64": "0x007098aef863b600",
     "file_title": "File:Blue Sweater.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/37/Blue_Sweater.png/revision/latest/scale-to-width-down/128?cb=20240207155757",
     "sha1": "71b7d9136f6ffe49a4c1450f29a6816c89bc0fe4"
@@ -309,7 +336,7 @@
     "key": "blueberry_cheesecake",
     "name": "Blueberry Cheesecake",
     "category": "item",
-    "hash64": "0xf8eab81533cc00",
+    "hash64": "0x00f8eab81533cc00",
     "file_title": "File:Blueberry Cheesecake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/9/9d/Blueberry_Cheesecake.png/revision/latest/scale-to-width-down/128?cb=20250922214642",
     "sha1": "652b843f80899127622c29922b1ae314e8b567ba"
@@ -336,7 +363,7 @@
     "key": "blueberry_waffles",
     "name": "Blueberry Waffles",
     "category": "item",
-    "hash64": "0x70d0a861e8f000",
+    "hash64": "0x0070d0a861e8f000",
     "file_title": "File:Blueberry Waffles.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b7/Blueberry_Waffles.png/revision/latest/scale-to-width-down/128?cb=20250722061502",
     "sha1": "a680e2c930e27d918bf877e8050ed7c5881174e4"
@@ -381,7 +408,7 @@
     "key": "breakfast_bowl",
     "name": "Breakfast Bowl",
     "category": "item",
-    "hash64": "0x60ccccb8d0f030",
+    "hash64": "0x0060ccccb8d0f030",
     "file_title": "File:Breakfast Bowl.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/2/2e/Breakfast_Bowl.png/revision/latest/scale-to-width-down/128?cb=20240411145742",
     "sha1": "36455284679b9e31ea58932022ed68b0a1a84b19"
@@ -390,7 +417,7 @@
     "key": "breakfast_waffles",
     "name": "Breakfast Waffles",
     "category": "item",
-    "hash64": "0xd0e341e8808000",
+    "hash64": "0x00d0e341e8808000",
     "file_title": "File:Breakfast Waffles.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/5/59/Breakfast_Waffles.png/revision/latest/scale-to-width-down/128?cb=20240217133249",
     "sha1": "a3ece4d5db4f38289e737454cc0e9936f158d10a"
@@ -417,7 +444,7 @@
     "key": "broccoli_pasta",
     "name": "Broccoli Pasta",
     "category": "item",
-    "hash64": "0xe88426d4f06600",
+    "hash64": "0x00e88426d4f06600",
     "file_title": "File:Broccoli Pasta.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/a8/Broccoli_Pasta.png/revision/latest/scale-to-width-down/128?cb=20240211175501",
     "sha1": "ade08cabf6feaa7c36f0c91aa3d89509736ef958"
@@ -432,6 +459,15 @@
     "sha1": "e2a9bf81a47d39b3512c19986b18e057b66e93aa"
   },
   {
+    "key": "brown_sugar",
+    "name": "Brown Sugar",
+    "category": "item",
+    "hash64": "0xd965597959f9c1ee",
+    "file_title": "File:Brown Sugar.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/0/02/Brown_Sugar.png/revision/latest/scale-to-width-down/128?cb=20240205163705",
+    "sha1": "51a8525e0c5fe4f1ffe22728d165e7323e630c75"
+  },
+  {
     "key": "butter",
     "name": "Butter",
     "category": "item",
@@ -441,10 +477,19 @@
     "sha1": "8a5d34430f7d219d4d6ffb03600a1b123f9ec440"
   },
   {
+    "key": "buttered_popcorn",
+    "name": "Buttered Popcorn",
+    "category": "item",
+    "hash64": "0xd48094d4d4d0d0c0",
+    "file_title": "File:Buttered Popcorn.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/8/88/Buttered_Popcorn.png/revision/latest/scale-to-width-down/128?cb=20240206170136",
+    "sha1": "1195648c4c7e437815175e57b0282adc373ea696"
+  },
+  {
     "key": "cabbage_soup",
     "name": "Cabbage Soup",
     "category": "item",
-    "hash64": "0xcc4f8ef93000",
+    "hash64": "0x0000cc4f8ef93000",
     "file_title": "File:Cabbage Soup.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/34/Cabbage_Soup.png/revision/latest/scale-to-width-down/128?cb=20240209021929",
     "sha1": "741a89478c911da5edb59285fab21aea9701c612"
@@ -486,6 +531,15 @@
     "sha1": "8a46b731d3f6ce599a75746b9d11e79cfcad5b65"
   },
   {
+    "key": "candy_bouquet",
+    "name": "Candy Bouquet",
+    "category": "item",
+    "hash64": "0xccb0d0d2b678706e",
+    "file_title": "File:Candy Bouquet.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/1/1b/Candy_Bouquet.png/revision/latest/scale-to-width-down/128?cb=20240209042614",
+    "sha1": "2956ca41d6b0bc2b38d218266b86139be3c7cdd1"
+  },
+  {
     "key": "canned_fish",
     "name": "Canned Fish",
     "category": "item",
@@ -507,7 +561,7 @@
     "key": "caramel_latte",
     "name": "Caramel Latte",
     "category": "item",
-    "hash64": "0xde1c8cd38ba8ef3",
+    "hash64": "0x0de1c8cd38ba8ef3",
     "file_title": "File:Caramel Latte.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/6a/Caramel_Latte.png/revision/latest/scale-to-width-down/128?cb=20240209013040",
     "sha1": "614595a4bdc444c46c978f858d00b7417ba46db0"
@@ -516,7 +570,7 @@
     "key": "carrot_cake",
     "name": "Carrot Cake",
     "category": "item",
-    "hash64": "0xc49cf0729c6000",
+    "hash64": "0x00c49cf0729c6000",
     "file_title": "File:Carrot Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/dd/Carrot_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223073206",
     "sha1": "8532d037e5740f007f3209eae81e84f642800032"
@@ -534,7 +588,7 @@
     "key": "carrot_pie",
     "name": "Carrot Pie",
     "category": "item",
-    "hash64": "0xc880c8f0705000",
+    "hash64": "0x00c880c8f0705000",
     "file_title": "File:Carrot Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/0b/Carrot_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207083902",
     "sha1": "ae2cd867c1d8b420c7a395246f26425d69309d56"
@@ -543,7 +597,7 @@
     "key": "casserole",
     "name": "Casserole",
     "category": "item",
-    "hash64": "0xf08d29e176b000",
+    "hash64": "0x00f08d29e176b000",
     "file_title": "File:Casserole.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b6/Casserole.png/revision/latest/scale-to-width-down/128?cb=20240207145740",
     "sha1": "be851be3c52968466d11d142c7fcc17a556f6336"
@@ -558,6 +612,15 @@
     "sha1": "ce2508643d38327a4a6ad0a3e9c6bbf7265c19d2"
   },
   {
+    "key": "chamomile_tea",
+    "name": "Chamomile Tea",
+    "category": "item",
+    "hash64": "0xf0dc8df492d6ecf0",
+    "file_title": "File:Chamomile Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7e/Chamomile_Tea.png/revision/latest/scale-to-width-down/128?cb=20241209181932",
+    "sha1": "96389975bf0a8893a8afd4a8f4d551fadd469c0a"
+  },
+  {
     "key": "checkered_balloon",
     "name": "Checkered Balloon",
     "category": "item",
@@ -570,7 +633,7 @@
     "key": "cheese_fondue",
     "name": "Cheese Fondue",
     "category": "item",
-    "hash64": "0x64d8e58ec8e000",
+    "hash64": "0x0064d8e58ec8e000",
     "file_title": "File:Cheese Fondue.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/3a/Cheese_Fondue.png/revision/latest/scale-to-width-down/128?cb=20240411145907",
     "sha1": "ed667f5086a8405a3799e976ce94470790b4556b"
@@ -579,7 +642,7 @@
     "key": "cheese_omelet",
     "name": "Cheese Omelet",
     "category": "item",
-    "hash64": "0x64c3f4c8921700",
+    "hash64": "0x0064c3f4c8921700",
     "file_title": "File:Cheese Omelet.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/c2/Cheese_Omelet.png/revision/latest/scale-to-width-down/128?cb=20240212103833",
     "sha1": "f0adeb0c7a168ce8124377ed07afd2e52caaf7ce"
@@ -597,7 +660,7 @@
     "key": "cheesecake",
     "name": "Cheesecake",
     "category": "item",
-    "hash64": "0xcc840c70e00000",
+    "hash64": "0x00cc840c70e00000",
     "file_title": "File:Cheesecake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/2/2d/Cheesecake.png/revision/latest/scale-to-width-down/128?cb=20240223073836",
     "sha1": "3feabc598161191c7d997d556b4c5d61f082f481"
@@ -610,6 +673,15 @@
     "file_title": "File:Cherry Egg.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b1/Cherry_Egg.png/revision/latest/scale-to-width-down/128?cb=20240218025100",
     "sha1": "34150ccd0fe3ea9e2452c6faaf01d1424558bee6"
+  },
+  {
+    "key": "cherry_jam",
+    "name": "Cherry Jam",
+    "category": "item",
+    "hash64": "0xe0c0e1b4cecf8af2",
+    "file_title": "File:Cherry Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/5/53/Cherry_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208151724",
+    "sha1": "19dc47210f361aa2da9e6431060d3b9db892783a"
   },
   {
     "key": "cherry_popsicle",
@@ -642,16 +714,25 @@
     "key": "chili_fudge",
     "name": "Chili Fudge",
     "category": "item",
-    "hash64": "0xc8cc8c88989800",
+    "hash64": "0x00c8cc8c88989800",
     "file_title": "File:Chili Fudge.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/a2/Chili_Fudge.png/revision/latest/scale-to-width-down/128?cb=20240212144118",
     "sha1": "e986c561f198d399bae9450411421c9b54154ba1"
   },
   {
+    "key": "chili_popcorn",
+    "name": "Chili Popcorn",
+    "category": "item",
+    "hash64": "0xd48494f4f4d4d070",
+    "file_title": "File:Chili Popcorn.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7c/Chili_Popcorn.png/revision/latest/scale-to-width-down/128?cb=20240206170227",
+    "sha1": "e75cb3147929f8ae6c0a13c4bf656c7fc7c3611b"
+  },
+  {
     "key": "chili_poppers",
     "name": "Chili Poppers",
     "category": "item",
-    "hash64": "0x70d024abf43000",
+    "hash64": "0x0070d024abf43000",
     "file_title": "File:Chili Poppers.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/8f/Chili_Poppers.png/revision/latest/scale-to-width-down/128?cb=20240212130039",
     "sha1": "03e8f33617f8dbe4d5dfb63b0168f4d9121fb137"
@@ -660,7 +741,7 @@
     "key": "chili_stew",
     "name": "Chili Stew",
     "category": "item",
-    "hash64": "0xf0a6ecaae8f300",
+    "hash64": "0x00f0a6ecaae8f300",
     "file_title": "File:Chili Stew.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/c6/Chili_Stew.png/revision/latest/scale-to-width-down/128?cb=20240411150019",
     "sha1": "934337ca4e45a2771b21d7a97ae2c9491bada13f"
@@ -678,7 +759,7 @@
     "key": "chocolate_cake",
     "name": "Chocolate Cake",
     "category": "item",
-    "hash64": "0xe0dc7072906000",
+    "hash64": "0x00e0dc7072906000",
     "file_title": "File:Chocolate Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/87/Chocolate_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223074025",
     "sha1": "37f3ecfac85b68d532351ba1f1e44c990f51dba7"
@@ -765,10 +846,19 @@
     "sha1": "c9b41eba4cd36c31d64500bcd03200dc3457c1d2"
   },
   {
+    "key": "chocolate_popcorn",
+    "name": "Chocolate Popcorn",
+    "category": "item",
+    "hash64": "0xd484b4f4b4d4d070",
+    "file_title": "File:Chocolate Popcorn.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/0/09/Chocolate_Popcorn.png/revision/latest/scale-to-width-down/128?cb=20240206170316",
+    "sha1": "76cae10c79f0137ba1e12bb3e184c9176875bc0e"
+  },
+  {
     "key": "chocolate_roll",
     "name": "Chocolate Roll",
     "category": "item",
-    "hash64": "0x3c69e30c98e400",
+    "hash64": "0x003c69e30c98e400",
     "file_title": "File:Chocolate Roll.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/a3/Chocolate_Roll.png/revision/latest/scale-to-width-down/128?cb=20240411150118",
     "sha1": "c35260e0116f62c36a5d9170da0718c05fe695fd"
@@ -786,7 +876,7 @@
     "key": "chocolate_waffles",
     "name": "Chocolate Waffles",
     "category": "item",
-    "hash64": "0x38da6734f16800",
+    "hash64": "0x0038da6734f16800",
     "file_title": "File:Chocolate Waffles.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/4/4d/Chocolate_Waffles.png/revision/latest/scale-to-width-down/128?cb=20240217133520",
     "sha1": "616306acc80c0dbd1689e05a6ef8019a3002e2fb"
@@ -795,7 +885,7 @@
     "key": "chocolate",
     "name": "Chocolate",
     "category": "item",
-    "hash64": "0xd0a8caf6ff3b00",
+    "hash64": "0x00d0a8caf6ff3b00",
     "file_title": "File:Chocolate.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/df/Chocolate.png/revision/latest/scale-to-width-down/128?cb=20240210053728",
     "sha1": "a2a9765616cd99fb10fabdac5bb7c2cbd651a551"
@@ -885,7 +975,7 @@
     "key": "colourful_omelet",
     "name": "Colourful Omelet",
     "category": "item",
-    "hash64": "0x18dc0d3b9c3000",
+    "hash64": "0x0018dc0d3b9c3000",
     "file_title": "File:Colourful Omelet.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/65/Colourful_Omelet.png/revision/latest/scale-to-width-down/128?cb=20240212104001",
     "sha1": "c2fd163bca54918d37f981175ff257bab15a77bd"
@@ -921,10 +1011,19 @@
     "key": "corn_dog",
     "name": "Corn Dog",
     "category": "item",
-    "hash64": "0x187cf0e22f5000",
+    "hash64": "0x00187cf0e22f5000",
     "file_title": "File:Corn Dog.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/1/15/Corn_Dog.png/revision/latest/scale-to-width-down/128?cb=20240211180913",
     "sha1": "bc84e024c24d59eb04023c8ed5ca44a7ef146220"
+  },
+  {
+    "key": "cotton_candy",
+    "name": "Cotton Candy",
+    "category": "item",
+    "hash64": "0xecf4b0d018accad0",
+    "file_title": "File:Cotton Candy.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/6/67/Cotton_Candy.png/revision/latest/scale-to-width-down/128?cb=20240210053918",
+    "sha1": "2a0b6a80f76d789f3c0726588983787912512033"
   },
   {
     "key": "cotton_fabric",
@@ -1029,7 +1128,7 @@
     "key": "duck_feather",
     "name": "Duck Feather",
     "category": "item",
-    "hash64": "0xc1879c68480b890",
+    "hash64": "0x0c1879c68480b890",
     "file_title": "File:Duck Feather.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f9/Duck_Feather.png/revision/latest/scale-to-width-down/128?cb=20150414212143",
     "sha1": "5966741353d4b3efac30cfcdb942ea7374a786b1"
@@ -1047,7 +1146,7 @@
     "key": "dynamite",
     "name": "Dynamite",
     "category": "item",
-    "hash64": "0xc3c68f0c0e062c2",
+    "hash64": "0x0c3c68f0c0e062c2",
     "file_title": "File:Dynamite.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/fc/Dynamite.png/revision/latest/scale-to-width-down/128?cb=20191028130301",
     "sha1": "9af13ac3af4cad6b55cfff537fd3e6d78687ec69"
@@ -1056,7 +1155,7 @@
     "key": "egg_sandwich",
     "name": "Egg Sandwich",
     "category": "item",
-    "hash64": "0xf8e3ca2eac5300",
+    "hash64": "0x00f8e3ca2eac5300",
     "file_title": "File:Egg Sandwich.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/81/Egg_Sandwich.png/revision/latest/scale-to-width-down/128?cb=20240211165444",
     "sha1": "641040f3dcba083547bda23b9a8f773fe7c23f9e"
@@ -1065,7 +1164,7 @@
     "key": "egg_sushi",
     "name": "Egg Sushi",
     "category": "item",
-    "hash64": "0xf0c88c8cdf7c00",
+    "hash64": "0x00f0c88c8cdf7c00",
     "file_title": "File:Egg Sushi.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/9/9b/Egg_Sushi.png/revision/latest/scale-to-width-down/128?cb=20240210101954",
     "sha1": "9f7e8eaee65ec70f890cf781a8981f7d6fef2ea1"
@@ -1110,7 +1209,7 @@
     "key": "expansion_permit",
     "name": "Expansion Permit",
     "category": "item",
-    "hash64": "0x8095987a1a0c00",
+    "hash64": "0x008095987a1a0c00",
     "file_title": "File:Expansion Permit.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/3a/Expansion_Permit.png/revision/latest/scale-to-width-down/128?cb=20170324165909",
     "sha1": "92df7b5e25593aa9f41d2d86d633c442ef2a27c9"
@@ -1119,7 +1218,7 @@
     "key": "falafel",
     "name": "Falafel",
     "category": "item",
-    "hash64": "0x78da4a62ace800",
+    "hash64": "0x0078da4a62ace800",
     "file_title": "File:Falafel.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/5/5c/Falafel.png/revision/latest/scale-to-width-down/128?cb=20240411150353",
     "sha1": "67dbb94383043aab5dd05b742fdfcafff7a07967"
@@ -1137,7 +1236,7 @@
     "key": "feta_pie",
     "name": "Feta Pie",
     "category": "item",
-    "hash64": "0xc8d4a8d0705000",
+    "hash64": "0x00c8d4a8d0705000",
     "file_title": "File:Feta Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/61/Feta_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207150211",
     "sha1": "6411ac590d4a2f83dbce8c9af94d87bf0bea1e13"
@@ -1155,7 +1254,7 @@
     "key": "filled_donut",
     "name": "Filled Donut",
     "category": "item",
-    "hash64": "0x8e0cc79311df036",
+    "hash64": "0x08e0cc79311df036",
     "file_title": "File:Filled Donut.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/30/Filled_Donut.png/revision/latest/scale-to-width-down/128?cb=20240212102005",
     "sha1": "82b9c3948f64634e1cf4a452828d9727c3b10a46"
@@ -1164,7 +1263,7 @@
     "key": "fish_burger",
     "name": "Fish Burger",
     "category": "item",
-    "hash64": "0xe0e0eeacf4ec0c",
+    "hash64": "0x00e0e0eeacf4ec0c",
     "file_title": "File:Fish Burger.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7e/Fish_Burger.png/revision/latest/scale-to-width-down/128?cb=20240205164539",
     "sha1": "7cb4d6a99b445e9d96551bc1b20d68139c6ac123"
@@ -1182,7 +1281,7 @@
     "key": "fish_pie",
     "name": "Fish Pie",
     "category": "item",
-    "hash64": "0x78de54a9e2e600",
+    "hash64": "0x0078de54a9e2e600",
     "file_title": "File:Fish Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/e/ec/Fish_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207150258",
     "sha1": "2ceb7efc8cb989115a9d5664f6fa3c5f02185c6c"
@@ -1191,7 +1290,7 @@
     "key": "fish_skewer",
     "name": "Fish Skewer",
     "category": "item",
-    "hash64": "0x3bf4c5c7c8e060",
+    "hash64": "0x003bf4c5c7c8e060",
     "file_title": "File:Fish Skewer.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/80/Fish_Skewer.png/revision/latest/scale-to-width-down/128?cb=20240223075951",
     "sha1": "592acffea0f6971f79fe8f0be25d77a4b429e231"
@@ -1245,7 +1344,7 @@
     "key": "flower_crown",
     "name": "Flower Crown",
     "category": "item",
-    "hash64": "0x64a41626fddf00",
+    "hash64": "0x0064a41626fddf00",
     "file_title": "File:Flower Crown.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/ce/Flower_Crown.png/revision/latest/scale-to-width-down/128?cb=20240211173705",
     "sha1": "201f6e6a21768b60d7d3cc258c11c0612e251d04"
@@ -1281,7 +1380,7 @@
     "key": "fresh_pasta",
     "name": "Fresh Pasta",
     "category": "item",
-    "hash64": "0xf0a06ac0373000",
+    "hash64": "0x00f0a06ac0373000",
     "file_title": "File:Fresh Pasta.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/9/93/Fresh_Pasta.png/revision/latest/scale-to-width-down/128?cb=20240211172634",
     "sha1": "0322315a0150bba8f44518fca3feda65c927f18f"
@@ -1290,16 +1389,25 @@
     "key": "fresh_porridge",
     "name": "Fresh Porridge",
     "category": "item",
-    "hash64": "0xe2a8e2f0e0f000",
+    "hash64": "0x00e2a8e2f0e0f000",
     "file_title": "File:Fresh Porridge.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/09/Fresh_Porridge.png/revision/latest/scale-to-width-down/128?cb=20240217161318",
     "sha1": "635bd1d1c711cc6cf22993f75c646c4b90977356"
   },
   {
+    "key": "fried_candy_bar",
+    "name": "Fried Candy Bar",
+    "category": "item",
+    "hash64": "0xccccced8d8c088c0",
+    "file_title": "File:Fried Candy Bar.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/9/96/Fried_Candy_Bar.png/revision/latest/scale-to-width-down/128?cb=20240411150432",
+    "sha1": "1b6b621e726cd498efc86444f20f49519b8cab3d"
+  },
+  {
     "key": "fried_rice",
     "name": "Fried Rice",
     "category": "item",
-    "hash64": "0xe0a86018e4e800",
+    "hash64": "0x00e0a86018e4e800",
     "file_title": "File:Fried Rice.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/61/Fried_Rice.png/revision/latest/scale-to-width-down/128?cb=20240411150556",
     "sha1": "b44a372d9a2e9bcc8949e4f3825af88aa49e0d82"
@@ -1353,7 +1461,7 @@
     "key": "garlic_bread",
     "name": "Garlic Bread",
     "category": "item",
-    "hash64": "0x3c78b31e9ac000",
+    "hash64": "0x003c78b31e9ac000",
     "file_title": "File:Garlic Bread.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7f/Garlic_Bread.png/revision/latest/scale-to-width-down/128?cb=20240411150635",
     "sha1": "69818636e2c9f09e122be8cf8c7fafe0bcf1f5fb"
@@ -1389,7 +1497,7 @@
     "key": "gnocchi",
     "name": "Gnocchi",
     "category": "item",
-    "hash64": "0x30cc4ee8f20000",
+    "hash64": "0x0030cc4ee8f20000",
     "file_title": "File:Gnocchi.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/81/Gnocchi.png/revision/latest/scale-to-width-down/128?cb=20240211175230",
     "sha1": "ee50c8f61806999213b085b5bde56f62552b878e"
@@ -1434,7 +1542,7 @@
     "key": "gold_bar",
     "name": "Gold Bar",
     "category": "item",
-    "hash64": "0x878d0e040c75c00",
+    "hash64": "0x0878d0e040c75c00",
     "file_title": "File:Gold Bar.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/4/4e/Gold_Bar.png/revision/latest/scale-to-width-down/128?cb=20240208090745",
     "sha1": "3b966949714010511feb3663797e81c5fb000082"
@@ -1443,7 +1551,7 @@
     "key": "gold_ore",
     "name": "Gold Ore",
     "category": "item",
-    "hash64": "0x98a962f0703000",
+    "hash64": "0x0098a962f0703000",
     "file_title": "File:Gold Ore.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f7/Gold_Ore.png/revision/latest/scale-to-width-down/128?cb=20150711233638",
     "sha1": "99a49896741e72ecef49c4ce41ef7d207ef98d9f"
@@ -1456,6 +1564,15 @@
     "file_title": "File:Gracious Bouquet.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/82/Gracious_Bouquet.png/revision/latest/scale-to-width-down/128?cb=20240411150713",
     "sha1": "127cc1802b553cefe182f85da5e9b3f6619c7916"
+  },
+  {
+    "key": "grape_jam",
+    "name": "Grape Jam",
+    "category": "item",
+    "hash64": "0xf0c0f1f1ecc8d872",
+    "file_title": "File:Grape Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/f/fa/Grape_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208152012",
+    "sha1": "14cdb43d51de0abd95ff879a6432023f37be4c9a"
   },
   {
     "key": "grape_juice",
@@ -1483,6 +1600,15 @@
     "file_title": "File:Green Smoothie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f6/Green_Smoothie.png/revision/latest/scale-to-width-down/128?cb=20240211171507",
     "sha1": "ae2b41a712773f218785f95c7ac6b44cf6c4923f"
+  },
+  {
+    "key": "green_tea",
+    "name": "Green Tea",
+    "category": "item",
+    "hash64": "0x72f0f1f1d3d9f0f0",
+    "file_title": "File:Green Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/8/8f/Green_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212110927",
+    "sha1": "b46dc024f18ed6a113824bed6f9c1fc06a76f927"
   },
   {
     "key": "guava_compote",
@@ -1515,7 +1641,7 @@
     "key": "guitar_balloon",
     "name": "Guitar Balloon",
     "category": "item",
-    "hash64": "0xc6ce8e090d0f0c0",
+    "hash64": "0x0c6ce8e090d0f0c0",
     "file_title": "File:Guitar Balloon.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/5/5c/Guitar_Balloon.png/revision/latest/scale-to-width-down/128?cb=20240626211127",
     "sha1": "510c75a1dfb527604a5ab162e676e048026663b2"
@@ -1542,7 +1668,7 @@
     "key": "hand_drill",
     "name": "Hand Drill",
     "category": "item",
-    "hash64": "0x70d0d0e6cf29800",
+    "hash64": "0x070d0d0e6cf29800",
     "file_title": "File:Hand Drill.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d4/Hand_Drill.png/revision/latest/scale-to-width-down/128?cb=20191028131624",
     "sha1": "0b8c4fb256c9ca2dc03963051d9bf0d4f984cfdc"
@@ -1560,7 +1686,7 @@
     "key": "honey_apple_cake",
     "name": "Honey Apple Cake",
     "category": "item",
-    "hash64": "0xf0c8682694e000",
+    "hash64": "0x00f0c8682694e000",
     "file_title": "File:Honey Apple Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/1/16/Honey_Apple_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223074318",
     "sha1": "10a21fe3cae8f900c76d8423fb9a26a6f41acfc4"
@@ -1584,6 +1710,15 @@
     "sha1": "4e4c8aecd4b4321048c3a6758f2b61a0f8c46c1a"
   },
   {
+    "key": "honey_popcorn",
+    "name": "Honey Popcorn",
+    "category": "item",
+    "hash64": "0xf0b0b0c0d0e0d070",
+    "file_title": "File:Honey Popcorn.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b1/Honey_Popcorn.png/revision/latest/scale-to-width-down/128?cb=20240206170401",
+    "sha1": "a72283910fc026e1cc2a18a7bf9f74509e7433a3"
+  },
+  {
     "key": "honey_soap",
     "name": "Honey Soap",
     "category": "item",
@@ -1593,10 +1728,19 @@
     "sha1": "281f49e94bc2beb7324fd8783a105b3e91715886"
   },
   {
+    "key": "honey_tea",
+    "name": "Honey Tea",
+    "category": "item",
+    "hash64": "0x74e2cae8b0d4b2d3",
+    "file_title": "File:Honey Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b8/Honey_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111138",
+    "sha1": "a2f78588dc153c3efd761f72a140e91683e62256"
+  },
+  {
     "key": "honey_toast",
     "name": "Honey Toast",
     "category": "item",
-    "hash64": "0xf4ea780eccb000",
+    "hash64": "0x00f4ea780eccb000",
     "file_title": "File:Honey Toast.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/6d/Honey_Toast.png/revision/latest/scale-to-width-down/128?cb=20240211164950",
     "sha1": "e52711f7deacb14a783ac43f9a039897086818f6"
@@ -1614,7 +1758,7 @@
     "key": "honeycomb",
     "name": "Honeycomb",
     "category": "item",
-    "hash64": "0x8c25b49090d800",
+    "hash64": "0x008c25b49090d800",
     "file_title": "File:Honeycomb.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7c/Honeycomb.png/revision/latest/scale-to-width-down/128?cb=20191025193524",
     "sha1": "7bcad3f063accf8f76050228df07f9485e5cf04f"
@@ -1632,7 +1776,7 @@
     "key": "hot_dog",
     "name": "Hot Dog",
     "category": "item",
-    "hash64": "0x7ce6b0c3cfd800",
+    "hash64": "0x007ce6b0c3cfd800",
     "file_title": "File:Hot Dog.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/82/Hot_Dog.png/revision/latest/scale-to-width-down/128?cb=20240211180755",
     "sha1": "15085c0efd7f54c4f50ee8b4a16e7400a8ce061f"
@@ -1650,7 +1794,7 @@
     "key": "hummus",
     "name": "Hummus",
     "category": "item",
-    "hash64": "0xe8e4f0f0c4f000",
+    "hash64": "0x00e8e4f0f0c4f000",
     "file_title": "File:Hummus.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/78/Hummus.png/revision/latest/scale-to-width-down/128?cb=20240210055405",
     "sha1": "33e4d987174fd030124cc70602cb0b2a0698ca4f"
@@ -1663,6 +1807,15 @@
     "file_title": "File:Iced Banana Latte.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b0/Iced_Banana_Latte.png/revision/latest/scale-to-width-down/128?cb=20240209013217",
     "sha1": "09f2910fa1c610158dc7a26d4b7f8bf4e26a4d54"
+  },
+  {
+    "key": "iced_tea",
+    "name": "Iced Tea",
+    "category": "item",
+    "hash64": "0xd070f0f070706070",
+    "file_title": "File:Iced Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/4/4f/Iced_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111230",
+    "sha1": "bf4979bf7958fc277c62de38d85ea1d5524aaf9a"
   },
   {
     "key": "icy_gift",
@@ -1704,7 +1857,7 @@
     "key": "iron_ore",
     "name": "Iron Ore",
     "category": "item",
-    "hash64": "0xf08c0830a03000",
+    "hash64": "0x00f08c0830a03000",
     "file_title": "File:Iron Ore.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/87/Iron_Ore.png/revision/latest/scale-to-width-down/128?cb=20150711233632",
     "sha1": "9ede11ad4d410c094c9072b8fdb95bd279d27f38"
@@ -1731,7 +1884,7 @@
     "key": "land_deed",
     "name": "Land Deed",
     "category": "item",
-    "hash64": "0x13db54d7a471e34",
+    "hash64": "0x013db54d7a471e34",
     "file_title": "File:Land Deed.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e0/Land_Deed.png/revision/latest?cb=20191028130945",
     "sha1": "dd6994edde33f589f571c0ab62204435d78d9c83"
@@ -1740,7 +1893,7 @@
     "key": "lemon_cake",
     "name": "Lemon Cake",
     "category": "item",
-    "hash64": "0xc0e0f0f0d0e000",
+    "hash64": "0x00c0e0f0f0d0e000",
     "file_title": "File:Lemon Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/6c/Lemon_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223074632",
     "sha1": "1af5a471c9661c13f4be5baaa7ccc33f5380c0f4"
@@ -1794,16 +1947,25 @@
     "key": "lemon_pie",
     "name": "Lemon Pie",
     "category": "item",
-    "hash64": "0xc0f0b4f0704000",
+    "hash64": "0x00c0f0b4f0704000",
     "file_title": "File:Lemon Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/85/Lemon_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207150447",
     "sha1": "f3050998383467c39fd975eabfe9cef3902ba694"
   },
   {
+    "key": "lemon_tea",
+    "name": "Lemon Tea",
+    "category": "item",
+    "hash64": "0x32e8d8f8ba86ccb2",
+    "file_title": "File:Lemon Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/2/28/Lemon_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111316",
+    "sha1": "9dda8dc91719fce80182c700e3593409c359e269"
+  },
+  {
     "key": "lobster_pasta",
     "name": "Lobster Pasta",
     "category": "item",
-    "hash64": "0xc4cc12c4b33000",
+    "hash64": "0x00c4cc12c4b33000",
     "file_title": "File:Lobster Pasta.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/5/5a/Lobster_Pasta.png/revision/latest/scale-to-width-down/128?cb=20240211175632",
     "sha1": "5c7673d01937c89f34962ecc83f8f3b70715bdc5"
@@ -1812,7 +1974,7 @@
     "key": "lobster_skewer",
     "name": "Lobster Skewer",
     "category": "item",
-    "hash64": "0x32e8e935aef000",
+    "hash64": "0x0032e8e935aef000",
     "file_title": "File:Lobster Skewer.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/62/Lobster_Skewer.png/revision/latest/scale-to-width-down/128?cb=20240223075812",
     "sha1": "be209b27b023a450e6a133268ae9132fdb81cd59"
@@ -1830,7 +1992,7 @@
     "key": "lobster_sushi",
     "name": "Lobster Sushi",
     "category": "item",
-    "hash64": "0xb0e8268cf66e00",
+    "hash64": "0x00b0e8268cf66e00",
     "file_title": "File:Lobster Sushi.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7b/Lobster_Sushi.png/revision/latest/scale-to-width-down/128?cb=20240210102040",
     "sha1": "cd217f4382183ff4c3d1e3f3ac553e41a88e830a"
@@ -1848,7 +2010,7 @@
     "key": "lobster_trap",
     "name": "Lobster Trap",
     "category": "item",
-    "hash64": "0x830e0b6b440e000",
+    "hash64": "0x0830e0b6b440e000",
     "file_title": "File:Lobster Trap.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/38/Lobster_Trap.png/revision/latest/scale-to-width-down/128?cb=20150725035512",
     "sha1": "5af076b76ca98946301d79e18425b22fffa0da2f"
@@ -1866,7 +2028,7 @@
     "key": "long_gift",
     "name": "Long Gift",
     "category": "item",
-    "hash64": "0x8e4b8b0b0b0c060",
+    "hash64": "0x08e4b8b0b0b0c060",
     "file_title": "File:Long Gift.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f5/Long_Gift.png/revision/latest/scale-to-width-down/128?cb=20240218024757",
     "sha1": "e617d3a846f18fe9a440de2127b48d35cc0d56d0"
@@ -1875,7 +2037,7 @@
     "key": "macaroon",
     "name": "Macaroon",
     "category": "item",
-    "hash64": "0x60e4ecccc6f000",
+    "hash64": "0x0060e4ecccc6f000",
     "file_title": "File:Macaroon.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d0/Macaroon.png/revision/latest/scale-to-width-down/128?cb=20240303134131",
     "sha1": "b6911d95dfe9aa29161f8684e8bd34431d622a75"
@@ -1944,6 +2106,15 @@
     "sha1": "88f6065a5bec49d14498235bc487fc60936716e9"
   },
   {
+    "key": "milk_tea",
+    "name": "Milk Tea",
+    "category": "item",
+    "hash64": "0xf0c4d2c6f8f8f8b2",
+    "file_title": "File:Milk Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d5/Milk_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111407",
+    "sha1": "0d10501bd662d2e0578b85e4d4cc0ff1e4e8fcef"
+  },
+  {
     "key": "milk",
     "name": "Milk",
     "category": "item",
@@ -1980,6 +2151,15 @@
     "sha1": "54cce75154db0109be8e344405e611805d005f83"
   },
   {
+    "key": "mint_tea",
+    "name": "Mint Tea",
+    "category": "item",
+    "hash64": "0xa060d0d0f0727474",
+    "file_title": "File:Mint Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/4/40/Mint_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111658",
+    "sha1": "3da36041130cf32f877ca3db90f94bc0728c140f"
+  },
+  {
     "key": "mixed_smoothie",
     "name": "Mixed Smoothie",
     "category": "item",
@@ -2010,7 +2190,7 @@
     "key": "mushroom_pot_pie",
     "name": "Mushroom Pot Pie",
     "category": "item",
-    "hash64": "0x78fcf8f0f87000",
+    "hash64": "0x0078fcf8f0f87000",
     "file_title": "File:Mushroom Pot Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/c2/Mushroom_Pot_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207150536",
     "sha1": "8b36e8bdb20699640c70b1635876ed7cac33afa1"
@@ -2019,7 +2199,7 @@
     "key": "mushroom_salad",
     "name": "Mushroom Salad",
     "category": "item",
-    "hash64": "0x608e5937fe6800",
+    "hash64": "0x00608e5937fe6800",
     "file_title": "File:Mushroom Salad.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/8/8f/Mushroom_Salad.png/revision/latest/scale-to-width-down/128?cb=20240211105405",
     "sha1": "f196d3ed1c825833988c7a2ee10783759527c0a0"
@@ -2028,7 +2208,7 @@
     "key": "mushroom_soup",
     "name": "Mushroom Soup",
     "category": "item",
-    "hash64": "0xe691c90747f000",
+    "hash64": "0x00e691c90747f000",
     "file_title": "File:Mushroom Soup.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d7/Mushroom_Soup.png/revision/latest/scale-to-width-down/128?cb=20240209022414",
     "sha1": "1be7411968d3d516f0f5057ab51e60f3ee0ec660"
@@ -2046,7 +2226,7 @@
     "key": "mystery_net",
     "name": "Mystery Net",
     "category": "item",
-    "hash64": "0x3860c094e0a000",
+    "hash64": "0x003860c094e0a000",
     "file_title": "File:Mystery Net.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/1/17/Mystery_Net.png/revision/latest/scale-to-width-down/128?cb=20150725033113",
     "sha1": "f79ea843c814d2c154bae3d1ddaeb48d9fa7b2bd"
@@ -2055,7 +2235,7 @@
     "key": "nachos",
     "name": "Nachos",
     "category": "item",
-    "hash64": "0xeac4b88ae07000",
+    "hash64": "0x00eac4b88ae07000",
     "file_title": "File:Nachos.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/4/4c/Nachos.png/revision/latest/scale-to-width-down/128?cb=20240212102910",
     "sha1": "f66a85e97f611af5b242d319864679801ed6062f"
@@ -2109,7 +2289,7 @@
     "key": "onion_dog",
     "name": "Onion Dog",
     "category": "item",
-    "hash64": "0x74e8f0e2c2b800",
+    "hash64": "0x0074e8f0e2c2b800",
     "file_title": "File:Onion Dog.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e8/Onion_Dog.png/revision/latest/scale-to-width-down/128?cb=20240211181128",
     "sha1": "3b51cf39fa243fe1f1b370bf1497b0d5808eac84"
@@ -2145,7 +2325,7 @@
     "key": "orange_salad",
     "name": "Orange Salad",
     "category": "item",
-    "hash64": "0xe0aa538aeaf000",
+    "hash64": "0x00e0aa538aeaf000",
     "file_title": "File:Orange Salad.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/bb/Orange_Salad.png/revision/latest/scale-to-width-down/128?cb=20240211105603",
     "sha1": "a1cdc775e840a4a27d3559913bfd8eaaa5788a4a"
@@ -2160,6 +2340,15 @@
     "sha1": "020533c54a099494f93ad6b19261a2999652f1e5"
   },
   {
+    "key": "orange_tea",
+    "name": "Orange Tea",
+    "category": "item",
+    "hash64": "0x26ead8ccb0a6dc70",
+    "file_title": "File:Orange Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/8/8a/Orange_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212111954",
+    "sha1": "49e60777846cd8083dd1111c28030bff6eb3c1e0"
+  },
+  {
     "key": "paint_bucket",
     "name": "Paint Bucket",
     "category": "item",
@@ -2172,10 +2361,19 @@
     "key": "pancake",
     "name": "Pancake",
     "category": "item",
-    "hash64": "0xf0c8969c99d300",
+    "hash64": "0x00f0c8969c99d300",
     "file_title": "File:Pancake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/62/Pancake.png/revision/latest/scale-to-width-down/128?cb=20240205164109",
     "sha1": "00bb1eade04c56740de0403ccfc5650aec6fb5cb"
+  },
+  {
+    "key": "passion_fruit_jam",
+    "name": "Passion Fruit Jam",
+    "category": "item",
+    "hash64": "0xf8cc9684b8a28cf8",
+    "file_title": "File:Passion Fruit Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d7/Passion_Fruit_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208152409",
+    "sha1": "070c28e6fb64360487f03c827a48ab363342b398"
   },
   {
     "key": "passion_fruit_juice",
@@ -2190,7 +2388,7 @@
     "key": "passion_fruit_pie",
     "name": "Passion Fruit Pie",
     "category": "item",
-    "hash64": "0x8708c9b8ee0f070",
+    "hash64": "0x08708c9b8ee0f070",
     "file_title": "File:Passion Fruit Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/65/Passion_Fruit_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207150628",
     "sha1": "7c2893eafd7788942e9337d5cfc009c34fc9ad43"
@@ -2232,10 +2430,19 @@
     "sha1": "7f22ad61a4552a6ce5adec31ae8c9cb6434eb98d"
   },
   {
+    "key": "peach_jam",
+    "name": "Peach Jam",
+    "category": "item",
+    "hash64": "0xe0d0d0c4d0d4c876",
+    "file_title": "File:Peach Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/b/be/Peach_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208152501",
+    "sha1": "c9fcab52e8fe5d36a450dd5a5092e528d2f40ca1"
+  },
+  {
     "key": "peach_tart",
     "name": "Peach Tart",
     "category": "item",
-    "hash64": "0xe0f0b2f8f35800",
+    "hash64": "0x00e0f0b2f8f35800",
     "file_title": "File:Peach Tart.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/07/Peach_Tart.png/revision/latest/scale-to-width-down/128?cb=20240207150814",
     "sha1": "0f485801a2e2240fc52059298109ea230f738f0b"
@@ -2325,7 +2532,7 @@
     "key": "piggy_gift",
     "name": "Piggy Gift",
     "category": "item",
-    "hash64": "0x438738ed4e4b060",
+    "hash64": "0x0438738ed4e4b060",
     "file_title": "File:Piggy Gift.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/2/2b/Piggy_Gift.png/revision/latest/scale-to-width-down/128?cb=20250426202857",
     "sha1": "b4b65dfa9a511cd2f9318dc72087a233d863d512"
@@ -2334,7 +2541,7 @@
     "key": "pillow",
     "name": "Pillow",
     "category": "item",
-    "hash64": "0x878f8f8f0e06000",
+    "hash64": "0x0878f8f8f0e06000",
     "file_title": "File:Pillow.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/36/Pillow.png/revision/latest/scale-to-width-down/128?cb=20240411151249",
     "sha1": "b2a522cec7b2a2cea566deac0d925b20f458928c"
@@ -2388,7 +2595,7 @@
     "key": "plain_donut",
     "name": "Plain Donut",
     "category": "item",
-    "hash64": "0x70e8cc73be6800",
+    "hash64": "0x0070e8cc73be6800",
     "file_title": "File:Plain Donut.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/08/Plain_Donut.png/revision/latest/scale-to-width-down/128?cb=20240212101437",
     "sha1": "826270990e51a0d893742ad5405b1325735b7545"
@@ -2415,7 +2622,7 @@
     "key": "plank",
     "name": "Plank",
     "category": "item",
-    "hash64": "0x101033f3e3c00",
+    "hash64": "0x000101033f3e3c00",
     "file_title": "File:Plank.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/0d/Plank.png/revision/latest?cb=20191028130900",
     "sha1": "8216ee58e124608ee58ed1864508c6e5cb0614d2"
@@ -2424,7 +2631,7 @@
     "key": "platinum_bar",
     "name": "Platinum Bar",
     "category": "item",
-    "hash64": "0x87cd0e040c75c00",
+    "hash64": "0x087cd0e040c75c00",
     "file_title": "File:Platinum Bar.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d2/Platinum_Bar.png/revision/latest/scale-to-width-down/128?cb=20240208090844",
     "sha1": "d9598f455e7b16a4583bf34530c6d94a801d5b78"
@@ -2433,10 +2640,19 @@
     "key": "platinum_ore",
     "name": "Platinum Ore",
     "category": "item",
-    "hash64": "0x3070b8b0d10000",
+    "hash64": "0x003070b8b0d10000",
     "file_title": "File:Platinum Ore.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b0/Platinum_Ore.png/revision/latest/scale-to-width-down/128?cb=20150711233615",
     "sha1": "464045f6754530e2c32d10136abcb46658fe6e8f"
+  },
+  {
+    "key": "plum_jam",
+    "name": "Plum Jam",
+    "category": "item",
+    "hash64": "0xf0c0f1f0c4cccaf6",
+    "file_title": "File:Plum Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/3/3a/Plum_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208152615",
+    "sha1": "336ef1d8264bf5f446d159ffdf2a5d95e0d9e514"
   },
   {
     "key": "plum_smoothie",
@@ -2466,6 +2682,24 @@
     "sha1": "74225ed95979ba717c8915247986933f9deabc6d"
   },
   {
+    "key": "pomegranate_tea",
+    "name": "Pomegranate Tea",
+    "category": "item",
+    "hash64": "0xf09695ba3d1b8cf0",
+    "file_title": "File:Pomegranate Tea.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f1/Pomegranate_Tea.png/revision/latest/scale-to-width-down/128?cb=20240212113036",
+    "sha1": "a34d7fff77957d381ad5b16064b2bc45fe101952"
+  },
+  {
+    "key": "popcorn",
+    "name": "Popcorn",
+    "category": "item",
+    "hash64": "0xd4b09494d4d4d070",
+    "file_title": "File:Popcorn.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/8/85/Popcorn.png/revision/latest/scale-to-width-down/128?cb=20240206170036",
+    "sha1": "b3b4bc8801488540bdf0ce46851131595e1f530d"
+  },
+  {
     "key": "potato_bread",
     "name": "Potato Bread",
     "category": "item",
@@ -2478,7 +2712,7 @@
     "key": "potato_feta_cake",
     "name": "Potato Feta Cake",
     "category": "item",
-    "hash64": "0xd0b432f6c80800",
+    "hash64": "0x00d0b432f6c80800",
     "file_title": "File:Potato Feta Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7c/Potato_Feta_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223074133",
     "sha1": "7b15987f7ad891222a3be38d7040f42a235f8238"
@@ -2487,7 +2721,7 @@
     "key": "potato_omelet",
     "name": "Potato Omelet",
     "category": "item",
-    "hash64": "0xc0d8fcf00000",
+    "hash64": "0x0000c0d8fcf00000",
     "file_title": "File:Potato Omelet.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/ca/Potato_Omelet.png/revision/latest/scale-to-width-down/128?cb=20240212103708",
     "sha1": "40576c3fcaf210d4fd7d2d15ee93f3eb85d79644"
@@ -2496,7 +2730,7 @@
     "key": "potato_soup",
     "name": "Potato Soup",
     "category": "item",
-    "hash64": "0xe8e0f0868ee060",
+    "hash64": "0x00e8e0f0868ee060",
     "file_title": "File:Potato Soup.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/ab/Potato_Soup.png/revision/latest/scale-to-width-down/128?cb=20240303134341",
     "sha1": "ebadff503b48d7c7160633feb64cf778d32143fe"
@@ -2514,7 +2748,7 @@
     "key": "pumpkin_pie",
     "name": "Pumpkin Pie",
     "category": "item",
-    "hash64": "0xc89048d4705000",
+    "hash64": "0x00c89048d4705000",
     "file_title": "File:Pumpkin Pie.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7d/Pumpkin_Pie.png/revision/latest/scale-to-width-down/128?cb=20240207150900",
     "sha1": "6bfa58c61edbad358cce1d90595bae5c3c0d286b"
@@ -2565,6 +2799,15 @@
     "sha1": "3fcb7dbcca52051aae74ff8405a24dddc0203563"
   },
   {
+    "key": "raspberry_jam",
+    "name": "Raspberry Jam",
+    "category": "item",
+    "hash64": "0xe0c1e1b0cfc8caf0",
+    "file_title": "File:Raspberry Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/8/84/Raspberry_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208151524",
+    "sha1": "43d19ebbf1182f415b3f34021c21a23fe9e81b4b"
+  },
+  {
     "key": "raspberry_mocha",
     "name": "Raspberry Mocha",
     "category": "item",
@@ -2595,7 +2838,7 @@
     "key": "red_berry_cake",
     "name": "Red Berry Cake",
     "category": "item",
-    "hash64": "0x30941468b0e000",
+    "hash64": "0x0030941468b0e000",
     "file_title": "File:Red Berry Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/69/Red_Berry_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223073738",
     "sha1": "7103f059f0441f9e034c02d153b3b7c5758dbeac"
@@ -2604,7 +2847,7 @@
     "key": "red_gift_2024",
     "name": "Red Gift 2024",
     "category": "item",
-    "hash64": "0x70f4e8ccd47000",
+    "hash64": "0x0070f4e8ccd47000",
     "file_title": "File:Red Gift 2024.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/fc/Red_Gift_2024.png/revision/latest/scale-to-width-down/128?cb=20250427234935",
     "sha1": "3f412d788aa3585102a0ae54f2744518fd1e1124"
@@ -2622,7 +2865,7 @@
     "key": "red_scarf",
     "name": "Red Scarf",
     "category": "item",
-    "hash64": "0xe0f2978836ad04",
+    "hash64": "0x00e0f2978836ad04",
     "file_title": "File:Red Scarf.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/4/4f/Red_Scarf.png/revision/latest/scale-to-width-down/128?cb=20240207160030",
     "sha1": "54574f345bb2a1930ae9c4bd820a32fcaf7072e6"
@@ -2640,7 +2883,7 @@
     "key": "rice_ball",
     "name": "Rice Ball",
     "category": "item",
-    "hash64": "0x1878a4068c7000",
+    "hash64": "0x001878a4068c7000",
     "file_title": "File:Rice Ball.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/1/1d/Rice_Ball.png/revision/latest/scale-to-width-down/128?cb=20210907213244",
     "sha1": "6d3f39c1f509da54bb33c6f6a75daaa9e55fae8f"
@@ -2658,7 +2901,7 @@
     "key": "rice_omelet",
     "name": "Rice Omelet",
     "category": "item",
-    "hash64": "0xc40e13c40000",
+    "hash64": "0x0000c40e13c40000",
     "file_title": "File:Rice Omelet.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b2/Rice_Omelet.png/revision/latest/scale-to-width-down/128?cb=20240212104100",
     "sha1": "024de7e6919fec8793fe8c512ea31b419e0d18da"
@@ -2730,7 +2973,7 @@
     "key": "samosa",
     "name": "Samosa",
     "category": "item",
-    "hash64": "0x3874d860c0f000",
+    "hash64": "0x003874d860c0f000",
     "file_title": "File:Samosa.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/b/b5/Samosa.png/revision/latest/scale-to-width-down/128?cb=20240212130830",
     "sha1": "c4510c85509f0d51d953cb7e1aeabb5e5a171048"
@@ -2739,7 +2982,7 @@
     "key": "saw",
     "name": "Saw",
     "category": "item",
-    "hash64": "0x61872e0d0604080",
+    "hash64": "0x061872e0d0604080",
     "file_title": "File:Saw.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/0a/Saw.png/revision/latest/scale-to-width-down/128?cb=20191028130211",
     "sha1": "b3d7565adf190d0db99100a68abc06d488cccdf5"
@@ -2757,7 +3000,7 @@
     "key": "seafood_salad",
     "name": "Seafood Salad",
     "category": "item",
-    "hash64": "0xd8286342495000",
+    "hash64": "0x00d8286342495000",
     "file_title": "File:Seafood Salad.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/69/Seafood_Salad.png/revision/latest/scale-to-width-down/128?cb=20240211102556",
     "sha1": "9c9e48d1db38e09ba5ddce22efe6e1bc81460ea8"
@@ -2766,7 +3009,7 @@
     "key": "sesame_brittle",
     "name": "Sesame Brittle",
     "category": "item",
-    "hash64": "0xe88e9a98b17000",
+    "hash64": "0x00e88e9a98b17000",
     "file_title": "File:Sesame Brittle.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/6/65/Sesame_Brittle.png/revision/latest/scale-to-width-down/128?cb=20240210054437",
     "sha1": "e7f6222eb08a0f4550a7fc439cec7be38be4d879"
@@ -2802,7 +3045,7 @@
     "key": "shovel",
     "name": "Shovel",
     "category": "item",
-    "hash64": "0x3060cd8e0183060",
+    "hash64": "0x03060cd8e0183060",
     "file_title": "File:Shovel.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/77/Shovel.png/revision/latest/scale-to-width-down/128?cb=20191028130218",
     "sha1": "9820d31dcd44a36b9d3dadf8462d80fcd371105a"
@@ -2811,7 +3054,7 @@
     "key": "silver_bar",
     "name": "Silver Bar",
     "category": "item",
-    "hash64": "0x878c0e240c35c00",
+    "hash64": "0x0878c0e240c35c00",
     "file_title": "File:Silver Bar.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/9/94/Silver_Bar.png/revision/latest/scale-to-width-down/128?cb=20240208090436",
     "sha1": "71e3dbf9fadb557331302b8d21d9b997edb910dd"
@@ -2829,7 +3072,7 @@
     "key": "skull_treats",
     "name": "Skull Treats",
     "category": "item",
-    "hash64": "0x70e8d842d43c00",
+    "hash64": "0x0070e8d842d43c00",
     "file_title": "File:Skull Treats.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e2/Skull_Treats.png/revision/latest/scale-to-width-down/128?cb=20241021180317",
     "sha1": "feff28b4085942c3bab67201605e40927d9e45fa"
@@ -2871,13 +3114,31 @@
     "sha1": "16da000f3167bc76f41fd038a0d35a12033876c7"
   },
   {
+    "key": "soft_candy",
+    "name": "Soft Candy",
+    "category": "item",
+    "hash64": "0xc0c0c4a6cbfa3c07",
+    "file_title": "File:Soft Candy.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e5/Soft_Candy.png/revision/latest/scale-to-width-down/128?cb=20251022181449",
+    "sha1": "1c419d4d5498be4829e893fea2a945cce8668bbb"
+  },
+  {
     "key": "soothing_pad",
     "name": "Soothing Pad",
     "category": "item",
-    "hash64": "0xf8c6c86c0000",
+    "hash64": "0x0000f8c6c86c0000",
     "file_title": "File:Soothing Pad.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/c0/Soothing_Pad.png/revision/latest/scale-to-width-down/128?cb=20241209182716",
     "sha1": "496b069e406bd8495e7abbbd0a0776cba30a834b"
+  },
+  {
+    "key": "soy_sauce",
+    "name": "Soy Sauce",
+    "category": "item",
+    "hash64": "0x80f0d4d0e2e2e2f0",
+    "file_title": "File:Soy Sauce.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/9/97/Soy_Sauce.png/revision/latest/scale-to-width-down/128?cb=20240210055302",
+    "sha1": "6bb00ad62a268c815438f856ec3b2ba9817e0486"
   },
   {
     "key": "spicy_bean_taco",
@@ -2901,7 +3162,7 @@
     "key": "spicy_pasta",
     "name": "Spicy Pasta",
     "category": "item",
-    "hash64": "0xe89e1ed4f06000",
+    "hash64": "0x00e89e1ed4f06000",
     "file_title": "File:Spicy Pasta.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e6/Spicy_Pasta.png/revision/latest/scale-to-width-down/128?cb=20180412211159",
     "sha1": "7c361e46fee8e10f9c8b7574051321d9d7b7c83a"
@@ -2928,7 +3189,7 @@
     "key": "spring_omelet",
     "name": "Spring Omelet",
     "category": "item",
-    "hash64": "0x3ee4bd732ef000",
+    "hash64": "0x003ee4bd732ef000",
     "file_title": "File:Spring Omelet.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f2/Spring_Omelet.png/revision/latest/scale-to-width-down/128?cb=20240212104155",
     "sha1": "ed71077d9b5f3f872e5fc1916b85a22a230b4206"
@@ -2937,7 +3198,7 @@
     "key": "sprinkled_donut",
     "name": "Sprinkled Donut",
     "category": "item",
-    "hash64": "0x60c4370786f000",
+    "hash64": "0x0060c4370786f000",
     "file_title": "File:Sprinkled Donut.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/4/40/Sprinkled_Donut.png/revision/latest/scale-to-width-down/128?cb=20240212101844",
     "sha1": "9a79dd6b7d9265d6d42c0ad326cf70138c86e1e1"
@@ -2964,7 +3225,7 @@
     "key": "stone_block",
     "name": "Stone Block",
     "category": "item",
-    "hash64": "0xc8981c0e068600",
+    "hash64": "0x00c8981c0e068600",
     "file_title": "File:Stone Block.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/37/Stone_Block.png/revision/latest/scale-to-width-down/128?cb=20191028131613",
     "sha1": "6c6e35940f7ada04fb790378d4fa68fae2dfb026"
@@ -2973,7 +3234,7 @@
     "key": "strawberry_cake",
     "name": "Strawberry Cake",
     "category": "item",
-    "hash64": "0xd494d072bce000",
+    "hash64": "0x00d494d072bce000",
     "file_title": "File:Strawberry Cake.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/1/1a/Strawberry_Cake.png/revision/latest/scale-to-width-down/128?cb=20240223073929",
     "sha1": "ac62fab12b9c8766fbb4f6903c77286a4ad3d565"
@@ -2997,6 +3258,15 @@
     "sha1": "62b3c501ae9c6d7ffc8536964a247c441811986e"
   },
   {
+    "key": "strawberry_jam",
+    "name": "Strawberry Jam",
+    "category": "item",
+    "hash64": "0xe0c4d5d484cecaf6",
+    "file_title": "File:Strawberry Jam.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/4/40/Strawberry_Jam.png/revision/latest/scale-to-width-down/128?cb=20240208152746",
+    "sha1": "e5aa774c97ddbc0b3227b80a4459f23bb802729d"
+  },
+  {
     "key": "strawberry_yogurt",
     "name": "Strawberry Yogurt",
     "category": "item",
@@ -3006,10 +3276,19 @@
     "sha1": "308c5d0507c2775fc5d0d89b68f503a62fe4ee8c"
   },
   {
+    "key": "striped_candy",
+    "name": "Striped Candy",
+    "category": "item",
+    "hash64": "0x3870f0ecce66e4e0",
+    "file_title": "File:Striped Candy.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/6/65/Striped_Candy.png/revision/latest/scale-to-width-down/128?cb=20251022181218",
+    "sha1": "9297347f664df73dec6b82fdb2961ab15d22329a"
+  },
+  {
     "key": "stuffed_peppers",
     "name": "Stuffed Peppers",
     "category": "item",
-    "hash64": "0xc4c8d38796f000",
+    "hash64": "0x00c4c8d38796f000",
     "file_title": "File:Stuffed Peppers.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/06/Stuffed_Peppers.png/revision/latest/scale-to-width-down/128?cb=20240411151408",
     "sha1": "6331d18b38c87de8146c58d559b2a3edec1f088e"
@@ -3027,7 +3306,7 @@
     "key": "summer_salad",
     "name": "Summer Salad",
     "category": "item",
-    "hash64": "0xdaccdcc4c57a38",
+    "hash64": "0x00daccdcc4c57a38",
     "file_title": "File:Summer Salad.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/3/30/Summer_Salad.png/revision/latest/scale-to-width-down/128?cb=20240211105900",
     "sha1": "fcb89eb6f5e792170680139947cf9b7588bfcd99"
@@ -3054,7 +3333,7 @@
     "key": "sushi_roll",
     "name": "Sushi Roll",
     "category": "item",
-    "hash64": "0x60cc5686f36600",
+    "hash64": "0x0060cc5686f36600",
     "file_title": "File:Sushi Roll.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/c/cf/Sushi_Roll.png/revision/latest/scale-to-width-down/128?cb=20240210101804",
     "sha1": "4e1ec1e7e44bc320bc7ea5af90bacefc0405d14a"
@@ -3063,7 +3342,7 @@
     "key": "sweater",
     "name": "Sweater",
     "category": "item",
-    "hash64": "0x70988ef863b600",
+    "hash64": "0x0070988ef863b600",
     "file_title": "File:Sweater.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/73/Sweater.png/revision/latest/scale-to-width-down/128?cb=20240207155705",
     "sha1": "f9633bbee65756c8633b5d40c2a0238ade009587"
@@ -3108,7 +3387,7 @@
     "key": "tar_bucket",
     "name": "Tar Bucket",
     "category": "item",
-    "hash64": "0x6c68c8943422226",
+    "hash64": "0x06c68c8943422226",
     "file_title": "File:Tar Bucket.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/f8/Tar_Bucket.png/revision/latest/scale-to-width-down/128?cb=20191028131606",
     "sha1": "b54805e6af5b2112cc126be1d61c20489029a825"
@@ -3117,16 +3396,25 @@
     "key": "tart_dressing",
     "name": "Tart Dressing",
     "category": "item",
-    "hash64": "0xe61bb2f0d8f600",
+    "hash64": "0x00e61bb2f0d8f600",
     "file_title": "File:Tart Dressing.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/9/98/Tart_Dressing.png/revision/latest/scale-to-width-down/128?cb=20240210060010",
     "sha1": "b4a9d3ebdd7097b87ba47b2f2f52c1ca2a207dee"
   },
   {
+    "key": "tea_pot",
+    "name": "Tea Pot",
+    "category": "item",
+    "hash64": "0x207263b1b8f8f000",
+    "file_title": "File:Tea Pot.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/6/6e/Tea_Pot.png/revision/latest/scale-to-width-down/128?cb=20240212142515",
+    "sha1": "3744a1c151b1ac5c8566d898e78050c18132d4f3"
+  },
+  {
     "key": "teeth_treats",
     "name": "Teeth Treats",
     "category": "item",
-    "hash64": "0xc6cf0a2c0c06060",
+    "hash64": "0x0c6cf0a2c0c06060",
     "file_title": "File:Teeth Treats.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/00/Teeth_Treats.png/revision/latest/scale-to-width-down/128?cb=20241021180259",
     "sha1": "0b460f7ccad268900519510f91e2982a4249758b"
@@ -3144,7 +3432,7 @@
     "key": "tofu_dog",
     "name": "Tofu Dog",
     "category": "item",
-    "hash64": "0x206766824f0e000",
+    "hash64": "0x0206766824f0e000",
     "file_title": "File:Tofu Dog.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/f/fa/Tofu_Dog.png/revision/latest/scale-to-width-down/128?cb=20180222234446",
     "sha1": "e946900b605f0fbe36a6b4980a53089721fb3407"
@@ -3153,7 +3441,7 @@
     "key": "tofu_stir_fry",
     "name": "Tofu Stir Fry",
     "category": "item",
-    "hash64": "0x6896534bcf7900",
+    "hash64": "0x006896534bcf7900",
     "file_title": "File:Tofu Stir Fry.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/db/Tofu_Stir_Fry.png/revision/latest/scale-to-width-down/128?cb=20240411151437",
     "sha1": "b3d84b7bf0272df4397001022a37d68867093cf5"
@@ -3166,6 +3454,15 @@
     "file_title": "File:Tomato Juice.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/a5/Tomato_Juice.png/revision/latest/scale-to-width-down/128?cb=20240223064831",
     "sha1": "4d686b926e7afdbce521ac4053e584c850523ca7"
+  },
+  {
+    "key": "tomato_sauce",
+    "name": "Tomato Sauce",
+    "category": "item",
+    "hash64": "0x6070f0f0e2a2a272",
+    "file_title": "File:Tomato Sauce.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/0/09/Tomato_Sauce.png/revision/latest/scale-to-width-down/128?cb=20240210060131",
+    "sha1": "ea32afef0331b68024c5498bf8d67350cf239419"
   },
   {
     "key": "tomato_soup",
@@ -3261,7 +3558,7 @@
     "key": "veggie_lasagna",
     "name": "Veggie Lasagna",
     "category": "item",
-    "hash64": "0x70b0a226b11000",
+    "hash64": "0x0070b0a226b11000",
     "file_title": "File:Veggie Lasagna.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/d/d1/Veggie_Lasagna.png/revision/latest/scale-to-width-down/128?cb=20240211180053",
     "sha1": "aad667f223bc63443a170a472ffcabd4ca5fa4a6"
@@ -3270,7 +3567,7 @@
     "key": "veggie_platter",
     "name": "Veggie Platter",
     "category": "item",
-    "hash64": "0xe0f0cee9e3fc00",
+    "hash64": "0x00e0f0cee9e3fc00",
     "file_title": "File:Veggie Platter.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/7/7d/Veggie_Platter.png/revision/latest/scale-to-width-down/128?cb=20240211105316",
     "sha1": "3fde5e870919262c8ca436d48f05c0c47744f2ac"
@@ -3303,10 +3600,19 @@
     "sha1": "f4e22cf641ae8158880e24cdee557747daab284c"
   },
   {
+    "key": "white_sugar",
+    "name": "White Sugar",
+    "category": "item",
+    "hash64": "0xd979595959f9c14e",
+    "file_title": "File:White Sugar.png",
+    "source_url": "https://static.wikia.nocookie.net/hayday/images/f/ff/White_Sugar.png/revision/latest/scale-to-width-down/128?cb=20240205163815",
+    "sha1": "c529d07594244893d4b9b9c2a4f828b0b2bc4537"
+  },
+  {
     "key": "winter_stew",
     "name": "Winter Stew",
     "category": "item",
-    "hash64": "0x70ccd8d2f06000",
+    "hash64": "0x0070ccd8d2f06000",
     "file_title": "File:Winter Stew.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/e/e3/Winter_Stew.png/revision/latest/scale-to-width-down/128?cb=20240411151558",
     "sha1": "a8d5c679f338842b86049e4477f988f010e3bc15"
@@ -3324,7 +3630,7 @@
     "key": "wood_panel",
     "name": "Wood Panel",
     "category": "item",
-    "hash64": "0x6468820080c000",
+    "hash64": "0x006468820080c000",
     "file_title": "File:Wood Panel.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/0/02/Wood_Panel.png/revision/latest/scale-to-width-down/128?cb=20191028131042",
     "sha1": "1af3f1375c496d5e0e2c312de4ae82c8ee9007d3"

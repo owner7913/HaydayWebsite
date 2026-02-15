@@ -3970,7 +3970,10 @@ def api_trading_overview():
             "sum_qty": {"$sum": {"$ifNull": ["$qty", 0]}},
             "sum_value": {"$sum": {"$ifNull": ["$total_value", 0]}},
             "posts": {"$sum": 1},
+            "price_posts": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, 1, 0]}},
+            "sum_unit_price": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, "$unit_price", 0]}},
         }},
+
         {"$project": {
             "_id": 0,
             "item_key": "$_id.k",
@@ -3978,7 +3981,12 @@ def api_trading_overview():
             "sum_qty": 1,
             "sum_value": 1,
             "posts": 1,
+
+            # ✅ NEW
+            "price_posts": 1,
+            "sum_unit_price": 1,
         }},
+
         {"$limit": 10000},
         ]
         rows = list(ticks.aggregate(pipeline))
@@ -4049,31 +4057,46 @@ def api_trading_overview():
         m = merged.setdefault(canonical, {
             "item_key": canonical,
             "item_name": display_map[canonical],
+
             "buy_qty": 0, "buy_value": 0, "buy_posts": 0,
             "sell_qty": 0, "sell_value": 0, "sell_posts": 0,
+            "buy_price_posts": 0, "buy_price_sum": 0,
+            "sell_price_posts": 0, "sell_price_sum": 0,
         })
+
 
         qty = int(r.get("sum_qty") or 0)
         val = int(r.get("sum_value") or 0)
         posts = int(r.get("posts") or 0)
+        price_posts = int(r.get("price_posts") or 0)
+        price_sum = float(r.get("sum_unit_price") or 0)
 
         if t == "buy":
             m["buy_qty"] += qty
             m["buy_value"] += val
             m["buy_posts"] += posts
+
+            m["buy_price_posts"] += price_posts
+            m["buy_price_sum"] += price_sum
         else:
             m["sell_qty"] += qty
             m["sell_value"] += val
             m["sell_posts"] += posts
 
+            m["sell_price_posts"] += price_posts
+            m["sell_price_sum"] += price_sum
+
+
     items_list = list(merged.values())
 
     for it in items_list:
-        it["avg_buy"]  = (it["buy_value"]  / it["buy_qty"])  if it["buy_qty"]  > 0 else None
-        it["avg_sell"] = (it["sell_value"] / it["sell_qty"]) if it["sell_qty"] > 0 else None
+        it["avg_buy"]  = (it["buy_price_sum"]  / it["buy_price_posts"])  if it["buy_price_posts"]  > 0 else None
+        it["avg_sell"] = (it["sell_price_sum"] / it["sell_price_posts"]) if it["sell_price_posts"] > 0 else None
+
         it["total_qty"] = it["buy_qty"] + it["sell_qty"]
         it["total_posts"] = it["buy_posts"] + it["sell_posts"]
         it["total_value"] = it["buy_value"] + it["sell_value"]
+
 
     def sk(it):
         if sort == "qty": return it["total_qty"]
@@ -4129,6 +4152,80 @@ def api_trading_overview():
         total=total,
         total_pages=total_pages,
         items=page_items
+    )
+
+@app.route("/api/trading/item/<item_key>/posts")
+def api_trading_item_posts(item_key):
+    bucket = (request.args.get("bucket", "day") or "day").lower()
+    if bucket not in {"day", "hour"}:
+        bucket = "day"
+
+    at = (request.args.get("at") or "").strip()
+    post_type = (request.args.get("type") or "").strip().lower()
+    if post_type not in {"buy", "sell"}:
+        return jsonify(ok=False, error="Invalid type (must be buy/sell)"), 400
+
+    limit = min(max(int(request.args.get("limit", 200)), 1), 500)
+
+    # Resolve item_key to canonical (same logic as history endpoint)
+    display_map, alias_to_key, _k2f, _source_map, _img_url_map = _trading_maps_with_overrides()
+    raw = (item_key or "").strip().lower()
+    if raw in display_map:
+        canonical = raw
+    else:
+        canonical = alias_to_key.get(raw) or alias_to_key.get(clean_key(raw))
+
+    if not canonical or canonical not in display_map:
+        return jsonify(ok=False, error="Unknown item_key"), 404
+
+    # Parse "at" label into a UTC start/end window
+    try:
+        if bucket == "hour":
+            # labels are like: "YYYY-MM-DD HH:MM"
+            start = datetime.strptime(at, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+            end = start + timedelta(hours=1)
+        else:
+            # labels are like: "YYYY-MM-DD"
+            start = datetime.strptime(at, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            end = start + timedelta(days=1)
+    except ValueError:
+        return jsonify(ok=False, error="Invalid at format"), 400
+
+    match = {
+        "guild_id": TRADING_GUILD_ID,
+        "category": {"$in": ["item", "set"]},
+        "item_key": canonical,
+        "post_type": post_type,
+        "ts": {"$gte": start, "$lt": end},
+    }
+
+    # Return posts for scrolling + jump link
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        ticks = c["hayday"]["auctions.Trading.ticks"]
+        cursor = ticks.find(match).sort("ts", -1).limit(limit)
+
+        posts = []
+        for d in cursor:
+            posts.append({
+                "ts": d.get("ts").isoformat() if d.get("ts") else None,
+                "jump_url": d.get("jump_url"),
+                "author_id": str(d.get("author_id")) if d.get("author_id") is not None else None,
+                "channel_id": str(d.get("channel_id")) if d.get("channel_id") is not None else None,
+                "message_id": str(d.get("message_id")) if d.get("message_id") is not None else None,
+                "qty": d.get("qty"),
+                "unit_price": d.get("unit_price"),
+                "total_value": d.get("total_value"),
+                "raw_text": d.get("raw_text") or d.get("content") or d.get("text"),
+            })
+
+    return jsonify(
+        ok=True,
+        item_key=canonical,
+        bucket=bucket,
+        at=at,
+        type=post_type,
+        count=len(posts),
+        posts=posts,
     )
 
 @app.route("/api/trading/item/<item_key>/history")
