@@ -5,6 +5,6 @@ __pycache__/
 .DS_Store
 *.log
 node_modules/
+
 # Block installers / binaries
 *.exe
-
