@@ -4154,6 +4154,32 @@ def api_trading_overview():
         items=page_items
     )
 
+@app.route("/admin/trading/tick/delete", methods=["POST"])
+@csrf.exempt
+def admin_trading_tick_delete():
+    if "discord_id" not in session or not is_staff():
+        return jsonify(ok=False, error="Unauthorized"), 403
+
+    try:
+        channel_id = int(request.form.get("channel_id") or 0)
+        message_id = int(request.form.get("message_id") or 0)
+    except ValueError:
+        return jsonify(ok=False, error="Invalid ids"), 400
+
+    if not channel_id or not message_id:
+        return jsonify(ok=False, error="Missing channel_id/message_id"), 400
+
+    with MongoClient(os.getenv("MONGO_URI")) as c:
+        ticks = c["hayday"]["auctions.Trading.ticks"]
+
+        res = ticks.delete_one({
+            "guild_id": TRADING_GUILD_ID,
+            "channel_id": channel_id,
+            "message_id": message_id,
+        })
+
+    return jsonify(ok=True, deleted=int(res.deleted_count))
+
 @app.route("/api/trading/item/<item_key>/posts")
 def api_trading_item_posts(item_key):
     bucket = (request.args.get("bucket", "day") or "day").lower()
@@ -4162,8 +4188,9 @@ def api_trading_item_posts(item_key):
 
     at = (request.args.get("at") or "").strip()
     post_type = (request.args.get("type") or "").strip().lower()
-    if post_type not in {"buy", "sell"}:
-        return jsonify(ok=False, error="Invalid type (must be buy/sell)"), 400
+    if post_type not in {"buy", "sell", "both"}:
+        return jsonify(ok=False, error="Invalid type (must be buy/sell/both)"), 400
+
 
     limit = min(max(int(request.args.get("limit", 200)), 1), 500)
 
@@ -4195,7 +4222,7 @@ def api_trading_item_posts(item_key):
         "guild_id": TRADING_GUILD_ID,
         "category": {"$in": ["item", "set"]},
         "item_key": canonical,
-        "post_type": post_type,
+        "post_type": {"$in": ["buy", "sell"]} if post_type == "both" else post_type,
         "ts": {"$gte": start, "$lt": end},
     }
 
@@ -4216,6 +4243,7 @@ def api_trading_item_posts(item_key):
                 "unit_price": d.get("unit_price"),
                 "total_value": d.get("total_value"),
                 "raw_text": d.get("raw_text") or d.get("content") or d.get("text"),
+                "type": d.get("post_type"),
             })
 
     return jsonify(

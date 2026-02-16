@@ -520,6 +520,15 @@ body.light .trade-controls select.input option{
     35%  { box-shadow: 0 0 24px rgba(110,231,168,.25); }
     100% { box-shadow: 0 0 0 rgba(110,231,168,0); }
   }
+  .num-flash{
+  animation: numFlash .55s ease-out;
+}
+@keyframes numFlash{
+  0%   { background: rgba(110,231,168,.00); box-shadow: 0 0 0 rgba(110,231,168,0); }
+  35%  { background: rgba(110,231,168,.10); box-shadow: 0 0 18px rgba(110,231,168,.18); }
+  100% { background: rgba(110,231,168,.00); box-shadow: 0 0 0 rgba(110,231,168,0); }
+}
+
 </style>
 
 {% endblock %}
@@ -735,6 +744,7 @@ body.light .trade-controls select.input option{
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
+const IS_STAFF = {{ "true" if is_staff else "false" }};
 function clearSearch(){
   document.getElementById("searchInput").value = "";
   CURRENT_PAGE = 1;
@@ -762,6 +772,45 @@ function hidePointPostsModal(){
   b.classList.remove("show");
   b.setAttribute("aria-hidden", "true");
 }
+async function deleteTradeRecord(channelId, messageId, btn){
+  if(!IS_STAFF) return;
+  if(!confirm("Delete this trade record from the database?")) return;
+
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = "Deleting…";
+  }
+
+  const fd = new FormData();
+  fd.append("channel_id", String(channelId));
+  fd.append("message_id", String(messageId));
+
+  const res = await fetch("/admin/trading/tick/delete", { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+
+  if(!res.ok || !data.ok){
+    alert((data && data.error) ? data.error : "Failed to delete.");
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = "Delete";
+    }
+    return;
+  }
+
+  // Remove the row from UI
+  const row = btn?.closest(".post-row");
+  if(row) row.remove();
+
+  // Update sub count text best-effort
+  const sub = document.getElementById("pointPostsSub");
+  if(sub){
+    const m = sub.textContent.match(/^(\d+)\s+posts/);
+    if(m){
+      const n = Math.max(0, Number(m[1]) - 1);
+      sub.textContent = `${n} posts`;
+    }
+  }
+}
 
 document.getElementById("pointPostsCloseBtn")?.addEventListener("click", hidePointPostsModal);
 
@@ -780,7 +829,9 @@ async function openPointPosts(itemKey, bucket, atLabel, postType){
   const sub = document.getElementById("pointPostsSub");
   const list = document.getElementById("pointPostsList");
 
-  title.textContent = `${(postType || "").toUpperCase()} posts • ${atLabel}`;
+  const label = (postType === "both") ? "BUY + SELL" : (postType || "").toUpperCase();
+  title.textContent = `${label} posts • ${atLabel}`;
+
   sub.textContent = `Loading…`;
 
   showPointPostsModal();
@@ -822,11 +873,22 @@ async function openPointPosts(itemKey, bucket, atLabel, postType){
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
 
+    const delBtn = IS_STAFF
+      ? `<button class="btn hero-refresh" style="padding:6px 10px; background:#b33;"
+            onclick="deleteTradeRecord('${p.channel_id}','${p.message_id}', this)">
+            Delete
+        </button>`
+      : ``;
+
     return `
       <div class="post-row">
-        <div class="post-top">
+        <div class="post-top" style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
           <div class="post-meta">${when}</div>
-          ${jump ? `<a class="post-jump" href="${jump}" target="_blank" rel="noopener">Jump to post →</a>` : `<span class="post-meta">No link</span>`}
+
+          <div style="display:flex; gap:10px; align-items:center;">
+            ${jump ? `<a class="post-jump" href="${jump}" target="_blank" rel="noopener">Jump to post →</a>` : `<span class="post-meta">No link</span>`}
+            ${delBtn}
+          </div>
         </div>
 
         <div class="post-values">
@@ -838,6 +900,7 @@ async function openPointPosts(itemKey, bucket, atLabel, postType){
         ${safeRaw ? `<div class="post-meta" style="white-space:pre-wrap;">${safeRaw}</div>` : ``}
       </div>
     `;
+
   }).join("");
 }
 
@@ -1142,7 +1205,13 @@ async function loadItemHistory(itemKey){
   const sellPct = computeTrendPct(sell, null);
   const buyPct  = computeTrendPct(buy, null);
 
+  // Only update if user changed range/bucket away from the main list setting
+  // (keeps the initial modal % identical to the card)
+  const daysMain = String(document.getElementById("daysSelect")?.value || "7");
+  const rangeNow = String(document.getElementById("modalRange")?.value || "30");
+  const bucketNow = String(document.getElementById("modalBucket")?.value || "day");
   setModalDualTrend(sellPct, buyPct);
+
   const buyPosts = data.buy_posts || [];
   const sellPosts = data.sell_posts || [];
 
@@ -1176,11 +1245,11 @@ async function loadItemHistory(itemKey){
           label: "Buy",
           data: buy,
           borderWidth: 3,
-          tension: 0,         // Option B: no smoothing
-          stepped: true,      // Option B: stock-like steps
-          spanGaps: false,    // Option B: don’t draw across missing buckets
-          pointRadius: 2,
-          pointHoverRadius: 5,
+          tension: 0,
+          stepped: true,
+          spanGaps: false,
+          pointRadius: 0,
+          pointHoverRadius: 0,
         },
         {
           label: "Sell",
@@ -1189,8 +1258,19 @@ async function loadItemHistory(itemKey){
           tension: 0,
           stepped: true,
           spanGaps: false,
-          pointRadius: 2,
-          pointHoverRadius: 5,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+        },
+
+        // ✅ One dot per bucket (clickable)
+        {
+          label: "__DOT__",
+          data: dot,
+          showLine: false,
+          borderWidth: 0,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          hitRadius: 10,
         },
       ]
     },
@@ -1203,24 +1283,21 @@ async function loadItemHistory(itemKey){
 
         const el = elements[0];
         const i = el.index;
-        const ds = el.datasetIndex;
-
-        // dataset 0 = Buy, dataset 1 = Sell (matches your datasets order)
-        const postType = (ds === 0) ? "buy" : "sell";
         const atLabel = labels[i];
-
-        // optional: ignore empty points
-        const val = (postType === "buy") ? buy[i] : sell[i];
-        if (val === null || val === undefined) return;
-
         const bucket = document.getElementById("modalBucket")?.value || "day";
         if (!MODAL_ITEM) return;
 
-        openPointPosts(MODAL_ITEM.item_key, bucket, atLabel, postType);
+        // open combined view
+        openPointPosts(MODAL_ITEM.item_key, bucket, atLabel, "both");
       },
 
       plugins: {
-        legend: { display: true },
+        legend: {
+          display: true,
+          labels: {
+            filter: (item) => item.text !== "__DOT__"
+          }
+        },
         tooltip: {
           callbacks: {
             afterLabel: (ctx) => {
@@ -1302,8 +1379,10 @@ async function loadTrading(page = 1){
 
     const card = document.createElement("div");
     card.className = "trade-card";
+    card.id = `card-${item.item_key}`; 
     card.setAttribute("role", "link");
     card.setAttribute("tabindex", "0");
+
     card.onclick = () => openItemModal(item);
     card.onkeydown = (e) => {
       if (e.key === "Enter" || e.key === " ") openItemModal(item);
@@ -1329,23 +1408,23 @@ async function loadTrading(page = 1){
       <div class="trade-stats">
         <div class="stat-box">
           <div class="stat-label">Avg Sell</div>
-          <div class="stat-value">${avgSell}</div>
+          <div class="stat-value" id="v-${item.item_key}-avg_sell">${avgSell}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Avg Buy</div>
-          <div class="stat-value">${avgBuy}</div>
+          <div class="stat-value" id="v-${item.item_key}-avg_buy">${avgBuy}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Quantity</div>
-          <div class="stat-value">${fmt(item.total_qty)}</div>
+          <div class="stat-value" id="v-${item.item_key}-qty">${fmt(item.total_qty)}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Total Value</div>
-          <div class="stat-value">${fmt(item.total_value)}</div>
+          <div class="stat-value" id="v-${item.item_key}-value">${fmt(item.total_value)}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Posts</div>
-          <div class="stat-value">${fmt(item.total_posts)}</div>
+          <div class="stat-value" id="v-${item.item_key}-posts">${fmt(item.total_posts)}</div>
         </div>
       </div>
     `;
@@ -1444,14 +1523,33 @@ async function checkForUpdates(){
   }
 
   if(changed){
-    await loadTrading(CURRENT_PAGE);
+    for(const it of data.items.slice(0, 16)){
+      const key = it.item_key;
 
-    // flash grid quickly
-    const container = document.getElementById("tradeResults");
-    container.classList.remove("flash");
-    void container.offsetWidth;
-    container.classList.add("flash");
+      const updates = {
+        avg_sell: fmtMoney(it.avg_sell),
+        avg_buy: fmtMoney(it.avg_buy),
+        qty: fmt(it.total_qty),
+        value: fmt(it.total_value),
+        posts: fmt(it.total_posts),
+      };
+
+      for(const [field, newText] of Object.entries(updates)){
+        const el = document.getElementById(`v-${key}-${field}`);
+        if(!el) continue;
+
+        if(el.textContent !== newText){
+          el.textContent = newText;
+
+          // flash just this number
+          el.classList.remove("num-flash");
+          void el.offsetWidth;
+          el.classList.add("num-flash");
+        }
+      }
+    }
   }
+
 
   // Update snapshot after
   LAST_SNAPSHOT.clear();
