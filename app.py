@@ -59,6 +59,7 @@ from math import ceil
 import random
 from flask import jsonify
 from datetime import datetime, timezone
+from bson.errors import InvalidId
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
 R2_PUBLIC_HOST = os.getenv("R2_PUBLIC_HOST", "")  # e.g. img.hayday.info
@@ -4160,25 +4161,21 @@ def admin_trading_tick_delete():
     if "discord_id" not in session or not is_staff():
         return jsonify(ok=False, error="Unauthorized"), 403
 
-    try:
-        channel_id = int(request.form.get("channel_id") or 0)
-        message_id = int(request.form.get("message_id") or 0)
-    except ValueError:
-        return jsonify(ok=False, error="Invalid ids"), 400
+    tick_id = (request.form.get("tick_id") or "").strip()
+    if not tick_id:
+        return jsonify(ok=False, error="Missing tick_id"), 400
 
-    if not channel_id or not message_id:
-        return jsonify(ok=False, error="Missing channel_id/message_id"), 400
+    try:
+        oid = ObjectId(tick_id)
+    except InvalidId:
+        return jsonify(ok=False, error="Invalid tick_id"), 400
 
     with MongoClient(os.getenv("MONGO_URI")) as c:
         ticks = c["hayday"]["auctions.Trading.ticks"]
-
-        res = ticks.delete_one({
-            "guild_id": TRADING_GUILD_ID,
-            "channel_id": channel_id,
-            "message_id": message_id,
-        })
+        res = ticks.delete_one({"_id": oid, "guild_id": TRADING_GUILD_ID})
 
     return jsonify(ok=True, deleted=int(res.deleted_count))
+
 
 @app.route("/api/trading/item/<item_key>/posts")
 def api_trading_item_posts(item_key):
@@ -4234,6 +4231,8 @@ def api_trading_item_posts(item_key):
         posts = []
         for d in cursor:
             posts.append({
+                "id": str(d.get("_id")),
+                "post_type": d.get("post_type"),
                 "ts": d.get("ts").isoformat() if d.get("ts") else None,
                 "jump_url": d.get("jump_url"),
                 "author_id": str(d.get("author_id")) if d.get("author_id") is not None else None,
@@ -4243,8 +4242,8 @@ def api_trading_item_posts(item_key):
                 "unit_price": d.get("unit_price"),
                 "total_value": d.get("total_value"),
                 "raw_text": d.get("raw_text") or d.get("content") or d.get("text"),
-                "type": d.get("post_type"),
             })
+
 
     return jsonify(
         ok=True,

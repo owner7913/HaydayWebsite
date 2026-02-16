@@ -478,6 +478,26 @@ body.light .trade-controls select.input option{
   flex-direction:column;
   gap:6px;
 }
+.post-type-badge{
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.3px;
+}
+
+.post-type-buy{
+  background: rgba(96,165,250,.12);
+  border: 1px solid rgba(96,165,250,.35);
+  color: #60a5fa;   /* blue */
+}
+
+.post-type-sell{
+  background: rgba(251,146,60,.12);
+  border: 1px solid rgba(251,146,60,.35);
+  color: #fb923c;   /* orange */
+}
 
 .post-top{
   display:flex;
@@ -772,8 +792,9 @@ function hidePointPostsModal(){
   b.classList.remove("show");
   b.setAttribute("aria-hidden", "true");
 }
-async function deleteTradeRecord(channelId, messageId, btn){
+async function deleteTradeRecord(tickId, btn){
   if(!IS_STAFF) return;
+
   if(!confirm("Delete this trade record from the database?")) return;
 
   if(btn){
@@ -782,14 +803,13 @@ async function deleteTradeRecord(channelId, messageId, btn){
   }
 
   const fd = new FormData();
-  fd.append("channel_id", String(channelId));
-  fd.append("message_id", String(messageId));
+  fd.append("tick_id", tickId);
 
-  const res = await fetch("/admin/trading/tick/delete", { method: "POST", body: fd });
+  const res = await fetch("/admin/trading/tick/delete", { method:"POST", body: fd });
   const data = await res.json().catch(() => ({}));
 
   if(!res.ok || !data.ok){
-    alert((data && data.error) ? data.error : "Failed to delete.");
+    alert(data.error || "Delete failed.");
     if(btn){
       btn.disabled = false;
       btn.textContent = "Delete";
@@ -797,20 +817,11 @@ async function deleteTradeRecord(channelId, messageId, btn){
     return;
   }
 
-  // Remove the row from UI
-  const row = btn?.closest(".post-row");
+  // remove the row in UI immediately
+  const row = btn?.closest?.(".post-row");
   if(row) row.remove();
-
-  // Update sub count text best-effort
-  const sub = document.getElementById("pointPostsSub");
-  if(sub){
-    const m = sub.textContent.match(/^(\d+)\s+posts/);
-    if(m){
-      const n = Math.max(0, Number(m[1]) - 1);
-      sub.textContent = `${n} posts`;
-    }
-  }
 }
+
 
 document.getElementById("pointPostsCloseBtn")?.addEventListener("click", hidePointPostsModal);
 
@@ -875,15 +886,21 @@ async function openPointPosts(itemKey, bucket, atLabel, postType){
 
     const delBtn = IS_STAFF
       ? `<button class="btn hero-refresh" style="padding:6px 10px; background:#b33;"
-            onclick="deleteTradeRecord('${p.channel_id}','${p.message_id}', this)">
+            onclick="deleteTradeRecord('${p.id}', this)">
             Delete
         </button>`
       : ``;
-
+    const pt = (p.post_type || p.type || "").toLowerCase();
+    const isBuy = pt === "buy";
     return `
       <div class="post-row">
         <div class="post-top" style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
-          <div class="post-meta">${when}</div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span class="post-type-badge ${isBuy ? 'post-type-buy' : 'post-type-sell'}">
+              ${isBuy ? 'BUY' : 'SELL'}
+            </span>
+            <div class="post-meta">${when}</div>
+          </div>
 
           <div style="display:flex; gap:10px; align-items:center;">
             ${jump ? `<a class="post-jump" href="${jump}" target="_blank" rel="noopener">Jump to post →</a>` : `<span class="post-meta">No link</span>`}
@@ -1205,12 +1222,15 @@ async function loadItemHistory(itemKey){
   const sellPct = computeTrendPct(sell, null);
   const buyPct  = computeTrendPct(buy, null);
 
-  // Only update if user changed range/bucket away from the main list setting
-  // (keeps the initial modal % identical to the card)
   const daysMain = String(document.getElementById("daysSelect")?.value || "7");
   const rangeNow = String(document.getElementById("modalRange")?.value || "30");
   const bucketNow = String(document.getElementById("modalBucket")?.value || "day");
-  setModalDualTrend(sellPct, buyPct);
+
+  if(rangeNow !== daysMain || bucketNow !== "day"){
+    setModalDualTrend(sellPct, buyPct);
+  }
+
+
 
   const buyPosts = data.buy_posts || [];
   const sellPosts = data.sell_posts || [];
@@ -1248,8 +1268,9 @@ async function loadItemHistory(itemKey){
           tension: 0,
           stepped: true,
           spanGaps: false,
-          pointRadius: 0,
-          pointHoverRadius: 0,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          hitRadius: 10,
         },
         {
           label: "Sell",
@@ -1258,16 +1279,6 @@ async function loadItemHistory(itemKey){
           tension: 0,
           stepped: true,
           spanGaps: false,
-          pointRadius: 0,
-          pointHoverRadius: 0,
-        },
-
-        // ✅ One dot per bucket (clickable)
-        {
-          label: "__DOT__",
-          data: dot,
-          showLine: false,
-          borderWidth: 0,
           pointRadius: 3,
           pointHoverRadius: 6,
           hitRadius: 10,
@@ -1294,9 +1305,6 @@ async function loadItemHistory(itemKey){
       plugins: {
         legend: {
           display: true,
-          labels: {
-            filter: (item) => item.text !== "__DOT__"
-          }
         },
         tooltip: {
           callbacks: {
