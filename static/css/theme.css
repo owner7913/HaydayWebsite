@@ -10,7 +10,7 @@
 header.site-header {
   width: 100%;
   padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--panel-bg-light);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   box-sizing: border-box; 
   position: fixed;
@@ -29,7 +29,7 @@ body {
 }
 header { background: var(--panel-bg-light); }
 body.dark header { background: var(--panel-bg-dark); }
-
+body.dark header.site-header { background: var(--panel-bg-dark); }
 
 body.dark header a {
   color: #ddd;
@@ -910,4 +910,13 @@ body[data-site-theme="christmas"] {
 body[data-site-theme="newyear"] {
   --accent: #38bdf8;
   --link-hover: #bae6fd;
+}
+/* Make seasonal theme visible site-wide */
+body[data-site-theme]:not([data-site-theme="default"]) header.site-header,
+body[data-site-theme]:not([data-site-theme="default"]) footer {
+  border-bottom: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+body[data-site-theme]:not([data-site-theme="default"]) .maint-banner {
+  background: color-mix(in oklab, var(--accent) 55%, #1f4fad);
 }
