@@ -1328,13 +1328,11 @@ async function loadItemHistory(itemKey){
 
 function fmtMoney(n){
   if(n === null || n === undefined) return "-";
-  const v = Number(n);
+  const v = Math.round(Number(n));
   if(!isFinite(v)) return "-";
-  return v.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return v.toLocaleString("en-US");
 }
+
 
 
 function fmt(n){

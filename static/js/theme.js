@@ -201,3 +201,88 @@ function logInteraction(action, details = {}) {
 
   } catch (e) { console.warn('Seasonal décor injection failed:', e); }
 })();
+
+
+
+function nthWeekdayOfMonth(year, monthIndex0, weekday0, n) {
+  // monthIndex0: 0=Jan, weekday0: 0=Sun
+  const first = new Date(year, monthIndex0, 1);
+  const firstWeekday = first.getDay();
+  const offset = (weekday0 - firstWeekday + 7) % 7;
+  return new Date(year, monthIndex0, 1 + offset + (n - 1) * 7);
+}
+
+function easterSunday(year) {
+  // Anonymous Gregorian algorithm (works for 1583+)
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); // 3=March, 4=April
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function inRange(d, start, end) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  return x >= s && x <= e;
+}
+
+function pickSiteTheme(now = new Date()) {
+  const y = now.getFullYear();
+
+  // --- Holidays (feel free to tweak windows) ---
+  const valentine = new Date(y, 1, 14); // Feb 14
+  if (inRange(now, new Date(y, 1, 10), new Date(y, 1, 15))) return "valentine";
+
+  // Easter window (Fri -> Mon)
+  const easter = easterSunday(y);
+  const goodFriday = new Date(easter); goodFriday.setDate(easter.getDate() - 2);
+  const easterMonday = new Date(easter); easterMonday.setDate(easter.getDate() + 1);
+  if (inRange(now, goodFriday, easterMonday)) return "easter";
+
+  // Halloween week
+  if (inRange(now, new Date(y, 9, 25), new Date(y, 10, 2))) return "halloween"; // Oct 25 -> Nov 2
+
+  // Thanksgiving (US/Canada differ; this is US: 4th Thu in Nov)
+  const thanksgivingUS = nthWeekdayOfMonth(y, 10, 4, 4); // Nov (10), Thu (4), 4th
+  if (inRange(now, new Date(y, 10, thanksgivingUS.getDate() - 3), new Date(y, 10, thanksgivingUS.getDate() + 1))) {
+    return "thanksgiving";
+  }
+
+  // Christmas / New Year
+  if (inRange(now, new Date(y, 11, 20), new Date(y, 11, 31))) return "christmas";
+  if (inRange(now, new Date(y, 0, 1), new Date(y, 0, 3))) return "newyear";
+
+  // --- Seasons (Northern hemisphere defaults) ---
+  const m = now.getMonth(); // 0=Jan
+  if (m === 11 || m === 0 || m === 1) return "winter";
+  if (m >= 2 && m <= 4) return "spring";
+  if (m >= 5 && m <= 7) return "summer";
+  return "autumn";
+}
+
+function applySiteTheme(themeKey) {
+  document.body.dataset.siteTheme = themeKey || "default";
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  // Optional manual override:
+  const override = localStorage.getItem("site_theme_override"); // e.g. "halloween"
+  const theme = override || pickSiteTheme(new Date());
+  applySiteTheme(theme);
+});
