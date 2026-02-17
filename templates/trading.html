@@ -645,6 +645,60 @@ body.light .trade-controls select.input option{
   color:#ffd166;
   font-weight:900;
 }
+/* Card: range box alignment */
+/* Card RANGE box – full gold style */
+.stat-box-xmp{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;   /* center both vertically */
+  gap:2px;                  /* small controlled spacing */
+  text-align:center;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255, 209, 102, 0.15),
+    rgba(255, 209, 102, 0.08)
+  );
+  border: 1px solid rgba(255, 209, 102, 0.40);
+}
+
+
+/* Remove inner pill styling when inside stat box */
+.stat-box-xmp .xmp-pill{
+  background: none;
+  border: none;
+  padding: 0;
+}
+.stat-box-xmp .stat-label{
+  color: rgba(255, 209, 102, .85);
+  font-weight: 700;
+}
+
+.stat-box-xmp .xmp-val{
+  margin-top: 0;        /* remove vertical push */
+  font-weight: 900;
+  font-size: 16px;
+  color: #ffd166;
+}
+
+
+
+
+/* Modal: bigger range pill */
+.xmp-pill-big{
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+
+  border-radius: 12px;
+}
+
+.xmp-pill-big .xmp-val{
+  font-size: 16px;
+  letter-spacing: .3px;
+}
 
 .chart-wrap{
   height: 320px;
@@ -750,7 +804,6 @@ body.light .trade-controls select.input option{
             <div id="itemModalTitle" class="m-name" style="min-width:0;">Loading…</div>
             <span id="modalTrend" class="trend-badge trend-flat" style="display:none;"></span>
           </div>
-          <div id="modalXmp" style="margin-top:6px;"></div>
         </div>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
@@ -764,6 +817,7 @@ body.light .trade-controls select.input option{
         <div class="modal-stats" id="modalStats">
           <div style="opacity:.7;">Loading…</div>
         </div>
+        <div id="modalXmpBig" style="margin-top:12px;"></div>
       </div>
 
       <div class="modal-card">
@@ -1303,8 +1357,9 @@ function renderModalStats(item){
 
 async function openItemModal(item){
   MODAL_ITEM = item;
-  const xmpContainer = document.getElementById("modalXmp");
-  xmpContainer.innerHTML = xmpHTML(item.item_key, item.xmp_min, item.xmp_max, "m");
+  const xmpBig = document.getElementById("modalXmpBig");
+  if (xmpBig) xmpBig.innerHTML = xmpHTML(item.item_key, item.xmp_min, item.xmp_max, "m", true);
+
 
   const icon = item.image_file
     ? `/static/img/items/${encodeURIComponent(item.image_file)}`
@@ -1527,23 +1582,41 @@ function fmtXmp(n){
     : String(rounded);
 }
 
-function xmpHTML(itemKey, minV, maxV, idPrefix = "v"){
+function xmpHTML(itemKey, minV, maxV, idPrefix = "v", big = false){
   const a = fmtXmp(minV);
   const b = fmtXmp(maxV);
-  if(!a || !b) return "";
+  if(!a && !b) return "";
 
-  const same = (a === b);
-  const text = same ? `${a}xmp` : `${a}xmp ~ ${b}xmp`;
+  const same = (a && b && a === b);
 
+  let text = "";
+  if(same){
+    text = `${a} xmp`;
+  } else if(a && b){
+    text = `${a} ~ ${b} xmp`;
+  } else if(a){
+    text = `${a} xmp`;
+  } else if(b){
+    text = `${b} xmp`;
+  }
+
+  // Modal version (big)
+  if(big){
+    return `
+      <div class="stat-box stat-box-xmp" style="margin-top:12px;">
+        <div class="stat-label">Max Price Range</div>
+        <div class="xmp-val">${text}</div>
+      </div>
+    `;
+  }
+
+  // Card version (normal)
   return `
-    <div class="xmp-pill">
-      <div class="xmp-label">XMP RANGE</div>
-      <div class="xmp-val" id="${idPrefix}-${itemKey}-xmp">${text}</div>
+    <div class="xmp-val" id="${idPrefix}-${itemKey}-xmp">
+      ${text}
     </div>
   `;
 }
-
-
 
 function fmtMoney(n){
   if(n === null || n === undefined) return "-";
@@ -1551,8 +1624,6 @@ function fmtMoney(n){
   if(!isFinite(v)) return "-";
   return v.toLocaleString("en-US");
 }
-
-
 
 function fmt(n){
   if(n === null || n === undefined) return "-";
@@ -1562,7 +1633,6 @@ function fmt(n){
     return String(n);
   }
 }
-
 
 async function loadTrading(page = 1){
   CURRENT_PAGE = page;
@@ -1621,7 +1691,6 @@ async function loadTrading(page = 1){
         <div style="min-width:0;">
           <div class="trade-head-col">
             <div class="trade-name">${item.item_name || item.item_key || "Unknown item"}</div>
-            ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max)}
             <div class="trade-trends">
               ${dualTrendHTML(item.trend_sell_pct, item.trend_buy_pct)}
             </div>
@@ -1651,6 +1720,10 @@ async function loadTrading(page = 1){
           <div class="stat-label">Posts</div>
           <div class="stat-value" id="v-${item.item_key}-posts">${fmt(item.total_posts)}</div>
         </div>
+          <div class="stat-box stat-box-xmp">
+            <div class="stat-label">Max Price Range</div>
+            ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max)}
+          </div>
       </div>
     `;
     container.appendChild(card);
@@ -1811,8 +1884,11 @@ async function checkForUpdates(){
         xmp: (() => {
           const a = fmtXmp(it.xmp_min);
           const b = fmtXmp(it.xmp_max);
-          if(!(a && b)) return "-";
-          return (a === b) ? `${a}xmp` : `${a}xmp ~ ${b}xmp`;
+          if(!a && !b) return "-";
+          if(a && b && a === b) return `${a} xmp`;
+          if(a && b) return `${a} ~ ${b} xmp`;
+          if(a) return `${a} xmp`;
+          return `${b} xmp`;
         })(),
       };
 

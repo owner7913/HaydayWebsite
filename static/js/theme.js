@@ -286,3 +286,160 @@ window.addEventListener("DOMContentLoaded", () => {
   const theme = override || pickSiteTheme(new Date());
   applySiteTheme(theme);
 });
+// =========================
+// Seasonal header effects
+// =========================
+(function () {
+  function motionAllowed() {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const forced = localStorage.getItem("season_motion"); // "on" | "off" | null
+    return (forced === "on") || (forced !== "off" && !prefersReduced);
+  }
+
+  function rand(min, max) { return Math.random() * (max - min) + min; }
+
+  function ensureDecor(header) {
+    let decor = header.querySelector(".theme-header-decor");
+    if (!decor) {
+      decor = document.createElement("div");
+      decor.className = "theme-header-decor";
+      decor.setAttribute("aria-hidden", "true");
+      header.appendChild(decor);
+    } else {
+      decor.innerHTML = "";
+    }
+    return decor;
+  }
+
+  function buildWinter(decor) {
+    // Icicles
+    const icicles = document.createElement("div");
+    icicles.className = "winter-icicles";
+    decor.appendChild(icicles);
+
+    if (!motionAllowed()) return;
+
+  // Snowflakes (a bit more + wider vertical drift around header)
+  const count = Math.min(28, Math.max(14, Math.floor(window.innerWidth / 70)));
+  for (let i = 0; i < count; i++) {
+    const flake = document.createElement("div");
+    flake.className = "winter-snowflake";
+
+    // place across width
+    flake.style.left = rand(0, 100) + "%";
+
+    // start slightly above OR slightly inside (varied)
+    flake.style.top = rand(-28, 12) + "px";
+
+    // speed & drift
+    flake.style.setProperty("--t", rand(4.8, 9.8) + "s");
+    flake.style.setProperty("--x0", rand(-18, 18) + "px");
+    flake.style.setProperty("--x1", rand(-28, 28) + "px");
+
+    // stagger so it looks "alive" instantly
+    flake.style.animationDelay = (-rand(0, 10)).toFixed(2) + "s";
+
+    decor.appendChild(flake);
+  }
+
+
+  function buildValentine(decor) {
+    if (!motionAllowed()) return;
+    const count = 10;
+    for (let i = 0; i < count; i++) {
+      const h = document.createElement("div");
+      h.className = "val-heart";
+      h.style.left = rand(0, 100) + "%";
+      h.style.setProperty("--t", rand(6.5, 10.5) + "s");
+      h.style.animationDelay = (-rand(0, 10)).toFixed(2) + "s";
+      decor.appendChild(h);
+    }
+  }
+
+  function buildSpring(decor) {
+    if (!motionAllowed()) return;
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div");
+      p.className = "spring-petal";
+      p.style.left = rand(0, 100) + "%";
+      p.style.setProperty("--t", rand(7, 12) + "s");
+      p.style.setProperty("--x0", rand(-10, 10) + "px");
+      p.style.setProperty("--x1", rand(-18, 18) + "px");
+      p.style.setProperty("--r", rand(-25, 25) + "deg");
+      p.style.animationDelay = (-rand(0, 12)).toFixed(2) + "s";
+      decor.appendChild(p);
+    }
+  }
+
+  function buildAutumn(decor) {
+    if (!motionAllowed()) return;
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const l = document.createElement("div");
+      l.className = "autumn-leaf";
+      l.style.left = rand(0, 100) + "%";
+      l.style.setProperty("--t", rand(8, 14) + "s");
+      l.style.setProperty("--x0", rand(-14, 14) + "px");
+      l.style.setProperty("--x1", rand(-28, 28) + "px");
+      l.style.animationDelay = (-rand(0, 14)).toFixed(2) + "s";
+      decor.appendChild(l);
+    }
+  }
+
+  function buildChristmas(decor) {
+    const wrap = document.createElement("div");
+    wrap.className = "xmas-lights";
+    const bulbs = Math.min(18, Math.max(10, Math.floor(window.innerWidth / 90)));
+    for (let i = 0; i < bulbs; i++) {
+      const b = document.createElement("span");
+      b.className = "xmas-bulb";
+      b.style.animationDelay = (i * 0.12).toFixed(2) + "s";
+      wrap.appendChild(b);
+    }
+    decor.appendChild(wrap);
+  }
+
+  function buildNewYear(decor) {
+    if (!motionAllowed()) return;
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement("div");
+      s.className = "ny-sparkle";
+      s.style.left = rand(0, 100) + "%";
+      s.style.setProperty("--t", rand(2.4, 4.2) + "s");
+      s.style.animationDelay = (-rand(0, 4)).toFixed(2) + "s";
+      decor.appendChild(s);
+    }
+  }
+
+  function applyHeaderEffects() {
+    const header = document.querySelector("header.site-header");
+    if (!header) return;
+
+    const theme = (document.body.dataset.siteTheme || "default").toLowerCase();
+    const decor = ensureDecor(header);
+
+    // Theme builders
+    if (theme === "winter") buildWinter(decor);
+    else if (theme === "valentine") buildValentine(decor);
+    else if (theme === "spring") buildSpring(decor);
+    else if (theme === "autumn") buildAutumn(decor);
+    else if (theme === "christmas") buildChristmas(decor);
+    else if (theme === "newyear") buildNewYear(decor);
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    // Wait one tick so your pickSiteTheme/applySiteTheme has run
+    setTimeout(applyHeaderEffects, 0);
+  });
+
+  // Rebuild on resize (lightweight)
+  window.addEventListener("resize", () => {
+    clearTimeout(window.__hdrFxTimer);
+    window.__hdrFxTimer = setTimeout(applyHeaderEffects, 120);
+  });
+
+  // Optional: if you change theme via localStorage manually, call this:
+  window.applyHeaderEffects = applyHeaderEffects;
+})();
