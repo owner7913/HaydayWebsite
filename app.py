@@ -3932,6 +3932,45 @@ def admin_trading_override():
 
     return jsonify(ok=True, item_key=item_key, name=name, image_url=update.get("image_url"))
 
+@app.route("/api/trading/suggest")
+def api_trading_suggest():
+    q = (request.args.get("q", "") or "").strip().lower()
+    limit = min(max(int(request.args.get("limit", 8)), 1), 20)
+
+    display_map, alias_to_key, _k2f, _src, _img = _trading_maps_with_overrides()
+
+    if not q:
+        return jsonify(ok=True, items=[])
+
+    qk = clean_key(q)
+
+    # If they typed an alias exactly, boost that item to the top
+    resolved = alias_to_key.get(q) or alias_to_key.get(qk)
+
+    scored = []
+    for key, name in display_map.items():
+        ck = clean_key(key)
+        cn = clean_key(name)
+
+        if qk not in ck and qk not in cn:
+            continue
+
+        score = 2
+        if cn.startswith(qk) or ck.startswith(qk):
+            score = 0
+        elif (qk in cn) or (qk in ck):
+            score = 1
+
+        if resolved and key == resolved:
+            score = -1
+
+        scored.append((score, len(cn), name, key))
+
+    scored.sort(key=lambda t: (t[0], t[1], t[2]))
+
+    items = [{"item_key": key, "item_name": name} for (_s, _l, name, key) in scored[:limit]]
+    return jsonify(ok=True, items=items)
+
 
 @app.route("/api/trading/overview")
 def api_trading_overview():
@@ -3961,6 +4000,7 @@ def api_trading_overview():
     with MongoClient(os.getenv("MONGO_URI")) as c:
         db = c["hayday"]
         ticks = db["auctions.Trading.ticks"]
+        mp_ticks = db["auctions.Trading.mp_ticks"]
         display_map, alias_to_key, key_to_filename, key_to_source_url, key_to_image_url = _trading_maps_with_overrides()
 
 
@@ -4006,6 +4046,49 @@ def api_trading_overview():
             }},
         ]
         trend_rows = list(ticks.aggregate(trend_pipe))
+
+        # --- XMP range (mp_mult) per item_key (from mp_ticks collection) ---
+        mp_match = {
+            "guild_id": TRADING_GUILD_ID,
+            "mp_mult": {"$ne": None},
+        }
+        # only apply ts filter if you know mp_ticks has ts
+        mp_match["ts"] = {"$gte": since}
+
+
+        mp_pipe = [
+            {"$match": mp_match},
+            {"$group": {
+                "_id": "$item_key",
+                "min_mp": {"$min": "$mp_mult"},
+                "max_mp": {"$max": "$mp_mult"},
+                "mp_posts": {"$sum": 1},
+            }},
+        ]
+        mp_rows = list(mp_ticks.aggregate(mp_pipe))
+
+        mp_map = {}  # canonical_key -> {"min": x, "max": y, "posts": n}
+        for r in mp_rows:
+            raw_key = (r.get("_id") or "").strip().lower()
+            if not raw_key:
+                continue
+
+            # resolve to canonical key
+            if raw_key in display_map:
+                canonical = raw_key
+            else:
+                ck = clean_key(raw_key)
+                canonical = alias_to_key.get(raw_key) or alias_to_key.get(ck)
+
+            if not canonical or canonical not in display_map:
+                continue
+
+            mp_map[canonical] = {
+                "min": r.get("min_mp"),
+                "max": r.get("max_mp"),
+                "posts": int(r.get("mp_posts") or 0),
+            }
+
 
     trend_map = {}  # canonical_key -> {"sell": pct, "buy": pct}
 
@@ -4097,6 +4180,11 @@ def api_trading_overview():
         it["total_qty"] = it["buy_qty"] + it["sell_qty"]
         it["total_posts"] = it["buy_posts"] + it["sell_posts"]
         it["total_value"] = it["buy_value"] + it["sell_value"]
+        # XMP range (if available)
+        mp = mp_map.get(it["item_key"])
+        it["xmp_min"] = mp.get("min") if mp else None
+        it["xmp_max"] = mp.get("max") if mp else None
+        it["xmp_posts"] = mp.get("posts") if mp else 0
 
 
     def sk(it):

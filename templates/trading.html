@@ -548,6 +548,68 @@ body.light .trade-controls select.input option{
   35%  { background: rgba(110,231,168,.10); box-shadow: 0 0 18px rgba(110,231,168,.18); }
   100% { background: rgba(110,231,168,.00); box-shadow: 0 0 0 rgba(110,231,168,0); }
 }
+/* Autocomplete suggestions */
+.search-wrap{ position: relative; }
+.suggest-box{
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(18,18,22,0.98);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+}
+.suggest-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  width:100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align:left;
+  font-weight: 700;
+}
+.suggest-item:hover,
+.suggest-item[aria-selected="true"]{
+  background: rgba(110,231,168,0.10);
+}
+.suggest-sub{
+  font-size: 11px;
+  opacity: .65;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.xmp-pill{
+  margin-top: 8px;
+  display:inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.xmp-pill .xmp-label{
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .35px;
+  opacity: .8;
+  text-transform: uppercase;
+}
+.xmp-pill .xmp-val{
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: .2px;
+  color: #ffd166;
+}
 
 </style>
 
@@ -578,7 +640,10 @@ body.light .trade-controls select.input option{
     <div class="trade-controls-grid">
       <div>
         <div class="control-label">Search</div>
-        <input id="searchInput" class="input search-input" placeholder="Search items…">
+        <div class="search-wrap">
+          <input id="searchInput" class="input search-input" placeholder="Search items…" autocomplete="off">
+          <div id="searchSuggest" class="suggest-box" style="display:none;"></div>
+        </div>
       </div>
       <div>
         <div class="control-label">&nbsp;</div>
@@ -780,6 +845,73 @@ let CURRENT_PAGE = 1;
 
 let MODAL_ITEM = null;
 let PRICE_CHART = null;
+let SUGGEST_TIMER = null;
+let SUGGEST_ITEMS = [];
+let SUGGEST_INDEX = -1;
+
+function hideSuggest(){
+  const box = document.getElementById("searchSuggest");
+  if(!box) return;
+  box.style.display = "none";
+  box.innerHTML = "";
+  SUGGEST_ITEMS = [];
+  SUGGEST_INDEX = -1;
+}
+
+function showSuggest(items){
+  const box = document.getElementById("searchSuggest");
+  if(!box) return;
+
+  SUGGEST_ITEMS = items || [];
+  SUGGEST_INDEX = -1;
+
+  if(!SUGGEST_ITEMS.length){
+    hideSuggest();
+    return;
+  }
+
+  box.innerHTML = SUGGEST_ITEMS.map((it, i) => `
+    <button class="suggest-item" type="button" data-i="${i}">
+      <span>${it.item_name}</span>
+      <span class="suggest-sub">${it.item_key}</span>
+    </button>
+  `).join("");
+
+  box.style.display = "block";
+
+  box.querySelectorAll(".suggest-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.i);
+      const chosen = SUGGEST_ITEMS[i];
+      if(!chosen) return;
+      document.getElementById("searchInput").value = chosen.item_name;
+      hideSuggest();
+      resetAndLoad();
+    });
+  });
+}
+
+async function fetchSuggest(q){
+  const res = await fetch(`/api/trading/suggest?q=${encodeURIComponent(q)}&limit=8`);
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok || !data.ok) return [];
+  return data.items || [];
+}
+
+function setSuggestIndex(i){
+  const box = document.getElementById("searchSuggest");
+  if(!box) return;
+  const btns = Array.from(box.querySelectorAll(".suggest-item"));
+  btns.forEach(b => b.setAttribute("aria-selected", "false"));
+
+  if(i < 0 || i >= btns.length){
+    SUGGEST_INDEX = -1;
+    return;
+  }
+  SUGGEST_INDEX = i;
+  btns[i].setAttribute("aria-selected", "true");
+  btns[i].scrollIntoView({ block: "nearest" });
+}
 
 function showPointPostsModal(){
   const b = document.getElementById("pointPostsBackdrop");
@@ -1082,32 +1214,35 @@ function renderModalStats(item){
     ? (Number(item.avg_sell) - Number(item.avg_buy))
     : null;
 
-  el.innerHTML = `
-    <div class="stat-box">
-      <div class="stat-label">Avg Sell</div>
-      <div class="stat-value">${fmtMoney(item.avg_sell)}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Avg Buy</div>
-      <div class="stat-value">${fmtMoney(item.avg_buy)}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Spread</div>
-      <div class="stat-value">${fmtMoney(spread)}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Quantity</div>
-      <div class="stat-value">${fmt(item.total_qty)}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Total Value</div>
-      <div class="stat-value">${fmt(item.total_value)}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Posts</div>
-      <div class="stat-value">${fmt(item.total_posts)}</div>
-    </div>
-  `;
+    el.innerHTML = `
+      <div class="stat-box">
+        <div class="stat-label">Avg Sell</div>
+        <div class="stat-value">${fmtMoney(item.avg_sell)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Avg Buy</div>
+        <div class="stat-value">${fmtMoney(item.avg_buy)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Spread</div>
+        <div class="stat-value">${fmtMoney(spread)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Quantity</div>
+        <div class="stat-value">${fmt(item.total_qty)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Total Value</div>
+        <div class="stat-value">${fmt(item.total_value)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Posts</div>
+        <div class="stat-value">${fmt(item.total_posts)}</div>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max, "m")}
+      </div>
+    `;
 }
 
 
@@ -1325,6 +1460,28 @@ async function loadItemHistory(itemKey){
 
   });
 }
+function fmtXmp(n){
+  if(n === null || n === undefined) return null;
+  const v = Number(n);
+  if(!isFinite(v)) return null;
+  const rounded = Math.round(v * 10) / 10;
+  return (Math.abs(rounded - Math.round(rounded)) < 1e-9)
+    ? String(Math.round(rounded))
+    : String(rounded);
+}
+
+function xmpHTML(itemKey, minV, maxV, idPrefix = "v"){
+  const a = fmtXmp(minV);
+  const b = fmtXmp(maxV);
+  if(!a || !b) return "";
+  return `
+    <div class="xmp-pill">
+      <div class="xmp-label">XMP RANGE</div>
+      <div class="xmp-val" id="${idPrefix}-${itemKey}-xmp">${a}xmp ~ ${b}xmp</div>
+    </div>
+  `;
+}
+
 
 function fmtMoney(n){
   if(n === null || n === undefined) return "-";
@@ -1404,6 +1561,7 @@ async function loadTrading(page = 1){
             <div class="trade-name">${item.item_name || item.item_key || "Unknown item"}</div>
             <div class="trade-trends">
               ${dualTrendHTML(item.trend_sell_pct, item.trend_buy_pct)}
+              ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max)}
             </div>
           </div>
         </div>
@@ -1465,8 +1623,54 @@ document.addEventListener("DOMContentLoaded", () => {
   const sort = document.getElementById("sortSelect");
 
   s.addEventListener("keydown", (e) => { 
-    if(e.key === "Enter") resetAndLoad(); 
+    if(e.key === "Enter"){
+      if(SUGGEST_INDEX >= 0 && SUGGEST_ITEMS[SUGGEST_INDEX]){
+        s.value = SUGGEST_ITEMS[SUGGEST_INDEX].item_name;
+        hideSuggest();
+      }
+      resetAndLoad();
+      return;
+    }
+    if(e.key === "ArrowDown"){
+      if(document.getElementById("searchSuggest")?.style?.display === "block"){
+        e.preventDefault();
+        setSuggestIndex(Math.min(SUGGEST_INDEX + 1, SUGGEST_ITEMS.length - 1));
+      }
+    }
+    if(e.key === "ArrowUp"){
+      if(document.getElementById("searchSuggest")?.style?.display === "block"){
+        e.preventDefault();
+        setSuggestIndex(Math.max(SUGGEST_INDEX - 1, 0));
+      }
+    }
+    if(e.key === "Escape"){
+      hideSuggest();
+    }
   });
+
+  s.addEventListener("input", () => {
+    const q = s.value.trim();
+    if(SUGGEST_TIMER) clearTimeout(SUGGEST_TIMER);
+
+    if(!q || q.length < 1){
+      hideSuggest();
+      return;
+    }
+
+    SUGGEST_TIMER = setTimeout(async () => {
+      const items = await fetchSuggest(q);
+      showSuggest(items);
+    }, 140);
+  });
+
+  // close suggestions if you click outside
+  document.addEventListener("click", (ev) => {
+    const box = document.getElementById("searchSuggest");
+    if(!box) return;
+    if(ev.target === s || box.contains(ev.target)) return;
+    hideSuggest();
+  });
+
 
   days.addEventListener("change", resetAndLoad);
   type.addEventListener("change", resetAndLoad);
@@ -1499,6 +1703,8 @@ async function checkForUpdates(){
         total_posts: it.total_posts,
         trend_sell_pct: it.trend_sell_pct,
         trend_buy_pct: it.trend_buy_pct,
+        xmp_min: it.xmp_min,
+        xmp_max: it.xmp_max,
       });
       LAST_SNAPSHOT.set(it.item_key, snap);
     }
@@ -1519,7 +1725,10 @@ async function checkForUpdates(){
       total_posts: it.total_posts,
       trend_sell_pct: it.trend_sell_pct,
       trend_buy_pct: it.trend_buy_pct,
+      xmp_min: it.xmp_min,
+      xmp_max: it.xmp_max,
     });
+
 
     const prev = LAST_SNAPSHOT.get(it.item_key);
     if(!prev || prev !== snap){
@@ -1538,7 +1747,13 @@ async function checkForUpdates(){
         qty: fmt(it.total_qty),
         value: fmt(it.total_value),
         posts: fmt(it.total_posts),
+        xmp: (() => {
+          const a = fmtXmp(it.xmp_min);
+          const b = fmtXmp(it.xmp_max);
+          return (a && b) ? `${a}xmp ~ ${b}xmp` : "-";
+        })(),
       };
+
 
       for(const [field, newText] of Object.entries(updates)){
         const el = document.getElementById(`v-${key}-${field}`);
@@ -1568,6 +1783,8 @@ async function checkForUpdates(){
       total_posts: it.total_posts,
       trend_sell_pct: it.trend_sell_pct,
       trend_buy_pct: it.trend_buy_pct,
+      xmp_min: it.xmp_min,
+      xmp_max: it.xmp_max,
     });
     LAST_SNAPSHOT.set(it.item_key, snap);
   }
