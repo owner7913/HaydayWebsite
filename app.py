@@ -3937,7 +3937,7 @@ def api_trading_suggest():
     q = (request.args.get("q", "") or "").strip().lower()
     limit = min(max(int(request.args.get("limit", 8)), 1), 20)
 
-    display_map, alias_to_key, _k2f, _src, _img = _trading_maps_with_overrides()
+    display_map, alias_to_key, key_to_filename, _src, key_to_image_url = _trading_maps_with_overrides()
 
     if not q:
         return jsonify(ok=True, items=[])
@@ -3968,8 +3968,15 @@ def api_trading_suggest():
 
     scored.sort(key=lambda t: (t[0], t[1], t[2]))
 
-    items = [{"item_key": key, "item_name": name} for (_s, _l, name, key) in scored[:limit]]
+    items = [{
+        "item_key": key,
+        "item_name": name,
+        "image_url": key_to_image_url.get(key),
+        "image_file": key_to_filename.get(key),    
+    } for (_s, _l, name, key) in scored[:limit]]
+
     return jsonify(ok=True, items=items)
+
 
 
 @app.route("/api/trading/overview")

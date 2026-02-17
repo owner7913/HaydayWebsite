@@ -425,7 +425,7 @@ body.light .trade-controls select.input option{
 }
 .trade-hero{
   margin-top: 12px;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
   padding: 22px 26px;
   border-radius: 18px;
 
@@ -587,28 +587,71 @@ body.light .trade-controls select.input option{
   letter-spacing: .3px;
   text-transform: uppercase;
 }
+.suggest-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width: 0;
+}
+
+.suggest-icon{
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  flex: 0 0 auto;
+}
+
+.suggest-icon img{
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.suggest-name{
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .xmp-pill{
-  margin-top: 8px;
   display:inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(0,0,0,0.30);
-  border: 1px solid rgba(255,255,255,0.10);
+  align-items:center;
+  gap:8px;
+
+  padding:6px 10px;
+  border-radius:999px;
+
+  background: rgba(255, 209, 102, 0.10);
+  border: 1px solid rgba(255, 209, 102, 0.35);
+
+  font-size:12px;
+  font-weight:800;
 }
+
 .xmp-pill .xmp-label{
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .35px;
-  opacity: .8;
-  text-transform: uppercase;
+  font-size:10px;
+  opacity:.6;
+  letter-spacing:.5px;
 }
+
 .xmp-pill .xmp-val{
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: .2px;
-  color: #ffd166;
+  font-size:13px;
+  color:#ffd166;
+  font-weight:900;
+}
+
+.chart-wrap{
+  height: 320px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
 </style>
@@ -707,6 +750,7 @@ body.light .trade-controls select.input option{
             <div id="itemModalTitle" class="m-name" style="min-width:0;">Loading…</div>
             <span id="modalTrend" class="trend-badge trend-flat" style="display:none;"></span>
           </div>
+          <div id="modalXmp" style="margin-top:6px;"></div>
         </div>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
@@ -870,12 +914,26 @@ function showSuggest(items){
     return;
   }
 
-  box.innerHTML = SUGGEST_ITEMS.map((it, i) => `
-    <button class="suggest-item" type="button" data-i="${i}">
-      <span>${it.item_name}</span>
-      <span class="suggest-sub">${it.item_key}</span>
-    </button>
-  `).join("");
+  box.innerHTML = SUGGEST_ITEMS.map((it, i) => {
+    const icon =
+      it.image_url
+        ? it.image_url
+        : (it.image_file
+            ? `/static/img/items/${encodeURIComponent(it.image_file)}`
+            : `/static/img/items/${encodeURIComponent(it.item_key)}.png`);
+
+    return `
+      <button class="suggest-item" type="button" data-i="${i}">
+        <span class="suggest-left">
+          <span class="suggest-icon">
+            <img src="${icon}" onerror="this.src='/static/img/fallback.png'">
+          </span>
+          <span class="suggest-name">${it.item_name}</span>
+        </span>
+      </button>
+    `;
+  }).join("");
+
 
   box.style.display = "block";
 
@@ -1239,15 +1297,14 @@ function renderModalStats(item){
         <div class="stat-label">Posts</div>
         <div class="stat-value">${fmt(item.total_posts)}</div>
       </div>
-      <div style="grid-column: 1 / -1;">
-        ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max, "m")}
-      </div>
     `;
 }
 
 
 async function openItemModal(item){
   MODAL_ITEM = item;
+  const xmpContainer = document.getElementById("modalXmp");
+  xmpContainer.innerHTML = xmpHTML(item.item_key, item.xmp_min, item.xmp_max, "m");
 
   const icon = item.image_file
     ? `/static/img/items/${encodeURIComponent(item.image_file)}`
@@ -1474,13 +1531,18 @@ function xmpHTML(itemKey, minV, maxV, idPrefix = "v"){
   const a = fmtXmp(minV);
   const b = fmtXmp(maxV);
   if(!a || !b) return "";
+
+  const same = (a === b);
+  const text = same ? `${a}xmp` : `${a}xmp ~ ${b}xmp`;
+
   return `
     <div class="xmp-pill">
       <div class="xmp-label">XMP RANGE</div>
-      <div class="xmp-val" id="${idPrefix}-${itemKey}-xmp">${a}xmp ~ ${b}xmp</div>
+      <div class="xmp-val" id="${idPrefix}-${itemKey}-xmp">${text}</div>
     </div>
   `;
 }
+
 
 
 function fmtMoney(n){
@@ -1559,16 +1621,15 @@ async function loadTrading(page = 1){
         <div style="min-width:0;">
           <div class="trade-head-col">
             <div class="trade-name">${item.item_name || item.item_key || "Unknown item"}</div>
+            ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max)}
             <div class="trade-trends">
               ${dualTrendHTML(item.trend_sell_pct, item.trend_buy_pct)}
-              ${xmpHTML(item.item_key, item.xmp_min, item.xmp_max)}
             </div>
           </div>
         </div>
       </div>
 
       <div class="trade-divider"></div>
-
       <div class="trade-stats">
         <div class="stat-box">
           <div class="stat-label">Avg Sell</div>
@@ -1750,7 +1811,8 @@ async function checkForUpdates(){
         xmp: (() => {
           const a = fmtXmp(it.xmp_min);
           const b = fmtXmp(it.xmp_max);
-          return (a && b) ? `${a}xmp ~ ${b}xmp` : "-";
+          if(!(a && b)) return "-";
+          return (a === b) ? `${a}xmp` : `${a}xmp ~ ${b}xmp`;
         })(),
       };
 
