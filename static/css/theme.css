@@ -980,20 +980,42 @@ body[data-site-theme="winter"] .winter-icicles {
 .winter-snowflake {
   position: absolute;
   top: -18px;
-  width: 10px;
-  height: 10px;
+
+  /* smaller + more snow-like */
+  width: var(--s, 4px);
+  height: var(--s, 4px);
   border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.05));
-  opacity: .75;
-  animation: snowFall var(--t, 6s) linear infinite;
-  transform: translateX(var(--x, 0px));
-  filter: drop-shadow(0 0 6px rgba(160,220,255,.25));
+
+  /* soft white with subtle depth (not glowing balls) */
+  background: rgba(255, 255, 255, 0.92);
+
+  /* gentle blur instead of strong glow */
+  filter: blur(0.2px);
+
+  opacity: var(--o, 0.85);
+
+  animation:
+    snowFall var(--t, 7s) linear infinite,
+    snowSway var(--sw, 3.6s) ease-in-out infinite,
+    snowTwinkle var(--tw, 2.8s) ease-in-out infinite;
 }
 
+
 @keyframes snowFall {
-  0%   { transform: translateX(var(--x0, 0px)) translateY(0px); }
-  100% { transform: translateX(var(--x1, 10px)) translateY(120px); }
+  0%   { transform: translateX(0) translateY(-6px); }
+  100% { transform: translateX(0) translateY(130px); }
 }
+
+@keyframes snowSway {
+  0%, 100% { margin-left: var(--sx0, -6px); }
+  50%      { margin-left: var(--sx1,  6px); }
+}
+
+@keyframes snowTwinkle {
+  0%, 100% { opacity: calc(var(--o, 0.85) * 0.85); }
+  50%      { opacity: var(--o, 0.85); }
+}
+
 
 /* ---------- Valentine: hearts ---------- */
 .val-heart {

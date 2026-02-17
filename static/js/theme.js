@@ -324,6 +324,12 @@ window.addEventListener("DOMContentLoaded", () => {
   for (let i = 0; i < count; i++) {
     const flake = document.createElement("div");
     flake.className = "winter-snowflake";
+    flake.style.setProperty("--s", rand(2.5, 4.8).toFixed(1) + "px");  // size
+    flake.style.setProperty("--o", rand(0.55, 0.95).toFixed(2));       // opacity
+    flake.style.setProperty("--sw", rand(2.6, 4.4).toFixed(1) + "s");  // sway speed
+    flake.style.setProperty("--tw", rand(2.2, 3.6).toFixed(1) + "s");  // twinkle speed
+    flake.style.setProperty("--sx0", rand(-10, -4).toFixed(0) + "px"); // sway range
+    flake.style.setProperty("--sx1", rand(4, 10).toFixed(0) + "px");
 
     // place across width
     flake.style.left = rand(0, 100) + "%";
@@ -333,15 +339,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // speed & drift
     flake.style.setProperty("--t", rand(4.8, 9.8) + "s");
-    flake.style.setProperty("--x0", rand(-18, 18) + "px");
-    flake.style.setProperty("--x1", rand(-28, 28) + "px");
 
     // stagger so it looks "alive" instantly
     flake.style.animationDelay = (-rand(0, 10)).toFixed(2) + "s";
 
     decor.appendChild(flake);
   }
-
+  }
 
   function buildValentine(decor) {
     if (!motionAllowed()) return;

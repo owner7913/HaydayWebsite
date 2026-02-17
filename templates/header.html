@@ -14,11 +14,15 @@
         <!-- NEW: HayDay Tools dropdown -->
         <li class="dropdown {% if request.path.startswith('/production') or request.path.startswith('/production_guide') or request.path.startswith('/builder') %}active{% endif %}">
           <a href="#">HayDay Tools ▼</a>
-          <ul class="dropdown-content">
-            <li><a href="/production_guide">Production</a></li>
-            <li><a href="/trading" class="nav-link">Trading Prices</a></li>
-            <li><a href="/#">Builder</a></li>
-          </ul>
+            <ul class="dropdown-content">
+              <li><a href="/production_guide">Production</a></li>
+              <li><a href="/trading" class="nav-link">Trading Prices</a></li>
+              <li>
+                <a href="#" onclick="openImageGenerator(event)">
+                  Image Generator ↗
+                </a>
+              </li>
+            </ul>
         </li>
 
         <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') %}active{% endif %}">
@@ -220,13 +224,22 @@ body.no-scroll {
 
 <!--<script src="{{ url_for('static', filename='js/theme.js') }}"></script> -->
 
-<script> /* Xavi's original. I left it here in case you need to use it.
-  function toggleMenu() {
-    document.getElementById("nav-links").classList.toggle("show");
-  } */
+<script>
+function openImageGenerator(event) {
+  event.preventDefault();
+
+  const confirmOpen = confirm(
+    "You are about to open the Hay Day Image Generator.\n\nThis will open a new window to an external website.\n\nContinue?"
+  );
+
+  if (confirmOpen) {
+    window.open("https://hd.jjtechdev.com/", "_blank", "noopener,noreferrer");
+  }
+}
 </script>
 
 <script> // Added by Magzie, ensuring it'll work at all times. 
+
   function toggleMenu() {
     const navLinks = document.getElementById("nav-links");
     const navToggle = document.getElementById("nav-toggle");
