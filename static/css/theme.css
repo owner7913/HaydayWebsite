@@ -30,7 +30,24 @@ body {
 header { background: var(--panel-bg-light); }
 body.dark header { background: var(--panel-bg-dark); }
 body.dark header.site-header { background: var(--panel-bg-dark); }
-
+header.site-header .theme-header-decor {
+  z-index: 2;
+}
+/* Keep nav/text above decor, but DON'T force every element in header */
+.site-header .navbar,
+.site-header nav,
+.site-header .nav-logo,
+.site-header .nav-links,
+.site-header .nav-right,
+.site-header .theme-toggle,
+.site-header .darkmode-toggle {
+  position: relative;
+  z-index: 10;
+}
+/* Ensure dropdowns are always above seasonal accent line + decor */
+header.site-header .dropdown-content {
+  z-index: 10050;
+}
 body.dark header a {
   color: #ddd;
 }
@@ -183,6 +200,21 @@ header nav a:hover {
 
 header nav {
   font-weight: 500;
+}
+
+/* Prevent layout shift when hovering the HayDay logo */
+.nav-logo a {
+  font-weight: 700;            /* always bold */
+  display: inline-block;       /* stable width behavior */
+}
+
+.nav-logo a:hover {
+  font-weight: 700;            /* don't change on hover */
+}
+
+/* If anything else is changing weight on hover, stop it */
+header nav a:hover {
+  font-weight: 500;            /* same as normal */
 }
 
 footer {
@@ -912,14 +944,25 @@ body[data-site-theme="newyear"] {
   --link-hover: #bae6fd;
 }
 /* Make seasonal theme visible site-wide */
-body[data-site-theme]:not([data-site-theme="default"]) header.site-header,
-body[data-site-theme]:not([data-site-theme="default"]) footer {
-  border-bottom: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+body[data-site-theme]:not([data-site-theme="default"]) header.site-header {
+  border-bottom: none;
 }
 
+body[data-site-theme]:not([data-site-theme="default"]) header.site-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: color-mix(in oklab, var(--accent) 75%, transparent);
+  pointer-events: none;
+  z-index: 6; /* above decor, below nav (nav is 10 but this is just a thin line) */
+}
 body[data-site-theme]:not([data-site-theme="default"]) .maint-banner {
   background: color-mix(in oklab, var(--accent) 55%, #1f4fad);
 }
+
 /* =========================
    Seasonal Header Effects
    ========================= */
@@ -929,23 +972,18 @@ body[data-site-theme]:not([data-site-theme="default"]) .maint-banner {
   overflow: visible; /* allow icicles/snow to hang outside */
 }
 
-/* Decor container injected by JS */
+/* Decor must always span full header area */
 .theme-header-decor {
   position: absolute;
-  inset: 0;
+  left: 24px;
+  right: 24px;
+  top: 0;
+  bottom: 0;
   pointer-events: none;
-  z-index: 0; /* behind header content */
+  z-index: 5;
 }
 
-/* Ensure header content sits above decor */
-.site-header .navbar,
-.site-header nav,
-.site-header .nav-logo,
-.site-header .nav-links,
-.site-header * {
-  position: relative;
-  z-index: 1;
-}
+
 
 /* Motion safety */
 @media (prefers-reduced-motion: reduce) {
@@ -1047,24 +1085,184 @@ body[data-site-theme="winter"] .winter-icicles {
   100% { transform: translateY(-80px) translateX(12px) rotate(45deg); opacity: 0; }
 }
 
-/* ---------- Spring: petals ---------- */
-.spring-petal {
+/* ---------- Spring: pollen sparkles (clean) ---------- */
+body[data-site-theme="spring"] header.site-header::before {
+  content: "";
   position: absolute;
-  top: -14px;
-  width: 12px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(126, 231, 182, .45);
-  transform: rotate(var(--r, 0deg));
-  animation: petalFall var(--t, 9s) linear infinite;
-  filter: drop-shadow(0 0 6px rgba(126,231,182,.12));
-}
-@keyframes petalFall {
-  0%   { transform: translateX(var(--x0, 0px)) translateY(0) rotate(var(--r, 0deg)); opacity: 0; }
-  15%  { opacity: .8; }
-  100% { transform: translateX(var(--x1, 18px)) translateY(64px) rotate(calc(var(--r, 0deg) + 60deg)); opacity: 0; }
+  inset: -10px;
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 0;
+
+  background:
+    radial-gradient(140px 70px at 18% 35%, rgba(126,231,182,.25), transparent 70%),
+    radial-gradient(180px 90px at 82% 35%, rgba(52,201,123,.18), transparent 70%),
+    linear-gradient(180deg, rgba(126,231,182,.08), transparent);
+
+  filter: blur(6px);
+  opacity: .85;
 }
 
+
+.spring-pollen {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  z-index: 5;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+
+  background: rgba(255,255,255,.75);
+  box-shadow: 0 0 10px rgba(126,231,182,.14);
+
+  opacity: var(--o, .7);
+
+  animation:
+    pollenDrift var(--t, 7s) ease-in-out infinite,
+    pollenBlink var(--b, 2.4s) ease-in-out infinite;
+}
+
+@keyframes pollenDrift {
+  0%   { transform: translate(0,0); }
+  50%  { transform: translate(var(--dx, 14px), var(--dy, -10px)); }
+  100% { transform: translate(0,0); }
+}
+
+@keyframes pollenBlink {
+  0%, 100% { opacity: calc(var(--o, .7) * .55); }
+  50%      { opacity: var(--o, .7); }
+}
+/* ======================================
+   SPRING: Hay Day style header decor
+   ====================================== */
+
+/* Leafy vine strip along the top */
+body[data-site-theme="spring"] .spring-vines {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 34px;
+  opacity: .95;
+  pointer-events: none;
+  z-index: 4;
+  background:
+    radial-gradient(10px 10px at 6% 70%, rgba(52,201,123,.85), transparent 70%),
+    radial-gradient(12px 12px at 12% 55%, rgba(34,197,94,.75), transparent 70%),
+    radial-gradient(10px 10px at 18% 72%, rgba(34,197,94,.85), transparent 70%),
+
+    radial-gradient(10px 10px at 82% 72%, rgba(52,201,123,.85), transparent 70%),
+    radial-gradient(12px 12px at 88% 55%, rgba(34,197,94,.75), transparent 70%),
+    radial-gradient(10px 10px at 94% 70%, rgba(34,197,94,.85), transparent 70%),
+
+    linear-gradient(180deg, rgba(126,231,182,.22), transparent 70%);
+  filter: drop-shadow(0 6px 10px rgba(52,201,123,.10));
+}
+
+/* Corner flowers (simple + cute, not noisy) */
+.spring-flower {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  opacity: .9;
+  pointer-events: none;
+  z-index: 0;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.18));
+}
+.spring-flower.flower-left  { left: 10px; top: 6px; }
+.spring-flower.flower-right { right: 10px; top: 6px; }
+
+/* Bee */
+.spring-bee {
+  position: absolute;
+  top: 18px;
+  width: 22px;
+  height: 14px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 204, 0, .95) 0 6px,
+    rgba(30, 30, 30, .95) 6px 10px
+  );
+  box-shadow: 0 0 10px rgba(255, 204, 0, .15);
+  opacity: .95;
+  pointer-events: none;
+  z-index: 7;
+
+  animation: beeFly var(--t, 18s) linear infinite;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,.22));
+}
+.spring-bee::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  background: rgba(30,30,30,.95);
+  border-radius: 999px;
+}
+.spring-bee::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: -6px;
+  width: 20px;
+  height: 18px;
+  pointer-events: none;
+
+  /* two wings using gradients */
+  background:
+    radial-gradient(12px 9px at 7px 9px, rgba(255,255,255,.55), rgba(255,255,255,0) 70%),
+    radial-gradient(12px 9px at 15px 7px, rgba(255,255,255,.45), rgba(255,255,255,0) 70%);
+
+  filter: blur(.15px);
+  transform-origin: 8px 12px;
+  animation: beeWings 0.16s ease-in-out infinite;
+}
+.spring-emoji-flower {
+  position: absolute;
+  font-size: 22px;
+  left: var(--x);
+  top: var(--y);
+  pointer-events: none;
+  opacity: 0.75;
+  z-index: 6;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
+  animation: flowerFloat var(--t, 12s) ease-in-out infinite;
+}
+
+@keyframes flowerFloat {
+  0%,100% { transform: translateY(0px); }
+  50%     { transform: translateY(-6px); }
+}
+/* Bee path stays INSIDE header area */
+@keyframes beeFly {
+  0%   { transform: translateX(-80px) translateY(0px) rotate(0deg); opacity: 0; }
+  8%   { opacity: 1; }
+
+  25%  { transform: translateX(25vw) translateY(-8px) rotate(-4deg); }
+  50%  { transform: translateX(50vw) translateY(6px) rotate(3deg); }
+  75%  { transform: translateX(75vw) translateY(-6px) rotate(-2deg); }
+
+  100% { transform: translateX(110vw) translateY(0px) rotate(0deg); opacity: 0; }
+}
+@keyframes beeWings {
+  0%, 100% { transform: rotate(18deg) scale(1); opacity: .75; }
+  50%      { transform: rotate(-12deg) scale(1.05); opacity: .95; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .spring-bee { animation: none !important; }
+}
+body[data-site-theme="spring"] .theme-header-decor {
+  left: 24px;
+  right: 24px;
+  top: 0;
+  bottom: 0;
+}
 /* ---------- Autumn: leaves ---------- */
 .autumn-leaf {
   position: absolute;

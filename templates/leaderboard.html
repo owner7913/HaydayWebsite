@@ -225,7 +225,34 @@
   }
 }
 
-
+.user-link{
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.user-link:hover{
+  text-decoration: underline;
+  opacity: 0.95;
+}
+.jump-me-wrap{
+  display:flex;
+  justify-content:flex-end;
+  margin: 10px 0 6px;
+}
+.jump-me-btn{
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+  font-weight: 700;
+  transition: background 0.2s ease, transform 0.05s ease;
+}
+.jump-me-btn:hover{ background: var(--button-hover); }
+.jump-me-btn:active{ transform: translateY(1px); }
 </style>
 {% endblock %}
 
@@ -238,6 +265,7 @@
   <a href="/leaderboard?type=mentions" class="{{ 'active' if type == 'mentions' else '' }}">Mentions</a>
   <a href="/leaderboard?type=hosted" class="{{ 'active' if type == 'hosted' else '' }}">Giveaways Hosted</a>
   <a href="/leaderboard?type=wins" class="{{ 'active' if type == 'wins' else '' }}">Giveaway Wins</a>
+  <a href="/leaderboard?type=coins" class="{{ 'active' if type == 'coins' else '' }}">Coins</a>
   <a href="/leaderboard?type=streak" class="{{ 'active' if type == 'streak' else '' }}">Daily Streak</a>
   <a href="/leaderboard?type=trivia" class="{{ 'active' if type == 'trivia' else '' }}">Trivia Accuracy</a>
   {% if is_staff %}
@@ -250,6 +278,20 @@
 
 </div>
   <h2 style="text-align:center;">🏆 Leaderboard</h2>
+  {% if viewer_id %}
+    <div class="jump-me-wrap">
+      {% if viewer_rank %}
+        <button class="jump-me-btn" type="button" onclick="jumpToMe()">Jump to me</button>
+      {% else %}
+        <button class="jump-me-btn" type="button" disabled title="You’re not on this leaderboard (yet).">
+          Not ranked
+        </button>
+        <div style="text-align:center; opacity:.75; margin-top:6px; font-size:.9rem;">
+          You’re not on this leaderboard yet — earn some stats and you’ll appear.
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
 {% if type == "trivia" %}
 <p style="text-align: center; margin-bottom: 20px; color: var(--text-color); font-size: 0.95rem;">
   📌 Only users who have answered at least <strong>5 trivia questions</strong> appear on this leaderboard.
@@ -269,6 +311,8 @@
     <div class="level">Streak</div>
   {% elif type == "mentions" %}
     <div class="level">Mentions</div>
+  {% elif type == "coins" %}
+    <div class="level">Coins</div>
   {% elif type == "trivia" %}
     <div class="level" style="min-width: 180px;">Accuracy</div>
   {% elif type == "verifications" %}
@@ -282,7 +326,10 @@
 
 
 {% for user in users %}
-<div class="leaderboard-entry {% if viewer_id == user._id|string %}highlighted-user{% endif %}">
+<div
+  class="leaderboard-entry {% if viewer_id == user.uid|string %}highlighted-user{% endif %}"
+  {% if viewer_id == user.uid|string %}id="me-row"{% endif %}
+>
   <div class="rank">
     {% if user.rank == 1 %}🥇
     {% elif user.rank == 2 %}🥈
@@ -291,11 +338,13 @@
     {% endif %}
   </div>
   <div class="user-info">
-    <img src="{{ user.avatar_url }}" class="user-avatar">
-    <span class="username">
-      {{ user.display_name }}
-      {% if viewer_id == user._id|string %}<span style="opacity: 0.6;">(You)</span>{% endif %}
-    </span>
+    <a class="user-link" href="{{ user.profile_url }}">
+      <img src="{{ user.avatar_url }}" class="user-avatar">
+      <span class="username">
+        {{ user.display_name }}
+        {% if viewer_id == user.uid|string %}<span style="opacity: 0.6;">(You)</span>{% endif %}
+      </span>
+    </a>
   </div>
 
   {% if type == "trivia" %}
@@ -310,6 +359,8 @@
     <div class="level">{{ user.streak | format }}</div>
   {% elif type == "mentions" %}
     <div class="level">{{ user.mention_count | format }}</div>
+  {% elif type == "coins" %}
+    <div class="level">{{ user.coins | format }}</div>    
   {% elif type == "verifications" %}
     <div class="level">{{ user.verifications | format }}</div>
   {% else %}
@@ -332,6 +383,42 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+function jumpToMe(){
+  const viewerPage = {{ viewer_page or 'null' }};
+  const currentPage = {{ page }};
+  const lbType = "{{ type }}";
+
+  // If we know which page the viewer is on and it's not this one -> go there
+  if (viewerPage && viewerPage !== currentPage) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("type", lbType);
+    url.searchParams.set("page", viewerPage);
+    url.searchParams.set("jump", "1");
+    window.location.href = url.toString();
+    return;
+  }
+
+  // Otherwise scroll on this page
+  const el = document.getElementById("me-row");
+  if (!el) {
+    alert("You’re not on this leaderboard yet.");
+    return;
+  }
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// If we arrived via jump=1, auto-scroll once the page is loaded
+document.addEventListener("DOMContentLoaded", () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("jump") === "1") {
+    setTimeout(() => {
+      const el = document.getElementById("me-row");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  }
+});
+</script>
 <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 <script>
 function toggleDarkMode() {

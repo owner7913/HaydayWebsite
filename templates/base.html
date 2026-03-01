@@ -7,6 +7,29 @@
   <meta name="google-site-verification" content="XytNN-ofO92AjDuNxZaJNX_4ItyUMYsHj1pgQ4B-Hp4" />
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <style>
+  .flash-wrap{
+    max-width: 900px;
+    margin: 90px auto -70px;
+    padding: 0 16px;
+    display: grid;
+    gap: 10px;
+    z-index: 5;
+    position: relative;
+  }
+  .flash{
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.07);
+    backdrop-filter: blur(8px);
+  }
+  .flash-success{ border-color: rgba(76,175,80,.35); }
+  .flash-error{ border-color: rgba(244,67,54,.35); }
+  .flash-warning{ border-color: rgba(255,193,7,.35); }
+  .flash-info{ border-color: rgba(33,150,243,.35); }
+</style>
   {% set META = meta|default({
     'title': 'HayDay 🍀 — Your Community for Giveaways & Competitions',
     'description': 'Join exciting giveaways and monthly farm design competitions — connect with fellow Hay Day farmers and win great prizes.',
@@ -89,6 +112,17 @@
 {% endif %}
 
   {% include 'header.html' %}
+
+  <!-- ✅ Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+      <div class="flash-wrap">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
 
   <main>
     {% block content %}{% endblock %}

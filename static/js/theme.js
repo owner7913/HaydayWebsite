@@ -362,17 +362,64 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function buildSpring(decor) {
     if (!motionAllowed()) return;
-    const count = 14;
+    // --- Static spring decor (vines + flowers) ---
+    const vines = document.createElement("div");
+    vines.className = "spring-vines";
+    decor.appendChild(vines);
+
+    // 🌸 Emoji Flower Field (HayDay style)
+    const flowers = ["🌸","🌼","🌺","🌷","🌻"];
+
+    const flowerCount = Math.min(12, Math.max(8, Math.floor(window.innerWidth / 180)));
+
+    for (let i = 0; i < flowerCount; i++) {
+      const f = document.createElement("div");
+      f.className = "spring-emoji-flower";
+      f.innerText = flowers[Math.floor(Math.random() * flowers.length)];
+
+      const r = Math.random();
+      // 70% chance flowers are on left/right edges, 30% anywhere
+      let x;
+      if (r < 0.35) x = rand(0, 18);        // left edge
+      else if (r < 0.70) x = rand(82, 100); // right edge
+      else x = rand(18, 82);               // middle occasionally
+      f.style.setProperty("--x", x.toFixed(2) + "%");
+      f.style.setProperty("--y", (6 + Math.random() * 24).toFixed(0) + "px");
+
+      f.style.setProperty("--t", (10 + Math.random() * 6) + "s");
+      f.style.animationDelay = (-Math.random() * 10) + "s";
+
+      decor.appendChild(f);
+    }
+    // --- Bees (always 1, full header fly) ---
+    const bee = document.createElement("div");
+    bee.className = "spring-bee";
+
+    bee.style.top = "18px";
+    bee.style.setProperty("--t", "40s"); // slow farm bee
+    bee.style.animationDelay = (-Math.random() * 40).toFixed(2) + "s";
+
+    decor.parentElement.appendChild(bee); // attaches to header.site-header
+
+    // small clean sparkle count
+    const count = Math.min(22, Math.max(12, Math.floor(window.innerWidth / 90)));
+
     for (let i = 0; i < count; i++) {
-      const p = document.createElement("div");
-      p.className = "spring-petal";
-      p.style.left = rand(0, 100) + "%";
-      p.style.setProperty("--t", rand(7, 12) + "s");
-      p.style.setProperty("--x0", rand(-10, 10) + "px");
-      p.style.setProperty("--x1", rand(-18, 18) + "px");
-      p.style.setProperty("--r", rand(-25, 25) + "deg");
-      p.style.animationDelay = (-rand(0, 12)).toFixed(2) + "s";
-      decor.appendChild(p);
+      const s = document.createElement("div");
+      s.className = "spring-pollen";
+
+      s.style.setProperty("--x", rand(0, 100).toFixed(1) + "%");
+      s.style.setProperty("--y", rand(10, 90).toFixed(1) + "%");
+      s.style.setProperty("--dx", rand(-18, 18).toFixed(0) + "px");
+      s.style.setProperty("--dy", rand(-12, 12).toFixed(0) + "px");
+
+      s.style.setProperty("--t", rand(5.5, 9.5).toFixed(1) + "s");
+      s.style.setProperty("--b", rand(1.8, 3.2).toFixed(1) + "s");
+      s.style.setProperty("--o", rand(0.35, 0.85).toFixed(2));
+
+      s.style.animationDelay = (-rand(0, 9)).toFixed(2) + "s";
+
+      decor.appendChild(s);
     }
   }
 

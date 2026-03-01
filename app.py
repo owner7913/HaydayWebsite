@@ -60,6 +60,7 @@ import random
 from flask import jsonify
 from datetime import datetime, timezone
 from bson.errors import InvalidId
+import math
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
 R2_PUBLIC_HOST = os.getenv("R2_PUBLIC_HOST", "")  # e.g. img.hayday.info
@@ -1397,21 +1398,7 @@ def ratelimit_handler(e):
 def format_number(n):
     return f"{n:,}" if isinstance(n, int) else n
 
-@app.route("/shop")
-def shop():
-    if "discord_id" not in session:
-        return redirect("/login")
 
-    user_id = int(session["discord_id"])
-    coins = 0
-    owned_items = []
-
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        eco_user = client["Economy"]["Users"].find_one({"_id": user_id}) or {}
-        coins = eco_user.get("coins", 0)
-        owned_items = eco_user.get("owned_items", [])
-
-    return render_template("shop.html", items=SHOP_ITEMS, coins=coins, owned_items=owned_items)
 
 @app.post("/api/update-setting")
 @csrf.exempt
@@ -2464,9 +2451,9 @@ def live_auctions():
 
 
 @limiter.limit("10/minute")
-@csrf.exempt
 @app.route("/api/bid", methods=["POST"])
 def api_bid():
+    print("HIT: /api/bid")   # in api_bid
     print("API BID endpoint called!")
     print("Request content-type:", request.content_type)
     print("Request data:", request.data)
@@ -2534,15 +2521,27 @@ def api_bid():
         if end_time <= now:
             return jsonify({"success": False, "message": "Auction already expired"}), 410
         
-        # Step 2: Bid validation
-        current_bid = auction.get("current_bid", 0)
-        min_increment = auction.get("min_increment") or 1
-        if amount < current_bid + min_increment:
-            print("Bid too low")
-            return jsonify({
-                "success": False,
-                "message": f"Bid must be at least {min_increment:,} higher than the current bid."
-            }), 400
+        # Step 2: Bid validation 
+        starting_bid = int(auction.get("starting_bid", 0) or 0)
+        current_bid = int(auction.get("current_bid", 0) or 0)
+        min_increment = int(auction.get("min_increment") or 1)
+
+        # If there are no bids yet, the minimum allowed is starting_bid
+        if current_bid <= 0:
+            min_allowed = starting_bid
+            if amount < min_allowed:
+                return jsonify({
+                    "success": False,
+                    "message": f"Bid must be at least {min_allowed:,} (starting bid)."
+                }), 400
+        else:
+            baseline = max(current_bid, starting_bid)
+            min_allowed = baseline + min_increment
+            if amount < min_allowed:
+                return jsonify({
+                    "success": False,
+                    "message": f"Bid must be at least {min_allowed:,} (min increment {min_increment:,})."
+                }), 400
 
         # Step 3: Update auction (ATOMIC)
         result = db["auctions"].update_one(
@@ -2749,53 +2748,9 @@ def debug_ip():
         <p><strong>Internal IP:</strong> {internal_ip}</p>
     """
 
-
 @app.route("/submit_bid", methods=["POST"])
 def submit_bid():
-    data = request.json
-    message_id = int(data.get("message_id"))
-    amount = int(data.get("amount"))
-    user_id = int(session.get("discord_id"))
-
-    if not user_id:
-        return jsonify({"error": "Not authenticated"}), 403
-
-    # Save bid in MongoDB
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["hayday"]
-        auction = db["auctions"].find_one({"message_id": message_id, "status": "active"})
-        if not auction:
-            return jsonify({"error": "Auction not found or already ended"}), 404
-
-        # Basic validation (same as bot)
-        base_bid = auction["current_bid"] if auction["current_bid"] > 0 else auction["starting_bid"]
-        min_inc = auction.get("min_increment", 1)
-        if amount <= base_bid or (amount - base_bid) < min_inc:
-            return jsonify({"error": "Invalid bid amount"}), 400
-
-        db["auctions"].update_one(
-            {"_id": auction["_id"]},
-            {"$set": {
-                "current_bid": amount,
-                "highest_bidder": user_id,
-                "last_bid": {
-                    "user_id": user_id,
-                    "amount": amount,
-                    "timestamp": datetime.utcnow()
-                }
-            }}
-        )
-
-    # Optional: notify the bot via a webhook or a background task (ideal)
-    try:
-        requests.post(os.getenv("BOT_SYNC_URL"), json={
-            "action": "refresh_auction",
-            "message_id": message_id
-        })
-    except:
-        pass
-
-    return jsonify({"success": True})
+    return jsonify({"error": "Deprecated. Use /api/bid"}), 410
 
 @app.route("/auctions")
 def auctions_page():
@@ -3349,7 +3304,11 @@ def leaderboard():
     limit = 15
     skip = (page - 1) * limit
     lb_type = request.args.get("type", "level")
-
+    def _viewer_page_from_rank(rank: int, per_page: int) -> int:
+        if not rank or rank < 1:
+            return 1
+        return ((rank - 1) // per_page) + 1
+    
     with MongoClient(os.getenv("MONGO_URI")) as client:
         username_col = client["Website"]["usernames"]
         username_col2 = client["Website"]["users"]
@@ -3367,7 +3326,7 @@ def leaderboard():
             "level": "xp",
             "messages": "message_count",
             "streak": "streak",
-            "mentions": "mention_count"
+           "mentions": "Mentions"
         }.get(lb_type, "xp")
 
         if lb_type == "streak":
@@ -3411,7 +3370,7 @@ def leaderboard():
             users = list(col.aggregate([
                 {"$match": {"winners": {"$exists": True}}},
                 {"$unwind": "$winners"},
-                {"$group": {"_id": "$winners", "won_count": {"$sum": 1}}},
+                {"$group": {"_id": {"$toString": "$winners"}, "won_count": {"$sum": 1}}},
                 {"$sort": {"won_count": -1}},
                 {"$skip": skip},
                 {"$limit": limit}
@@ -3441,6 +3400,11 @@ def leaderboard():
 
             user_ids = [user["_id"] for user in users]
 
+        elif lb_type == "coins":
+            col = client["Economy"]["Users"]
+            total_users = col.count_documents({"coins": {"$gt": 0}})
+            users = list(col.find({"coins": {"$gt": 0}}).sort("coins", -1).skip(skip).limit(limit))
+            user_ids = [str(u["_id"]) for u in users]
 
         else:  # default = level or messages
             total_users = level_col.count_documents({})
@@ -3452,13 +3416,17 @@ def leaderboard():
 
         for i, user in enumerate(users):
             uid = str(user["id"]) if lb_type == "mentions" else str(user["_id"])
+
+            user["uid"] = uid
+            user["profile_url"] = f"/profile/{uid}"
+
             user["rank"] = skip + i + 1
             user["xp_formatted"] = f"{user.get('xp', 0):,}"
             user["level"] = user.get("level", 1)
             user["message_count"] = user.get("message_count", 0)
             user["mention_count"] = user.get("Mentions", 0)
             user["streak"] = user.get("streak", 0)
-
+            user["coins"] = int(user.get("coins", 0) or 0)
             profile = profile_map.get(uid)
             user["display_name"] = profile.get("display_name") or profile.get("username", "Unknown") if profile else f"<@{uid}>"
             user["avatar_url"] = profile.get("avatar") if profile else "https://cdn.discordapp.com/embed/avatars/0.png"
@@ -3474,18 +3442,110 @@ def leaderboard():
                 user["trivia_percent"] = 0.0
             user["verifications"] = user.get("Number of Verifications", 0)
 
-    total_pages = (total_users + limit - 1) // limit
-    if lb_type == "verifications":
-        if not viewer_profile:
-            return redirect("/leaderboard?type=level")
+        viewer_rank = None
+        viewer_page = None
 
-        user_roles = viewer_profile.get("roles", [])
-        if not any(role in STAFF_ROLE_IDS for role in user_roles):
-            return redirect("/leaderboard?type=level")
+        if viewer_id:
+            vid = str(viewer_id)
 
+            try:
+                if lb_type in ("coins", "streak", "trivia"):
+                    econ = client["Economy"]["Users"]
+                    me = econ.find_one({"_id": vid}) or {}
 
+                    if lb_type == "coins":
+                        my_val = int(me.get("coins", 0) or 0)
+                        if my_val > 0:
+                            above = econ.count_documents({"coins": {"$gt": my_val}})
+                            viewer_rank = above + 1
 
-    return render_template("leaderboard.html", users=users, page=page, total_pages=total_pages, type=lb_type, viewer_id=viewer_id, is_staff=is_staff)
+                    elif lb_type == "streak":
+                        my_val = int(me.get("streak", 0) or 0)
+                        if my_val > 0:
+                            above = econ.count_documents({"streak": {"$gt": my_val}})
+                            viewer_rank = above + 1
+
+                    elif lb_type == "trivia":
+                        raw = list(econ.find({"trivia_total": {"$gte": 5}}))
+                        def _ratio(u):
+                            return (u.get("trivia_correct", 0) / max(u.get("trivia_total", 1), 1))
+                        raw_sorted = sorted(raw, key=_ratio, reverse=True)
+                        for idx, u in enumerate(raw_sorted):
+                            if str(u.get("_id")) == vid:
+                                viewer_rank = idx + 1
+                                break
+
+                elif lb_type == "mentions":
+                    mcol = client["Mentions"]["Amount"]
+                    me = mcol.find_one({"id": vid}) or {}
+                    my_val = int(me.get("Mentions", 0) or 0)
+                    if my_val > 0:
+                        above = mcol.count_documents({"Mentions": {"$gt": my_val}})
+                        viewer_rank = above + 1
+
+                elif lb_type in ("hosted", "wins"):
+                    gcol = client["Giveaway"]["current_giveaways"]
+
+                    if lb_type == "hosted":
+                        grouped = list(gcol.aggregate([
+                            {"$match": {"host_id": {"$exists": True}}},
+                            {"$group": {"_id": {"$toString": "$host_id"}, "hosted_count": {"$sum": 1}}},
+                        ]))
+                        grouped.sort(key=lambda x: x.get("hosted_count", 0), reverse=True)
+                        for idx, u in enumerate(grouped):
+                            if str(u.get("_id")) == vid:
+                                viewer_rank = idx + 1
+                                break
+
+                    else:
+                        grouped = list(gcol.aggregate([
+                            {"$match": {"winners": {"$exists": True}}},
+                            {"$unwind": "$winners"},
+                            {"$group": {"_id": {"$toString": "$winners"}, "won_count": {"$sum": 1}}},
+                        ]))
+                        grouped.sort(key=lambda x: x.get("won_count", 0), reverse=True)
+                        for idx, u in enumerate(grouped):
+                            if str(u.get("_id")) == vid:
+                                viewer_rank = idx + 1
+                                break
+
+                elif lb_type == "verifications":
+                    vcol = client["Verify"]["TopUsers"]
+                    all_staff = list(vcol.find({}))
+                    all_staff.sort(key=lambda u: u.get("Number of Verifications", 0), reverse=True)
+                    for idx, u in enumerate(all_staff):
+                        if str(u.get("id")) == vid:
+                            viewer_rank = idx + 1
+                            break
+
+                else:
+                    # default leaderboard (level/messages)
+                    me = level_col.find_one({"_id": vid}) or {}
+                    my_val = int(me.get(sort_field, 0) or 0)
+                    my_val = int(me.get(sort_field, 0) or 0)
+                    if my_val > 0:
+                        above = level_col.count_documents({sort_field: {"$gt": my_val}})
+                        viewer_rank = above + 1
+
+            except Exception:
+                viewer_rank = None
+
+            if viewer_rank:
+                viewer_page = _viewer_page_from_rank(viewer_rank, limit)
+
+        total_pages = (total_users + limit - 1) // limit
+
+    return render_template(
+        "leaderboard.html",
+        users=users,
+        page=page,
+        total_pages=total_pages,
+        type=lb_type,
+        viewer_id=viewer_id,
+        is_staff=is_staff,
+        viewer_rank=viewer_rank,
+        viewer_page=viewer_page,
+    )
 
 
 @app.route("/callback")
@@ -4555,7 +4615,80 @@ def public_profile(discord_id):
 def builder():
     return render_template("builder.html")
 
+@app.route("/shop")
+def shop():
+    if "discord_id" not in session:
+        return redirect("/login")
 
+    user_id = int(session["discord_id"])
+    coins = 0
+    owned_items = set()
+
+    with MongoClient(os.getenv("MONGO_URI")) as client:
+        eco_user = client["Economy"]["Users"].find_one({"_id": user_id}) or {}
+        lvl_doc = client["hayday"]["level"].find_one({"_id": str(user_id)}) or {}
+
+        coins = int(eco_user.get("coins", 0))
+
+        # Base owned_items (if you ever use this)
+        owned_items = set(eco_user.get("owned_items", []) or [])
+
+        # -------------------------
+        # Daily Upgrade Tier logic
+        # -------------------------
+        daily_tier = int(eco_user.get("daily_upgrade_tier", 0) or 0)
+
+        if daily_tier >= 1:
+            owned_items.add("daily_upgrade_t1")
+        if daily_tier >= 2:
+            owned_items.add("daily_upgrade_t2")
+        if daily_tier >= 3:
+            owned_items.add("daily_upgrade_t3")
+
+        # -------------------------
+        # Permanent XP Boost logic
+        # -------------------------
+        perm_tier = int(lvl_doc.get("perm_xp_tier", 0) or 0)
+
+        if perm_tier >= 1:
+            owned_items.add("perm_xp_boost_t1")
+        if perm_tier >= 2:
+            owned_items.add("perm_xp_boost_t2")
+        if perm_tier >= 3:
+            owned_items.add("perm_xp_boost_t3")
+
+        # -------------------------
+        # Prestige Roles (Optional)
+        # -------------------------
+        # Only works if you store flags in DB when purchased
+        if eco_user.get("wealth_flex_owned"):
+            owned_items.add("wealth_flex_role")
+
+        if eco_user.get("millionaire_owned"):
+            owned_items.add("millionaire_club_role")
+
+        # -------------------------
+        # Passive Message Income Tier logic
+        # -------------------------
+        passive_tier = int(eco_user.get("passive_income_tier", 0) or 0)
+
+        # Backwards compat (if you previously used passive_income_licenses)
+        if passive_tier <= 0 and eco_user.get("passive_income_licenses"):
+            passive_tier = min(3, int(eco_user.get("passive_income_licenses", 0) or 0))
+
+        if passive_tier >= 1:
+            owned_items.add("passive_income_t1")
+        if passive_tier >= 2:
+            owned_items.add("passive_income_t2")
+        if passive_tier >= 3:
+            owned_items.add("passive_income_t3")
+
+    return render_template(
+        "shop.html",
+        items=SHOP_ITEMS,
+        coins=coins,
+        owned_items=list(owned_items)
+    )
 
 @csrf.exempt
 @app.route("/buy", methods=["POST"])
@@ -4564,47 +4697,48 @@ def buy_item():
         flash("⚠️ You need to log in to make a purchase.", "error")
         return redirect(url_for("login"))
 
-    item_id = request.form.get("item_id")
+    item_id = (request.form.get("item_id") or "").strip().lower()
     if not item_id or item_id not in SHOP_ITEMS:
         flash("❌ Unknown item.", "error")
         return redirect(url_for("shop"))
 
     user_id = int(session["discord_id"])
-    item = SHOP_ITEMS[item_id]
-    price = item["price"]
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        eco_col = client["Economy"]["Users"]
-        web_col = client["Website"]["users"]
+    bot_base = os.getenv("BOT_BASE_URL")
+    bot_key = os.getenv("BOT_WEBHOOK_KEY")
 
-        # Fetch user from Economy DB
-        user = eco_col.find_one({"_id": user_id}) or {}
-        coins = user.get("coins", 0)
+    print("[SHOP] buy_item user_id=", user_id, "item_id=", item_id)
+    print("[SHOP] BOT_BASE_URL=", bot_base, "BOT_WEBHOOK_KEY set?", bool(bot_key))
 
-        if coins < price:
-            flash("❌ You don't have enough coins for that.", "error")
-            return redirect(url_for("shop"))
+    if not bot_base or not bot_key:
+        flash("❌ Missing BOT_BASE_URL / BOT_WEBHOOK_KEY on website.", "error")
+        return redirect(url_for("shop"))
 
-        # Deduct coins from both databases
-        eco_col.update_one({"_id": user_id}, {"$inc": {"coins": -price}})
-        web_col.update_one({"_id": str(user_id)}, {"$inc": {"coins": -price}}, upsert=True)
+    try:
+        r = requests.post(
+            f"{bot_base.rstrip('/')}/webhook/shop/buy",
+            headers={"Authorization": bot_key},
+            json={"user_id": user_id, "item": item_id},
+            timeout=10,
+        )
 
-        # Inventory logic (Discord bot will check this)
-        if item_id in ["mute_other_20m", "ping_storm", "ghost_ping", "lore_post"]:
-            eco_col.update_one({"_id": user_id}, {"$inc": {f"{item_id}_used": 1}}, upsert=True)
-        elif item_id in ["trivia_hint", "double_daily", "boosted_trivia", "mute_immunity"]:
-            eco_col.update_one({"_id": user_id}, {"$set": {item_id: True}}, upsert=True)
+        print("[SHOP] bot status:", r.status_code)
+        print("[SHOP] bot text:", r.text[:500])
 
-        # Purchase log (optional)
-        client["Economy"]["Purchases"].insert_one({
-            "user_id": user_id,
-            "item": item_id,
-            "name": item["name"],
-            "price": price,
-            "timestamp": datetime.utcnow()
-        })
+        data = r.json() if "application/json" in (r.headers.get("content-type") or "") else {}
+        print("[SHOP] bot json:", data)
 
-    flash(f"✅ You bought {item['name']} for {price:,} coins!", "success")
+    except Exception as e:
+        print("[SHOP] ERROR contacting bot:", repr(e))
+        data = {"success": False, "error": f"Failed to contact bot service: {e}"}
+
+    # IMPORTANT: treat error as failure even if success=True
+    bot_ok = bool(data.get("ok") or data.get("success"))
+    if (not bot_ok) or data.get("error"):
+        flash(f"❌ Purchase failed: {data.get('error', 'Unknown error')}", "error")
+        return redirect(url_for("shop"))
+
+    flash(f"✅ Purchase complete: {SHOP_ITEMS[item_id]['name']}", "success")
     return redirect(url_for("shop"))
 
 @app.route("/admin/purchases")

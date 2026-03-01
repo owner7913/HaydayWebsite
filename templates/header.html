@@ -17,9 +17,16 @@
             <ul class="dropdown-content">
               <li><a href="/production_guide">Production</a></li>
               <li><a href="/trading" class="nav-link">Trading Prices</a></li>
+
               <li>
                 <a href="#" onclick="openImageGenerator(event)">
                   Image Generator ↗
+                </a>
+              </li>
+
+              <li>
+                <a href="#" onclick="openProductionCalculator(event)">
+                  Production Calculator ↗
                 </a>
               </li>
             </ul>
@@ -234,6 +241,23 @@ function openImageGenerator(event) {
 
   if (confirmOpen) {
     window.open("https://hd.jjtechdev.com/", "_blank", "noopener,noreferrer");
+  }
+}
+</script>
+<script>
+function openProductionCalculator(event) {
+  event.preventDefault();
+
+  const confirmOpen = confirm(
+    "You are about to open the Hay Day Production Calculator.\n\nThis will open a new window to an external website.\n\nContinue?"
+  );
+
+  if (confirmOpen) {
+    window.open(
+      "https://geekcalc.github.io/HDProdCalc/",
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 }
 </script>
