@@ -1,0 +1,1899 @@
+{% extends "base.html" %}
+
+{% set meta = {
+  "title": "🥚 Hay Day Easter Egg Hunt",
+  "description": "Open eggs from April 1–12 and win Nitro, Farm Passes, Coins, and more. Each egg hides a surprise.",
+  "url": "https://www.hayday.info/easter",
+  "image": url_for('static', filename='img/easter_preview.png', _external=True)
+} %}
+
+{% block title %}HayDay 🍀 Easter Event{% endblock %}
+
+{% block head_extra %}
+<style>
+  :root{
+    --bg-1:#07110d;
+    --bg-2:#102019;
+    --panel:#111915;
+    --panel-2:#18221d;
+    --line:rgba(255,255,255,.08);
+    --soft:rgba(255,255,255,.06);
+    --text:#f7fff8;
+    --muted:#cfe0d1;
+    --green:#8fe06a;
+    --green-2:#5ebe45;
+    --gold-1:#fff0ae;
+    --gold-2:#ffcf4b;
+    --gold-3:#f5a623;
+    --winner:#ffe8a3;
+    --bonus:#cbffb9;
+    --danger:#ff9d9d;
+    --shell-top:#fff4c7;
+    --shell-mid:#ffd96b;
+    --shell-bot:#efb92d;
+    --shell-shadow:#a46b05;
+  }
+
+  .event-wrap{
+    max-width:1280px;
+    margin:0 auto;
+    padding:112px 20px 90px;
+  }
+
+  .easter-page{
+    position:relative;
+    isolation:isolate;
+  }
+
+  .easter-page::before{
+    content:"";
+    position:absolute;
+    inset:-120px -40px auto -40px;
+    height:420px;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(255,214,92,.12), transparent 24%),
+      radial-gradient(circle at 80% 10%, rgba(120,233,122,.12), transparent 24%),
+      radial-gradient(circle at 50% 0%, rgba(255,255,255,.05), transparent 30%);
+    pointer-events:none;
+    z-index:-2;
+  }
+
+  .easter-page::after{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255,217,96,.05), transparent 28%),
+      radial-gradient(circle at 50% 120%, rgba(84,214,113,.05), transparent 32%);
+    z-index:-3;
+  }
+
+  .hero-card,
+  .glass-card,
+  .unlock-card,
+  .egg-card{
+    backdrop-filter:blur(12px);
+  }
+
+  .hero-card{
+    position:relative;
+    overflow:hidden;
+    border-radius:30px;
+    padding:34px;
+    margin-bottom:24px;
+    background:linear-gradient(145deg, rgba(17,26,20,.96), rgba(9,14,11,.98));
+    border:1px solid rgba(255,225,133,.14);
+    box-shadow:
+      0 30px 70px rgba(0,0,0,.36),
+      inset 0 1px 0 rgba(255,255,255,.05),
+      inset 0 0 90px rgba(255,202,62,.04);
+  }
+
+  .hero-card::before{
+    content:"";
+    position:absolute;
+    inset:auto -80px -80px auto;
+    width:320px;
+    height:320px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,213,79,.16), transparent 68%);
+    pointer-events:none;
+  }
+
+  .hero-card::after{
+    content:"";
+    position:absolute;
+    left:-100px;
+    top:-120px;
+    width:320px;
+    height:320px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(112,219,108,.12), transparent 68%);
+    pointer-events:none;
+  }
+
+  .hero-grid{
+    display:grid;
+    grid-template-columns:1.25fr .85fr;
+    gap:28px;
+    align-items:center;
+  }
+
+  .event-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 15px;
+    border-radius:999px;
+    background:linear-gradient(180deg, rgba(255,231,139,.12), rgba(255,196,58,.07));
+    border:1px solid rgba(255,216,104,.22);
+    color:#ffe9a4;
+    font-size:.92rem;
+    font-weight:900;
+    letter-spacing:.03em;
+    margin-bottom:14px;
+    text-transform:uppercase;
+  }
+
+  .hero-title{
+    margin:0 0 12px;
+    font-size:clamp(2.2rem, 4.6vw, 4rem);
+    line-height:1;
+    color:var(--text);
+    text-shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+
+  .hero-sub{
+    margin:0 0 18px;
+    color:var(--muted);
+    line-height:1.72;
+    font-size:1.03rem;
+    max-width:760px;
+  }
+
+  .hero-pills{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  .hero-pill{
+    padding:10px 14px;
+    border-radius:999px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    color:#edf8ef;
+    font-weight:800;
+    font-size:.92rem;
+  }
+
+  .hero-side-card{
+    border-radius:28px;
+    padding:22px;
+    background:
+      radial-gradient(circle at top right, rgba(255,210,90,.12), transparent 40%),
+      linear-gradient(180deg, rgba(28,36,30,.95), rgba(14,20,16,.98));
+    border:1px solid rgba(255,220,120,.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.04),
+      0 20px 40px rgba(0,0,0,.35);
+    color:#f3e6b0;
+  }
+
+  .hero-side-top{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:18px;
+  }
+
+  .hero-side-icon{
+    width:56px;
+    height:56px;
+    border-radius:18px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1.8rem;
+    background:rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+  }
+
+  .hero-side-card::before{
+    content:"";
+    position:absolute;
+    inset:-40px -40px auto auto;
+    width:200px;
+    height:200px;
+    background:radial-gradient(circle, rgba(255,200,80,.12), transparent 70%);
+    pointer-events:none;
+  }
+  .hero-side-kicker{
+    font-size:.82rem;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    opacity:.75;
+    margin-bottom:4px;
+  }
+
+  .hero-side-title{
+    font-size:1.15rem;
+    font-weight:900;
+    line-height:1.2;
+  }
+
+  .hero-side-list{
+    display:grid;
+    gap:10px;
+    margin-bottom:14px;
+  }
+
+  .hero-side-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:11px 13px;
+    border-radius:16px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+    font-weight:800;
+  }
+
+  .hero-side-row strong{
+    color:#ffe8a3;
+  }
+
+  .hero-side-note{
+    font-size:.95rem;
+    line-height:1.6;
+    color:#6b5615;
+  }
+
+
+  .top-grid{
+    display:grid;
+    grid-template-columns:1.12fr .88fr;
+    gap:20px;
+    margin-bottom:18px;
+  }
+
+  .glass-card{
+    background:linear-gradient(180deg, rgba(18,25,21,.92), rgba(10,14,12,.96));
+    border:1px solid rgba(255,255,255,.07);
+    box-shadow:0 20px 44px rgba(0,0,0,.25);
+    border-radius:24px;
+    padding:22px;
+  }
+
+  .card-title{
+    margin:0 0 12px;
+    color:var(--text);
+    font-size:1.08rem;
+    font-weight:900;
+  }
+
+  .meta-line{
+    color:#d8eadb;
+    font-weight:700;
+    line-height:1.85;
+  }
+
+  .meta-line strong{
+    color:#fff0ad;
+  }
+
+  .testing-note{
+    color:#d4ddd4;
+    font-size:.95rem;
+    margin-bottom:14px;
+    line-height:1.65;
+  }
+
+  .testing-pills{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:14px;
+  }
+
+  .testing-pill{
+    padding:8px 12px;
+    border-radius:999px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+    color:#ecf7e8;
+    font-weight:800;
+    font-size:.88rem;
+  }
+
+  .btn-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  .event-btn{
+    appearance:none;
+    border:none;
+    border-radius:16px;
+    padding:12px 16px;
+    font-weight:900;
+    font-size:.96rem;
+    cursor:pointer;
+    transition:transform .16s ease, box-shadow .16s ease, opacity .16s ease, filter .16s ease;
+  }
+
+  .event-btn:hover{ transform:translateY(-2px); }
+  .event-btn:active{ transform:translateY(0); }
+  .event-btn:disabled{
+    opacity:.55;
+    cursor:not-allowed;
+    transform:none;
+    filter:grayscale(.1);
+  }
+
+  .event-btn.primary{
+    background:linear-gradient(180deg, var(--green), var(--green-2));
+    color:#fff;
+    box-shadow:0 14px 30px rgba(74,160,59,.22);
+  }
+
+  .event-btn.gold{
+    background:linear-gradient(180deg, var(--gold-1), var(--gold-2));
+    color:#5c4300;
+    box-shadow:0 14px 30px rgba(240,186,52,.24);
+  }
+
+  .event-btn.dark{
+    background:linear-gradient(180deg, #34393f, #22262b);
+    color:#f1f5f0;
+    border:1px solid rgba(255,255,255,.08);
+  }
+
+  .unlock-card{
+    max-width:640px;
+    margin:18px auto 0;
+    padding:26px;
+    border-radius:28px;
+    background:linear-gradient(180deg, rgba(18,25,21,.95), rgba(9,13,11,.98));
+    border:1px solid rgba(255,225,138,.12);
+    box-shadow:0 22px 55px rgba(0,0,0,.32);
+  }
+
+  .unlock-title{
+    margin:0 0 8px;
+    color:#f5fff1;
+    font-size:1.4rem;
+    font-weight:900;
+  }
+
+  .unlock-sub{
+    color:#d2e8cb;
+    line-height:1.68;
+    margin:0 0 16px;
+  }
+
+  .unlock-form{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .unlock-input{
+    flex:1;
+    min-width:240px;
+    padding:14px 16px;
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.06);
+    color:#fff;
+    outline:none;
+    font-size:1rem;
+  }
+
+  .unlock-input::placeholder{ color:#aab6ad; }
+  .unlock-error{ margin-top:10px; color:var(--danger); font-weight:900; }
+
+  .eggs-grid{
+    margin-top:24px;
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:18px;
+  }
+
+  .egg-card{
+    position:relative;
+    overflow:hidden;
+    border-radius:26px;
+    background:linear-gradient(180deg, rgba(18,24,21,.98), rgba(11,14,13,.99));
+    border:1px solid rgba(255,255,255,.07);
+    box-shadow:0 20px 42px rgba(0,0,0,.28);
+    padding:18px 18px 16px;
+    text-align:center;
+    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+
+  .egg-card:hover{
+    transform:translateY(-4px);
+    border-color:rgba(255,216,104,.22);
+    box-shadow:0 24px 50px rgba(0,0,0,.32);
+  }
+
+  .egg-card.winner-glow{
+    box-shadow:
+      0 0 0 1px rgba(255,224,124,.18),
+      0 0 40px rgba(255,200,70,.15),
+      0 24px 50px rgba(0,0,0,.34);
+  }
+  .egg-card{
+    --egg-top:#fff4c7;
+    --egg-mid:#ffd96b;
+    --egg-bot:#efb92d;
+    --egg-accent:rgba(255,255,255,.28);
+    --egg-accent-2:rgba(255,255,255,.18);
+    --egg-pattern-1:transparent;
+    --egg-pattern-2:transparent;
+  }
+
+  .egg-theme-1{
+    --egg-top:#fff1f7;
+    --egg-mid:#ff9ecf;
+    --egg-bot:#ff63aa;
+    --egg-accent:rgba(255,255,255,.34);
+    --egg-accent-2:rgba(255,255,255,.22);
+  }
+
+  .egg-theme-2{
+    --egg-top:#fff7cf;
+    --egg-mid:#ffe07a;
+    --egg-bot:#ffb937;
+    --egg-accent:rgba(255,255,255,.32);
+    --egg-accent-2:rgba(255,255,255,.20);
+  }
+
+  .egg-theme-3{
+    --egg-top:#eafff7;
+    --egg-mid:#7df2d3;
+    --egg-bot:#2fd6b0;
+    --egg-accent:rgba(255,255,255,.34);
+    --egg-accent-2:rgba(255,255,255,.22);
+  }
+
+  .egg-theme-4{
+    --egg-top:#f4edff;
+    --egg-mid:#c89cff;
+    --egg-bot:#8f63ff;
+    --egg-accent:rgba(255,255,255,.34);
+    --egg-accent-2:rgba(255,255,255,.22);
+  }
+  .egg-theme-1{
+    --egg-pattern-1:
+      repeating-linear-gradient(
+        -25deg,
+        transparent 0 18px,
+        rgba(255,255,255,.16) 18px 26px
+      );
+    --egg-pattern-2:
+      radial-gradient(circle at 50% 62%, rgba(255,255,255,.18) 0 10px, transparent 11px);
+  }
+
+  .egg-theme-2{
+    --egg-pattern-1:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 20px,
+        rgba(255,255,255,.16) 20px 28px
+      );
+    --egg-pattern-2:
+      linear-gradient(
+        90deg,
+        transparent 0 20%,
+        rgba(255,255,255,.10) 20% 28%,
+        transparent 28% 72%,
+        rgba(255,255,255,.10) 72% 80%,
+        transparent 80% 100%
+      );
+  }
+
+  .egg-theme-3{
+    --egg-pattern-1:
+      radial-gradient(circle at 30% 60%, rgba(255,255,255,.22) 0 6px, transparent 7px),
+      radial-gradient(circle at 70% 70%, rgba(255,255,255,.18) 0 5px, transparent 6px),
+      radial-gradient(circle at 55% 45%, rgba(255,255,255,.14) 0 4px, transparent 5px);
+    --egg-pattern-2:
+      repeating-linear-gradient(
+        25deg,
+        transparent 0 18px,
+        rgba(255,255,255,.10) 18px 24px
+      );
+  }
+
+  .egg-theme-4{
+    --egg-pattern-1:
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 16px,
+        rgba(255,255,255,.15) 16px 24px
+      );
+    --egg-pattern-2:
+      repeating-linear-gradient(
+        -135deg,
+        transparent 0 16px,
+        rgba(255,255,255,.08) 16px 24px
+      );
+  }
+
+  .egg-badge{
+    position:absolute;
+    right:14px;
+    top:14px;
+    padding:7px 10px;
+    border-radius:999px;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.08);
+    color:#e0f4da;
+    font-size:.78rem;
+    font-weight:900;
+    z-index:5;
+  }
+
+  .egg-shell-wrap{
+    position:relative;
+    height:210px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-bottom:6px;
+  }
+
+  .egg-shell-wrap::before{
+    content:"";
+    position:absolute;
+    bottom:10px;
+    width:118px;
+    height:20px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(0,0,0,.30), transparent 72%);
+    filter:blur(5px);
+  }
+
+  .stage-light{
+    position:absolute;
+    width:190px;
+    height:190px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,212,79,.20), transparent 66%);
+    opacity:.35;
+    transition:opacity .3s ease, transform .3s ease;
+  }
+
+  .egg-card.opening .stage-light,
+  .egg-card.opened .stage-light{
+    opacity:1;
+    transform:scale(1.12);
+  }
+
+  .egg-shell{
+    position:relative;
+    width:132px;
+    height:170px;
+    transform:translateY(6px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    filter:drop-shadow(0 18px 24px rgba(0,0,0,.24));
+  }
+
+  /* CLOSED EGG */
+  .egg-whole{
+    position:absolute;
+    inset:0;
+    border-radius:52% 52% 48% 48% / 60% 60% 40% 40%;
+    background:
+      radial-gradient(circle at 28% 22%, rgba(255,255,255,.86), transparent 22%),
+      radial-gradient(circle at 42% 30%, rgba(255,255,255,.22), transparent 30%),
+      var(--egg-pattern-1),
+      var(--egg-pattern-2),
+      linear-gradient(180deg, var(--egg-top) 0%, var(--egg-mid) 58%, var(--egg-bot) 100%);
+    box-shadow:
+      inset 0 -16px 18px rgba(135,86,0,.20),
+      inset 0 2px 0 rgba(255,255,255,.45),
+      0 0 0 1px rgba(255,214,117,.16);
+    transition:
+      opacity .28s ease,
+      transform .42s ease;
+    z-index:2;
+  }
+
+  .egg-whole::before{
+    content:"";
+    position:absolute;
+    left:22px;
+    right:22px;
+    top:26px;
+    height:9px;
+    border-radius:999px;
+    background:var(--egg-accent);
+  }
+
+  .egg-whole::after{
+    content:"";
+    position:absolute;
+    left:28px;
+    right:34px;
+    top:42px;
+    height:5px;
+    border-radius:999px;
+    background:var(--egg-accent-2);
+  }
+
+  /* OPEN SHELL PIECES */
+  .egg-half{
+    position:absolute;
+    left:0;
+    width:132px;
+    transition:
+      opacity .34s ease,
+      transform .72s cubic-bezier(.2,.8,.2,1);
+    opacity:0;
+    z-index:3;
+  }
+
+  .egg-half::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(circle at 28% 22%, rgba(255,255,255,.86), transparent 22%),
+      var(--egg-pattern-1),
+      var(--egg-pattern-2),
+      linear-gradient(180deg, var(--egg-top) 0%, var(--egg-mid) 58%, var(--egg-bot) 100%);
+    box-shadow:
+      inset 0 -14px 18px rgba(135,86,0,.18),
+      inset 0 2px 0 rgba(255,255,255,.42);
+  }
+
+  .egg-half.top{
+    top:8px;
+    height:72px;
+    transform:translateY(8px) scale(.94) rotate(0deg);
+    clip-path:polygon(
+      0 0, 100% 0, 100% 62%,
+      88% 72%, 76% 62%, 64% 76%, 52% 64%, 40% 78%, 28% 64%, 14% 74%, 0 64%
+    );
+  }
+
+  .egg-half.top::before{
+    border-radius:52% 52% 0 0 / 75% 75% 0 0;
+  }
+
+  .egg-half.top::after{
+    content:"";
+    position:absolute;
+    left:22px;
+    right:22px;
+    top:24px;
+    height:9px;
+    border-radius:999px;
+    background:var(--egg-accent);
+  }
+
+  .egg-half.bottom{
+    bottom:10px;
+    height:78px;
+    transform:translateY(-6px) scale(.94) rotate(0deg);
+    clip-path:polygon(
+      0 20%, 13% 10%, 26% 24%, 39% 11%, 52% 26%, 66% 12%, 80% 25%, 100% 18%,
+      100% 100%, 0 100%
+    );
+  }
+
+  .egg-half.bottom::before{
+    border-radius:0 0 48% 48% / 0 0 48% 48%;
+  }
+
+  .egg-half.bottom::after{
+    content:"";
+    position:absolute;
+    left:20px;
+    right:20px;
+    bottom:18px;
+    height:8px;
+    border-radius:999px;
+    background:var(--egg-accent-2);
+  }
+
+  .crack-band{
+    display:none;
+  }
+
+  .egg-core{
+    position:absolute;
+    width:46px;
+    height:46px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:2.2rem;
+    line-height:1;
+    background:none;
+    border:none;
+    box-shadow:none;
+    opacity:0;
+    transform:translateY(10px) scale(.78);
+    transition:opacity .24s ease .18s, transform .32s ease .18s;
+    z-index:2;
+  }
+
+  .egg-core-pulse{
+    display:none;
+  }
+
+  .egg-number{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:900;
+    color:#7b5800;
+    font-size:2.08rem;
+    text-shadow:0 1px 0 rgba(255,255,255,.22);
+    pointer-events:none;
+    z-index:4;
+    transition:opacity .2s ease;
+  }
+
+  .spark-burst{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    z-index:5;
+  }
+
+  .spark{
+    position:absolute;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:linear-gradient(180deg, #fff7c4, #ffc64a);
+    box-shadow:0 0 12px rgba(255,220,111,.5);
+    opacity:0;
+    animation:sparkFly .9s ease forwards;
+  }
+
+  .egg-card.opening .egg-shell{
+    animation:eggShake .48s ease;
+  }
+
+  .egg-card.opened .egg-whole{
+    opacity:0;
+    transform:scale(.82);
+  }
+
+  .egg-card.opened .egg-half{
+    opacity:1;
+  }
+
+  .egg-card.opened .egg-half.top{
+    transform:translate(0, -22px) rotate(-4deg);
+  }
+
+  .egg-card.opened .egg-half.bottom{
+    transform:translate(0, 4px) rotate(0deg);
+  }
+
+  .egg-card.opened .egg-number{
+    opacity:0;
+  }
+
+  .egg-card.opened .egg-core{
+    opacity:1;
+    transform:translateY(6px) scale(1);
+  }
+
+  .egg-card.locked .egg-whole,
+  .egg-card.locked .egg-half{
+    filter:grayscale(.18) brightness(.86);
+  }
+.egg-card.locked{
+  opacity:.82;
+}
+
+.egg-card.locked .egg-shell-wrap::after{
+  content:"🔒";
+  position:absolute;
+  inset:auto auto 18px 50%;
+  transform:translateX(-50%);
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.1rem;
+  background:rgba(8,12,10,.78);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 8px 20px rgba(0,0,0,.28);
+  z-index:6;
+}
+
+.egg-card.locked .event-btn{
+  background:linear-gradient(180deg, #3a3f45, #23272c);
+  color:#d8dddd;
+  box-shadow:none;
+}
+  .egg-name{
+    margin:0 0 6px;
+    color:#fbfff7;
+    font-size:1.16rem;
+    font-weight:900;
+  }
+
+  .egg-desc{
+    color:#cce3c3;
+    font-size:.94rem;
+    min-height:42px;
+    margin-bottom:12px;
+    line-height:1.48;
+  }
+
+  .reward-box{
+    min-height:74px;
+    border-radius:18px;
+    margin-bottom:12px;
+    padding:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    font-weight:900;
+    line-height:1.45;
+    background:rgba(255,255,255,.04);
+    border:1px dashed rgba(255,255,255,.10);
+    color:#edf7e8;
+  }
+
+  .reward-box.winner{
+    background:linear-gradient(180deg, rgba(255,247,209,.99), rgba(255,224,120,.96));
+    border:1px solid rgba(209,161,28,.28);
+    color:#6d4b00;
+  }
+
+  .reward-box.bonus{
+    background:linear-gradient(180deg, rgba(221,247,204,.98), rgba(165,223,124,.96));
+    border:1px solid rgba(78,154,55,.26);
+    color:#25581e;
+  }
+
+  .reward-box.locked-state{
+    min-height:44px;       /* ↓ smaller height */
+    padding:8px 10px;      /* ↓ less padding */
+    font-size:.9rem;
+    border-radius:14px;    /* slightly tighter */    
+    color:#b8c6b4;
+  }
+  .reward-box .lock-line{
+    display:block;
+  }
+
+  .reward-box .countdown-line{
+    display:block;
+    margin-top:0px;
+    color:#fff0ad;
+    font-size:.88rem;
+    font-weight:900;
+  }
+
+  .legend-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+    margin-top:20px;
+  }
+
+  .legend-list{
+    margin:0;
+    padding-left:18px;
+    color:#d3e9cb;
+    line-height:1.8;
+  }
+
+  .legend-list li strong{
+    color:#fff0a2;
+  }
+
+  .modal-overlay-easter{
+    position:fixed;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:rgba(4,8,6,.72);
+    backdrop-filter:blur(10px);
+    z-index:5000;
+    padding:18px;
+  }
+
+  .modal-overlay-easter.show{
+    display:flex;
+    animation:fadeIn .22s ease;
+  }
+
+  .reward-modal{
+    width:min(540px, 100%);
+    border-radius:30px;
+    overflow:hidden;
+    background:linear-gradient(180deg, rgba(18,25,21,.98), rgba(8,12,10,.99));
+    border:1px solid rgba(255,224,118,.18);
+    box-shadow:
+      0 34px 80px rgba(0,0,0,.42),
+      0 0 50px rgba(255,200,80,.10);
+    position:relative;
+    transform:translateY(14px) scale(.96);
+    animation:modalPop .28s ease forwards;
+  }
+
+  .reward-modal::before{
+    content:"";
+    position:absolute;
+    inset:-20% -20% auto -20%;
+    height:220px;
+    background:radial-gradient(circle at 50% 30%, rgba(255,218,104,.18), transparent 42%);
+    pointer-events:none;
+  }
+
+  .reward-modal-head{
+    padding:24px 24px 10px;
+    text-align:center;
+    position:relative;
+  }
+
+  .reward-modal-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 14px;
+    border-radius:999px;
+    background:rgba(255,227,126,.12);
+    border:1px solid rgba(255,227,126,.22);
+    color:#ffe6a1;
+    font-weight:900;
+    font-size:.85rem;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+
+  .reward-modal-title{
+    margin:14px 0 8px;
+    color:#fff;
+    font-size:1.95rem;
+    line-height:1.05;
+  }
+
+  .reward-modal-sub{
+    margin:0;
+    color:#d2e6d2;
+    line-height:1.6;
+  }
+
+  .reward-prize{
+    margin:18px 24px 10px;
+    padding:20px;
+    border-radius:24px;
+    text-align:center;
+    font-weight:900;
+    font-size:1.35rem;
+    line-height:1.4;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .reward-prize.winner{
+    background:linear-gradient(180deg, rgba(255,246,203,.98), rgba(255,219,103,.96));
+    border:1px solid rgba(219,164,39,.28);
+    color:#6a4900;
+    box-shadow:0 12px 26px rgba(255,193,61,.16);
+  }
+
+  .reward-prize.bonus{
+    background:linear-gradient(180deg, rgba(226,249,210,.98), rgba(168,225,128,.95));
+    border:1px solid rgba(72,147,50,.24);
+    color:#255c1f;
+    box-shadow:0 12px 26px rgba(91,173,68,.14);
+  }
+
+  .reward-modal-actions{
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    padding:18px 24px 24px;
+    flex-wrap:wrap;
+  }
+
+  .close-modal-btn{
+    appearance:none;
+    border:none;
+    border-radius:16px;
+    padding:12px 18px;
+    font-weight:900;
+    cursor:pointer;
+    background:linear-gradient(180deg, #ffe07a, #f3bc41);
+    color:#5a4100;
+  }
+  
+  .prize-highlight-grid{
+    display:grid;
+    gap:12px;
+  }
+
+  .prize-highlight{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    padding:14px 15px;
+    border-radius:18px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);
+  }
+
+  .prize-icon{
+    width:42px;
+    height:42px;
+    border-radius:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    font-size:1.2rem;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+  }
+
+  .prize-highlight strong{
+    display:block;
+    color:#fff0ad;
+    font-size:.98rem;
+    margin-bottom:4px;
+  }
+
+  .prize-highlight p{
+    margin:0;
+    color:#d4e3d2;
+    line-height:1.55;
+    font-size:.94rem;
+  }
+  .mute-line{
+    margin:0 24px 6px;
+    text-align:center;
+    color:#cfe2cf;
+    font-size:.94rem;
+  }
+
+  @keyframes eggShake{
+    0%{ transform:translateY(0) rotate(0) scale(1); }
+    20%{ transform:translateY(-7px) rotate(-4deg) scale(1.03); }
+    42%{ transform:translateY(0) rotate(4deg) scale(.995); }
+    65%{ transform:translateY(-4px) rotate(-2.5deg) scale(1.015); }
+    100%{ transform:translateY(0) rotate(0) scale(1); }
+  }
+
+  @keyframes sparkFly{
+    0%{
+      opacity:0;
+      transform:translate(0,0) scale(.3);
+    }
+    14%{
+      opacity:1;
+      transform:translate(calc(var(--x) * .25), calc(var(--y) * .25)) scale(1);
+    }
+    100%{
+      opacity:0;
+      transform:translate(var(--x), var(--y)) scale(.42);
+    }
+  }
+
+  @keyframes shimmer{
+    0%{ transform:translateX(-120%) rotate(18deg); }
+    100%{ transform:translateX(220%) rotate(18deg); }
+  }
+
+  @keyframes modalPop{
+    from{ opacity:0; transform:translateY(14px) scale(.96); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  @keyframes fadeIn{
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+
+  @media (max-width:1080px){
+    .hero-grid,
+    .top-grid,
+    .legend-grid{
+      grid-template-columns:1fr;
+    }
+
+    .eggs-grid{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width:640px){
+    .event-wrap{
+      padding:24px 14px 82px;
+    }
+
+    .hero-card{
+      padding:22px;
+    }
+
+    .hero-preview{
+      grid-template-columns:1fr 1fr;
+    }
+
+    .eggs-grid{
+      grid-template-columns:1fr;
+    }
+
+    .unlock-form{
+      flex-direction:column;
+    }
+
+    .unlock-input{
+      min-width:0;
+      width:100%;
+    }
+
+    .reward-modal-title{
+      font-size:1.6rem;
+    }
+  }
+
+  .live-feed-card{
+    margin-top:24px;
+    border-radius:24px;
+    padding:22px;
+  }
+
+  .live-feed-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:end;
+    gap:12px;
+    margin-bottom:14px;
+  }
+
+  .live-feed-sub{
+    color:#cce3c3;
+    font-size:.92rem;
+    font-weight:700;
+  }
+
+  .live-feed-list{
+    display:grid;
+    gap:10px;
+    max-height:360px;
+    overflow-y:auto;
+    padding-right:4px;
+  }
+
+  .live-feed-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    border-radius:16px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+  }
+
+  .live-feed-item.winner{
+    background:linear-gradient(180deg, rgba(255,239,183,.16), rgba(255,205,92,.10));
+    border-color:rgba(255,220,120,.20);
+  }
+
+  .live-feed-item.bonus{
+    background:linear-gradient(180deg, rgba(220,247,210,.08), rgba(150,210,120,.06));
+  }
+
+  .live-feed-icon{
+    width:38px;
+    height:38px;
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(255,255,255,.08);
+    font-size:1.1rem;
+    flex:0 0 38px;
+  }
+
+  .live-feed-text{
+    color:#edf7e8;
+    line-height:1.45;
+    font-size:.95rem;
+  }
+
+  .live-feed-text strong{
+    color:#fff3b0;
+  }
+
+  .live-feed-empty{
+    color:#b8c6b4;
+    text-align:center;
+    padding:18px;
+  }
+.live-feed-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-height:260px;
+  overflow:hidden;
+  position:relative;
+}
+
+.live-feed-item{
+  animation:fadeSlide .4s ease;
+}
+
+@keyframes fadeSlide{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+.live-feed-item.latest{
+  box-shadow:0 0 20px rgba(255,220,120,.2);
+  border-color:rgba(255,220,120,.35);
+}
+.teaser-wrap{
+  min-height: calc(100vh - 120px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:40px 20px 80px;
+}
+
+.teaser-card{
+  max-width:780px;
+  width:100%;
+  text-align:center;
+  padding:34px 28px;
+  border-radius:30px;
+  background:linear-gradient(145deg, rgba(17,26,20,.96), rgba(9,14,11,.98));
+  border:1px solid rgba(255,225,133,.14);
+  box-shadow:
+    0 30px 70px rgba(0,0,0,.36),
+    inset 0 1px 0 rgba(255,255,255,.05),
+    inset 0 0 90px rgba(255,202,62,.04);
+}
+
+.teaser-img{
+  width:min(100%, 420px);
+  display:block;
+  margin:0 auto 24px;
+  filter:drop-shadow(0 12px 30px rgba(255,215,80,.28));
+  border-radius:24px;
+}
+
+.teaser-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:9px 15px;
+  border-radius:999px;
+  background:linear-gradient(180deg, rgba(255,231,139,.12), rgba(255,196,58,.07));
+  border:1px solid rgba(255,216,104,.22);
+  color:#ffe9a4;
+  font-size:.92rem;
+  font-weight:900;
+  letter-spacing:.03em;
+  margin-bottom:14px;
+  text-transform:uppercase;
+}
+
+.teaser-title{
+  margin:0 0 14px;
+  font-size:clamp(2rem, 4.5vw, 3.3rem);
+  line-height:1.05;
+  color:var(--text);
+  text-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+
+.teaser-text{
+  color:var(--muted);
+  font-size:1.06rem;
+  line-height:1.8;
+  margin:0 auto 10px;
+  max-width:620px;
+}
+
+.teaser-eyes{
+  font-size:1.8rem;
+  margin:18px 0 10px;
+  animation:teaserBlink 2.2s ease-in-out infinite;
+}
+
+.teaser-sub{
+  color:#fff0ad;
+  font-size:1rem;
+  font-weight:800;
+  margin:0;
+}
+
+@keyframes teaserBlink{
+  0%, 100%{ opacity:1; }
+  50%{ opacity:.45; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% if easter_live %}
+<div class="event-wrap">
+  <div class="easter-page">
+
+    <section class="hero-card">
+      <div class="hero-grid">
+        <div>
+          <div class="event-badge">🐣 Limited Easter Event</div>
+          <h1 class="hero-title">{{ event.title }}</h1>
+          <p class="hero-sub">
+            {{ event.subtitle }}
+            Four eggs unlock across the event, each hiding a surprise reward for lucky members of the community.
+          </p>
+
+          <div class="hero-pills">
+            <div class="hero-pill">April 1–12 event</div>
+            <div class="hero-pill">4 unlock dates</div>
+            <div class="hero-pill">Hidden rewards</div>
+            <div class="hero-pill">Member-only opening</div>
+          </div>
+        </div>
+
+            <div class="live-feed-card glass-card">
+              <div class="live-feed-head">
+                <h3 class="card-title" style="margin-bottom:0;">Live Egg Activity</h3>
+                <div class="live-feed-sub">Latest cracks happening right now</div>
+              </div>
+
+              <div id="easterLiveFeed" class="live-feed-list">
+                {% for item in live_feed %}
+                  <div class="live-feed-item {{ item.rarity }}">
+                    <div class="live-feed-icon">
+                      {% if item.rarity == "winner" %}🏆{% else %}🥚{% endif %}
+                    </div>
+                    <div class="live-feed-text">
+                      <strong>{{ item.display_name }}</strong>
+                      cracked <strong>Egg {{ item.egg_id }}</strong>
+                      and got <strong>{{ item.reward }}</strong>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="live-feed-empty">No egg activity yet.</div>
+                {% endfor %}
+              </div>
+            </div>
+      </div>
+    </section>
+      <section class="top-grid">
+        <div class="glass-card">
+          <h3 class="card-title">Prize highlights</h3>
+          <div class="prize-highlight-grid">
+            <div class="prize-highlight">
+              <span class="prize-icon">💎</span>
+              <div>
+                <strong>Jackpot prizes</strong>
+                <p>Discord Nitro, Farm Passes, and Coins rewards.</p>
+              </div>
+            </div>
+
+            <div class="prize-highlight">
+              <span class="prize-icon">🥚</span>
+              <div>
+                <strong>Spring rewards</strong>
+                <p>Eggs hide a mix of premium prizes and fun bonus pulls.</p>
+              </div>
+            </div>
+
+            <div class="prize-highlight">
+              <span class="prize-icon">🎁</span>
+              <div>
+                <strong>Multiple tiers</strong>
+                <p>High, mid, and low tier rewards are all part of the event pool.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <h3 class="card-title">How to join</h3>
+          <div class="testing-note">
+            Everyone can view the event page. To open eggs, you need to be logged in with Discord and be a member of the server.
+          </div>
+
+          <div class="testing-pills">
+            <div class="testing-pill">Logged in: {{ "YES" if easter_access.logged_in else "NO" }}</div>
+            <div class="testing-pill">Member role: {{ "YES" if easter_access.is_member else "NO" }}</div>
+          </div>
+
+          <div class="btn-row">
+            {% if not easter_access.logged_in %}
+                <a
+                  class="event-btn primary"
+                  href="{{ url_for('login', next='/easter') }}"
+                  onclick="trackEaster('cta_click', null, 'login')"
+                >
+                  Login with Discord
+                </a>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="eggs-grid">
+        {% for egg in event.eggs %}
+          {% set is_unlocked = egg.id <= available_count %}
+          {% set opened_data = opened.get(egg.id|string) %}
+          {% set is_opened = opened_data is not none %}
+          {% set reward_icon = "💎" if is_opened and opened_data.rarity == "winner" else "🎁" %}
+
+          <article
+            class="egg-card egg-theme-{{ egg.id }} {% if not is_unlocked %}locked{% endif %} {% if is_opened and opened_data.rarity == 'winner' %}winner-glow{% endif %}"
+            id="egg-card-{{ egg.id }}"
+            data-egg-id="{{ egg.id }}"
+            data-opened="{{ 'true' if is_opened else 'false' }}"
+          >
+            <div class="egg-badge">
+              {% if is_opened %}
+                Opened
+              {% elif is_unlocked %}
+                Unlocked
+              {% else %}
+                🔒 {{ egg.day_hint }}
+              {% endif %}
+            </div>
+
+            <div class="egg-shell-wrap">
+              <div class="stage-light"></div>
+
+              <div class="egg-shell">
+                <div class="spark-burst"></div>
+                <div class="egg-core">{{ reward_icon }}</div>
+
+                <div class="egg-whole"></div>
+                <div class="egg-half top"></div>
+                <div class="egg-half bottom"></div>
+                <div class="egg-number">{{ egg.id }}</div>
+              </div>
+            </div>
+
+            <h3 class="egg-name">{{ egg.name }}</h3>
+            <div class="egg-desc">{{ egg.label }}</div>
+
+            <div
+              class="reward-box {% if is_opened %}{{ opened_data.rarity }}{% elif not is_unlocked %}locked-state{% endif %}"
+              id="reward-{{ egg.id }}"
+            >
+              {% if is_opened %}
+                {{ opened_data.reward }}
+              {% elif is_unlocked %}
+                Closed egg — reward hidden
+                  {% else %}
+                    <span class="countdown-line" data-unlock-at="{{ egg.unlock_at.isoformat() }}">Calculating...</span>
+                  {% endif %}
+            </div>
+
+                  <button
+                    class="event-btn {% if is_opened %}gold{% else %}primary{% endif %}"
+                    {% if (not is_unlocked) or (not easter_access.can_open) %}disabled{% endif %}
+                    onclick="openEgg({{ egg.id }}, this)"
+                  >
+                {% if is_opened %}
+                  View reward
+                {% elif not is_unlocked %}
+                  Hatching soon 🐣
+                {% elif easter_access.can_open %}
+                  Open egg
+                {% elif not easter_access.logged_in %}
+                  Login required
+                {% else %}
+                  Members only
+                {% endif %}
+              </button>
+          </article>
+        {% endfor %}
+      </section>
+
+      <section class="legend-grid">
+        <div class="glass-card">
+          <h3 class="card-title">How the event works</h3>
+          <ul class="legend-list">
+            <li><strong>Four eggs</strong> unlock across the event.</li>
+            <li><strong>Each egg hides a surprise</strong> until you open it.</li>
+            <li><strong>Each open either rewards a real prize</strong> or a small bonus.</li>
+            <li><strong>Not every egg is a winner</strong> — and the best rewards are limited.</li>
+          </ul>
+        </div>
+
+        <div class="glass-card">
+            <h3 class="card-title">Event notes</h3>
+            <ul class="legend-list">
+                <li><strong>Eggs unlock over time</strong> — first egg April 1, final egg April 10.</li>
+
+                <li><strong>Rewards are limited</strong> — prizes are claimed globally and may run out.</li>
+
+                <li><strong>Opening late means lower chances</strong> — best rewards are often taken early.</li>
+
+                <li><strong>You must be logged in</strong> and have the server member role to open eggs.</li>
+
+                <li><strong>Winners will be contacted</strong> if needed for prize delivery.</li>
+            </ul>
+        </div>
+      </section>
+  </div>
+</div>
+
+<div class="modal-overlay-easter" id="rewardModal">
+  <div class="reward-modal">
+    <div class="reward-modal-head">
+      <div class="reward-modal-badge" id="rewardModalBadge">Reward revealed</div>
+      <h3 class="reward-modal-title" id="rewardModalTitle">Your egg opened</h3>
+      <p class="reward-modal-sub" id="rewardModalSub">You cracked open a seasonal Easter egg.</p>
+    </div>
+
+    <div class="reward-prize" id="rewardModalPrize">Reward</div>
+    <p class="mute-line" id="rewardModalLine">Nice. That one looked expensive.</p>
+
+    <div class="reward-modal-actions">
+      <button class="close-modal-btn" type="button" onclick="closeRewardModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const EASTER_OPEN_URL = "/easter/open";
+
+async function openEgg(eggId, button){
+  trackEaster("egg_click", eggId);
+
+  if(button.disabled) return;
+
+  const card = document.getElementById(`egg-card-${eggId}`);
+  const originalText = button.textContent;
+  const alreadyOpened = card?.dataset.opened === "true";
+
+  if(alreadyOpened){
+    const rewardText = document.getElementById("reward-" + eggId)?.textContent?.trim() || "Reward";
+    const rarity = document.getElementById("reward-" + eggId)?.classList.contains("winner") ? "winner" : "bonus";
+    showRewardModal(rewardText, rarity, true);
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Cracking...";
+
+  try{
+    const body = new URLSearchParams();
+    body.set("egg_id", eggId);
+
+    const res = await fetch(EASTER_OPEN_URL, {
+      method: "POST",
+      headers: {"Content-Type":"application/x-www-form-urlencoded"},
+      body: body.toString()
+    });
+
+    const contentType = res.headers.get("content-type") || "";
+    let data;
+
+    if(contentType.includes("application/json")){
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      throw new Error(text.slice(0, 200) || "Server returned non-JSON response");
+    }
+
+    if(!res.ok || !data.ok){
+      throw new Error(data.error || "Error");
+    }
+
+    card.dataset.opened = "true";
+    markEggOpened(card, data.reward, data.rarity);
+
+    setTimeout(() => {
+      showRewardModal(data.reward, data.rarity, data.already_opened === true);
+    }, 900);
+
+  }catch(err){
+    const rewardBox = document.getElementById("reward-" + eggId);
+    if(rewardBox){
+      rewardBox.textContent = err.message || "Could not open egg";
+      rewardBox.classList.remove("winner", "bonus");
+      rewardBox.classList.add("locked-state");
+    }
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+function createSparkBurst(container){
+  if(!container) return;
+  container.innerHTML = "";
+
+  const total = 14;
+  for(let i = 0; i < total; i++){
+    const spark = document.createElement("span");
+    spark.className = "spark";
+
+    const angle = (Math.PI * 2 * i) / total;
+    const distance = 34 + Math.random() * 42;
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance;
+
+    spark.style.left = "50%";
+    spark.style.top = "50%";
+    spark.style.setProperty("--x", `${x}px`);
+    spark.style.setProperty("--y", `${y}px`);
+    spark.style.animationDelay = `${Math.random() * 0.08}s`;
+
+    container.appendChild(spark);
+  }
+
+  setTimeout(() => {
+    container.innerHTML = "";
+  }, 1100);
+}
+
+function showRewardModal(reward, rarity, alreadyOpened = false){
+  const modal = document.getElementById("rewardModal");
+  const badge = document.getElementById("rewardModalBadge");
+  const title = document.getElementById("rewardModalTitle");
+  const sub = document.getElementById("rewardModalSub");
+  const prize = document.getElementById("rewardModalPrize");
+  const line = document.getElementById("rewardModalLine");
+
+  prize.textContent = reward;
+  prize.className = "reward-prize " + (rarity || "bonus");
+
+  if(rarity === "winner"){
+    badge.textContent = alreadyOpened ? "Winning reward" : "Jackpot hit";
+    title.textContent = alreadyOpened ? "You already opened a winning egg" : "Big win!";
+    sub.textContent = "This egg dropped a real prize.";
+    line.textContent = "That one definitely had main-character energy.";
+  } else if(rarity === "bonus"){
+    badge.textContent = "No reward";
+    title.textContent = alreadyOpened ? "You already opened this egg" : "No prize this time";
+    sub.textContent = "This egg did not contain a reward.";
+    line.textContent = "Better luck on the next egg.";
+  } else {
+    badge.textContent = "Reward revealed";
+    title.textContent = "Your egg opened";
+    sub.textContent = "You cracked open a seasonal Easter egg.";
+    line.textContent = "Nice. That one looked expensive.";
+  }
+
+  modal.classList.add("show");
+}
+
+function closeRewardModal(){
+  document.getElementById("rewardModal").classList.remove("show");
+}
+
+document.getElementById("rewardModal")?.addEventListener("click", (e) => {
+  if(e.target.id === "rewardModal"){
+    closeRewardModal();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if(e.key === "Escape"){
+    closeRewardModal();
+  }
+});
+
+function setEggIcon(card, rarity){
+  const core = card.querySelector(".egg-core");
+  if(!core) return;
+  core.textContent = rarity === "winner" ? "💎" : "🎁";
+}
+
+function markEggOpened(card, reward, rarity){
+  const rewardBox = card.querySelector(".reward-box");
+  const sparkBurst = card.querySelector(".spark-burst");
+  const button = card.querySelector(".event-btn");
+
+  card.classList.remove("locked");
+  card.classList.add("opening");
+
+  setEggIcon(card, rarity);
+  createSparkBurst(sparkBurst);
+
+  setTimeout(() => {
+    card.classList.remove("opening");
+    card.classList.add("opened");
+    if(rarity === "winner"){
+      card.classList.add("winner-glow");
+    }
+  }, 520);
+
+  rewardBox.textContent = reward;
+  rewardBox.classList.remove("winner", "bonus", "locked-state");
+  rewardBox.classList.add(rarity || "bonus");
+
+  button.textContent = "View reward";
+  button.classList.remove("primary");
+  button.classList.add("gold");
+  button.disabled = false;
+}
+
+
+
+function formatCountdown(ms){
+  if (ms <= 0) return "Open egg";
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (days > 0) return `Opens in ${days}d ${hours}h`;
+  if (hours > 0) return `Opens in ${hours}h ${minutes}m`;
+  return `Opens in ${minutes}m`;
+}
+
+function startEggCountdowns(){
+  const update = () => {
+    const now = new Date();
+
+    document.querySelectorAll(".countdown-line[data-unlock-at]").forEach(el => {
+      const unlockAt = new Date(el.dataset.unlockAt);
+      const diff = unlockAt - now;
+
+      if (diff <= 0){
+        el.textContent = "This egg is now unlocked";
+      } else {
+        el.textContent = formatCountdown(diff);
+      }
+    });
+  };
+
+  update();
+  setInterval(update, 60000);
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  startEggCountdowns();
+
+  document.querySelectorAll(".egg-card[data-opened='true']").forEach(card => {
+    card.classList.add("opened");
+    const rewardBox = card.querySelector(".reward-box");
+    if(rewardBox?.classList.contains("winner")){
+      card.classList.add("winner-glow");
+      setEggIcon(card, "winner");
+    } else {
+      setEggIcon(card, "bonus");
+    }
+  });
+});
+
+function trackEaster(action, eggId = null, meta = "") {
+  const body = new URLSearchParams();
+  body.set("action", action);
+  if (eggId !== null && eggId !== undefined) body.set("egg_id", eggId);
+  if (meta) body.set("meta", meta);
+
+  fetch("/easter/track", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    },
+    body: body.toString()
+  }).catch(() => {});
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  trackEaster("page_view");
+  trackEaster("banner_view");
+
+  document.querySelectorAll(".egg-card[data-egg-id]").forEach(card => {
+    const eggId = card.dataset.eggId;
+    if (eggId) {
+      trackEaster("egg_view", eggId);
+    }
+  });
+});
+
+</script>
+<script>
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function renderEasterFeed(feed) {
+    const wrap = document.getElementById("easterLiveFeed");
+    if (!wrap) return;
+
+    if (!feed || !feed.length) {
+      wrap.innerHTML = `<div class="live-feed-empty">No egg activity yet.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = feed.map((item, i) => `
+      <div class="live-feed-item ${escapeHtml(item.rarity || "bonus")} ${i === 0 ? "latest" : ""}">
+        <div class="live-feed-icon">
+          ${(item.rarity === "winner") ? "🏆" : "🥚"}
+        </div>
+        <div class="live-feed-text">
+          <strong>${escapeHtml(item.display_name || "Unknown")}</strong>
+          cracked <strong>Egg ${escapeHtml(item.egg_id)}</strong>
+          and got <strong>${escapeHtml(item.reward || "Unknown reward")}</strong>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function refreshEasterFeed() {
+    try {
+      const res = await fetch("/api/easter-feed", {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        renderEasterFeed(data.feed || []);
+      }
+    } catch (err) {
+      console.warn("Live feed refresh failed", err);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    refreshEasterFeed();
+    setInterval(refreshEasterFeed, 8000);
+  });
+</script>
+{% else %}
+<div class="event-wrap">
+  <div class="teaser-wrap">
+    <div class="teaser-card">
+      <div class="teaser-badge">🐣 Limited Easter Event</div>
+
+      <img
+        src="{{ url_for('static', filename='img/easter_tease.png') }}"
+        alt="Mysterious Easter egg"
+        class="teaser-img"
+      >
+
+      <h1 class="teaser-title">Okay… now there’s more.</h1>
+
+      <p class="teaser-text">
+        We checked again today, and they’ve multiplied. 🥚🥚🥚
+      </p>
+      <p class="teaser-text">
+        Different colors. Different shapes.
+      </p>
+      <p class="teaser-text">
+        And… they’re warm.
+      </p>
+
+      <div class="teaser-eyes">👀</div>
+
+      <p class="teaser-sub">⚠️ Something is definitely happening. ⚠️</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

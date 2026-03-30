@@ -32,9 +32,16 @@
             </ul>
         </li>
 
-        <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') %}active{% endif %}">
+        <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') or request.path.startswith('/easter') or request.path.startswith('/competition') or request.path.startswith('/leaderboard') or request.path.startswith('/auctions') %}active{% endif %}">
           <a href="#">Community & Events ▼</a>
           <ul class="dropdown-content">
+            <li>
+              <a href="/easter" class="easter-nav-item">
+                <img src="{{ url_for('static', filename='img/easter/egg1.png') }}" class="nav-egg">
+                Easter Event
+                <img src="{{ url_for('static', filename='img/easter/egg2.png') }}" class="nav-egg">
+              </a>
+            </li>
             <li><a href="/giveaways">Giveaways</a></li>
             <li><a href="/auctions">Live Auctions</a></li>
             <li><a href="/leaderboard">Leaderboards</a></li>
@@ -68,6 +75,25 @@
 
 
 <style>
+.easter-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.nav-egg {
+  height: 16px;
+  width: auto;
+  object-fit: contain;
+  transform: translateY(1px);
+  transition: transform 0.2s ease;
+}
+
+/* subtle hover effect */
+.easter-nav-item:hover .nav-egg {
+  transform: translateY(1px) scale(1.1);
+}  
 .main-header {
   background: #2c2c2c;
   padding: 10px 20px;

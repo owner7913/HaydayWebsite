@@ -7,7 +7,7 @@
   <meta name="google-site-verification" content="XytNN-ofO92AjDuNxZaJNX_4ItyUMYsHj1pgQ4B-Hp4" />
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" type="image/png">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
-  <style>
+<style>
   .flash-wrap{
     max-width: 900px;
     margin: 90px auto -70px;
@@ -29,6 +29,222 @@
   .flash-error{ border-color: rgba(244,67,54,.35); }
   .flash-warning{ border-color: rgba(255,193,7,.35); }
   .flash-info{ border-color: rgba(33,150,243,.35); }
+
+  .easter-site-banner{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 2001;
+  }
+
+  .easter-site-banner-link{
+    position: relative;
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 22px;
+    width: 100%;
+    min-height: 98px;
+    padding: 14px 26px;
+    box-sizing: border-box;
+    color: #fff;
+    text-decoration: none;
+    background:
+      linear-gradient(90deg, rgba(34, 88, 53, .92) 0%, rgba(67, 143, 88, .88) 28%, rgba(104, 181, 112, .84) 58%, rgba(154, 208, 168, .82) 100%);
+    border-top: 1px solid rgba(255,255,255,.10);
+    border-bottom: 1px solid rgba(0,0,0,.18);
+    box-shadow: 0 10px 28px rgba(0,0,0,.22);
+    overflow: hidden;
+  }
+
+  .easter-site-banner-link::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(circle at 14% 50%, rgba(255,255,255,.12), transparent 20%),
+      radial-gradient(circle at 86% 35%, rgba(255,255,255,.10), transparent 18%),
+      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0));
+    pointer-events:none;
+  }
+
+  .easter-site-banner-art{
+    position: relative;
+    height: 78px;
+    width: 210px;
+    flex: 0 0 auto;
+  }
+
+  .easter-img{
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,.22));
+  }
+
+  .e1{
+    left: 0;
+    bottom: 4px;
+    width: 58px;
+    transform: rotate(-6deg);
+  }
+
+  .e2{
+    left: 34px;
+    top: -2px;
+    width: 56px;
+    transform: rotate(4deg);
+  }
+
+  .e3{
+    left: 72px;
+    bottom: 2px;
+    width: 58px;
+    transform: rotate(-2deg);
+  }
+
+  .bunny{
+    left: 108px;
+    bottom: -3px;
+    width: 102px;
+  }
+
+  .easter-site-banner-text{
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+  }
+
+  .easter-site-banner-kicker{
+    display: inline-block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: #ffe08a;
+  }
+
+  .easter-site-banner-title{
+    margin: 0 0 4px;
+    font-size: clamp(24px, 2vw, 38px);
+    line-height: 1.05;
+    font-weight: 900;
+    color: #ffffff;
+    text-shadow: 0 2px 10px rgba(0,0,0,.22);
+  }
+
+  .easter-site-banner-sub{
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.35;
+    color: rgba(255,255,255,.92);
+    text-shadow: 0 1px 4px rgba(0,0,0,.16);
+  }
+
+  .easter-site-banner-cta{
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 154px;
+    padding: 14px 20px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.28);
+    color: #fff;
+    font-weight: 800;
+    font-size: 16px;
+    white-space: nowrap;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+    transition: background .18s ease, transform .18s ease, border-color .18s ease;
+  }
+
+  .easter-site-banner-link:hover .easter-site-banner-cta{
+    background: rgba(255,255,255,.22);
+    border-color: rgba(255,255,255,.40);
+    transform: translateY(-1px);
+  }
+
+  .easter-site-banner-close{
+    position: absolute;
+    top: 10px;
+    right: 18px;
+    z-index: 3;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    color: #fff;
+    background: rgba(0,0,0,.32);
+    box-shadow: 0 4px 10px rgba(0,0,0,.15);
+  }
+
+  .easter-site-banner-close:hover{
+    background: rgba(0,0,0,.48);
+  }
+
+  @media (max-width: 980px){
+    .easter-site-banner-link{
+      grid-template-columns: 160px minmax(0, 1fr) auto;
+      gap: 16px;
+      padding: 14px 18px;
+    }
+
+    .easter-site-banner-art{
+      width: 160px;
+      height: 70px;
+    }
+
+    .e1{ width: 46px; left: 0; }
+    .e2{ width: 44px; left: 26px; }
+    .e3{ width: 46px; left: 52px; }
+    .bunny{ width: 82px; left: 78px; }
+
+    .easter-site-banner-title{
+      font-size: clamp(20px, 2vw, 28px);
+    }
+
+    .easter-site-banner-sub{
+      font-size: 14px;
+    }
+
+    .easter-site-banner-cta{
+      min-width: 132px;
+      padding: 12px 16px;
+      font-size: 15px;
+    }
+  }
+
+  @media (max-width: 720px){
+    .easter-site-banner-link{
+      grid-template-columns: 1fr;
+      text-align: center;
+      justify-items: center;
+      padding: 18px 16px 16px;
+      gap: 10px;
+    }
+
+    .easter-site-banner-art{
+      width: 170px;
+      height: 68px;
+    }
+
+    .easter-site-banner-cta{
+      width: auto;
+    }
+
+    .easter-site-banner-close{
+      top: 8px;
+      right: 10px;
+    }
+  }
 </style>
   {% set META = meta|default({
     'title': 'HayDay 🍀 — Your Community for Giveaways & Competitions',
@@ -113,6 +329,26 @@
 
   {% include 'header.html' %}
 
+    <div id="easter-site-banner" class="easter-site-banner" hidden>
+      <button class="easter-site-banner-close" id="easter-site-banner-close" aria-label="Close banner">✕</button>
+
+      <a href="/easter" class="easter-site-banner-link">
+        <div class="easter-site-banner-art" aria-hidden="true">
+          <img src="{{ url_for('static', filename='img/easter/egg1.png') }}" class="easter-img e1" alt="">
+          <img src="{{ url_for('static', filename='img/easter/egg2.png') }}" class="easter-img e2" alt="">
+          <img src="{{ url_for('static', filename='img/easter/egg3.png') }}" class="easter-img e3" alt="">
+          <img src="{{ url_for('static', filename='img/easter/bunny.png') }}" class="easter-img bunny" alt="">
+        </div>
+
+        <div class="easter-site-banner-text">
+          <div class="easter-site-banner-kicker">April 1–12 • Limited Event</div>
+          <div class="easter-site-banner-title">Hay Day Easter Egg Hunt begins April 1</div>
+          <div class="easter-site-banner-sub">Starts April 1 — open eggs, discover prizes, and join the spring giveaway.</div>
+        </div>
+
+        <div class="easter-site-banner-cta">View event →</div>
+      </a>
+    </div>
   <!-- ✅ Flash messages -->
   {% with messages = get_flashed_messages(with_categories=True) %}
     {% if messages %}
@@ -131,6 +367,29 @@
   {% include 'footer.html' %}
 
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script>
+(function () {
+  const banner = document.getElementById("easter-site-banner");
+  const closeBtn = document.getElementById("easter-site-banner-close");
+  if (!banner || !closeBtn) return;
+
+  const key = "dismissed_easter_banner_v1";
+  const now = new Date();
+  const start = new Date("2026-03-24T00:00:00Z");
+  const end = new Date("2026-04-13T00:00:00Z");
+
+  if (now >= start && now < end && !localStorage.getItem(key)) {
+    banner.hidden = false;
+  }
+
+  closeBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    localStorage.setItem(key, "1");
+    banner.hidden = true;
+  });
+})();
+</script>  
   {% block scripts %}{% endblock %}
 
 </body>

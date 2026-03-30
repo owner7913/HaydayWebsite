@@ -57,7 +57,7 @@ SHOP_ITEMS = {
     "double_daily": {
         "name": "🎁 Double Daily",
         "price": 1200,
-        "description": "Lets you claim your `/daily` reward a second time today.",
+        "description": "Doubles the coins and XP from your next `/daily` claim. One-time use.",
         "category": "Daily",
         "permanent": False,
     },

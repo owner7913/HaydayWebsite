@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <defs>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffe971" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#ffe971" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g>
+    <circle cx="35" cy="36" r="24">
+      <animate attributeName="r" values="22;25;22" dur="0.7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.35;0.55;0.35" dur="0.7s" repeatCount="indefinite"/>
+      <animate attributeName="fill" values="url(#glow);url(#glow);url(#glow)" dur="0.7s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  <g filter="url(#shadow)" transform="translate(11 18)">
+    <g>
+      <animateTransform attributeName="transform" type="rotate" values="-3 24 18; 3 24 18; -3 24 18" dur="0.45s" repeatCount="indefinite"/>
+      <g transform="translate(22 3)">
+        <g opacity="0.95">
+          <ellipse cx="8" cy="8" rx="8.5" ry="11" fill="#bfe9ff" stroke="#4cb2e3" stroke-width="2">
+            <animateTransform attributeName="transform" type="rotate" values="-30 8 12; 18 8 12; -30 8 12" dur="0.16s" repeatCount="indefinite"/>
+          </ellipse>
+          <ellipse cx="21" cy="8" rx="8.5" ry="11" fill="#cdf2ff" stroke="#4cb2e3" stroke-width="2">
+            <animateTransform attributeName="transform" type="rotate" values="30 21 12; -18 21 12; 30 21 12" dur="0.16s" repeatCount="indefinite"/>
+          </ellipse>
+        </g>
+      </g>
+      <ellipse cx="30" cy="22" rx="19" ry="14.5" fill="#ffcf24" stroke="#4e2c10" stroke-width="2.7"/>
+      <ellipse cx="17.5" cy="22" rx="12.5" ry="11.5" fill="#ffe44d" stroke="#4e2c10" stroke-width="2.7"/>
+      <rect x="25" y="8.5" width="5.4" height="26" rx="2.7" fill="#32200f"/>
+      <rect x="34.5" y="9.5" width="5.4" height="25" rx="2.7" fill="#32200f"/>
+      <circle cx="15" cy="21" r="2.6" fill="#241509"/>
+      <circle cx="21.7" cy="21" r="2.6" fill="#241509"/>
+      <path d="M15 26.2 Q18.4 29.3 21.8 26.2" fill="none" stroke="#241509" stroke-width="2.1" stroke-linecap="round"/>
+      <circle cx="11.8" cy="25" r="1.9" fill="#ff9b74" opacity="0.95"/>
+      <circle cx="24.8" cy="25" r="1.9" fill="#ff9b74" opacity="0.95"/>
+      <path d="M7.5 14 C4.5 9, 2.5 8, 1 5" fill="none" stroke="#32200f" stroke-width="2.1" stroke-linecap="round"/>
+      <path d="M13.5 12.2 C12.8 7.7, 12.2 5.3, 13 2" fill="none" stroke="#32200f" stroke-width="2.1" stroke-linecap="round"/>
+      <circle cx="1" cy="5" r="2.1" fill="#6b4721"/>
+      <circle cx="13" cy="2" r="2.1" fill="#6b4721"/>
+      <path d="M48 22 L56.8 18.3 L53.8 24 L56.8 29.7 Z" fill="#32200f" stroke="#4e2c10" stroke-width="1.7" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

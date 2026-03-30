@@ -807,6 +807,926 @@ def contains_identifying_text(text: str, display_name: str | None, username_tag:
 
     return False
 
+# ---- Easter event config ----
+EASTER_LIVE = False 
+
+EASTER_EVENT = {
+    "title": "Hay Day Easter Egg Hunt",
+    "subtitle": "A cozy spring giveaway with surprise rewards hidden inside 4 eggs.",
+    "starts_at": datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc),
+    "ends_at": datetime(2026, 4, 12, 23, 59, 59, tzinfo=timezone.utc),
+    "target_total_opens": 500,
+    "egg_scale_factor": 3,
+    "eggs": [
+        {
+            "id": 1,
+            "name": "Egg 1",
+            "label": "Spring Surprise",
+            "day_hint": "Unlocks April 1",
+            "unlock_at": datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "id": 2,
+            "name": "Egg 2",
+            "label": "Golden Nest",
+            "day_hint": "Unlocks April 4",
+            "unlock_at": datetime(2026, 4, 4, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "id": 3,
+            "name": "Egg 3",
+            "label": "Bloom Basket",
+            "day_hint": "Unlocks April 7",
+            "unlock_at": datetime(2026, 4, 7, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "id": 4,
+            "name": "Egg 4",
+            "label": "Grand Egg",
+            "day_hint": "Unlocks April 10",
+            "unlock_at": datetime(2026, 4, 10, 0, 0, tzinfo=timezone.utc),
+        },
+    ],
+
+    "reserved_prize_inventory": {
+        1: {
+            "50 Shovels": 8,
+            "50 Lobsters": 3,
+            "30 Honey": 2,
+            "20 Mayo": 1,
+            "25 Syrup": 2,
+            "25 White Sugar": 2,
+            "50 Brown Sugar": 2,
+            "50 Milk": 3,
+            "100 Eggs": 1,
+            "40 Bacon": 1,
+            "25 Bread": 2,
+            "40 Axes": 8,
+        },
+        2: {
+            "Farm Pass": 1,
+            "BEM Set": 2,
+            "25 Syrup": 2,
+            "25 White Sugar": 2,
+            "50 Brown Sugar": 2,
+            "25 Goat Cheese": 1,
+            "25 Cheese": 1,
+            "25 Butter": 1,
+            "25 Cream": 1,
+            "25 Saws": 1,
+            "25 Axes": 1,
+            "50 Shovels": 6,
+            "50 Lobsters": 2,
+            "30 Honey": 2,
+            "20 Mayo": 1,
+            "25 Bread": 2,
+            "40 Axes": 7,
+        },
+        3: {
+            "1M Coins": 2,
+            "Farm Pass": 1,
+            "100 Lobsters": 1,
+            "2 Sets of Your Choice": 1,
+            "100 Items of Your Choice": 1,
+            "50 Shovels": 8,
+            "50 Lobsters": 3,
+            "30 Honey": 3,
+            "20 Mayo": 2,
+            "25 Feathers": 2,
+            "30 Fish": 2,
+            "BEM Set": 2,
+            "25 Syrup": 2,
+            "25 White Sugar": 2,
+            "50 Brown Sugar": 3,
+            "40 Axes": 7,
+        },
+        4: {
+            "1 Month Nitro": 3,
+            "1M Coins": 1,
+            "200 Lobsters": 1,
+            "50 Shovels": 8,
+            "50 Lobsters": 4,
+            "30 Honey": 3,
+            "20 Mayo": 1,
+            "25 Feathers": 2,
+            "30 Fish": 3,
+            "BEM Set": 1,
+            "25 Syrup": 2,
+            "25 White Sugar": 2,
+            "50 Brown Sugar": 3,
+            "25 Goat Cheese": 3,
+            "25 Cheese": 3,
+            "25 Butter": 3,
+            "25 Cream": 3,
+            "50 Milk": 7,
+            "100 Eggs": 2,
+            "40 Bacon": 4,
+            "25 Bread": 4,
+            "25 Saws": 3,
+            "25 Axes": 3,
+            "40 Axes": 8,
+        },
+    },
+
+    "soft_loss_rewards": [
+        "No prize this time — but the egg was cute 🐣",
+        "Nothing inside… just spring vibes 🌼",
+        "Empty egg — better luck on the next one!",
+        "No reward found — this one was a dud 🥚",
+        "Just a shell this time… try another egg!",
+        "No win — but you’re still in the hunt 🍀",
+        "Nothing here — the good stuff is hiding elsewhere 👀",
+        "No prize — this egg was just for fun 🎁",
+        "Unlucky! This one had no reward 😅",
+        "No jackpot — but the next one might have it 💎",
+        "Empty egg — the rare ones are still out there!",
+        "No reward — this one was a miss 🌸",
+        "Just a normal egg — no prize this time",
+        "No win — but the hunt continues 🐰",
+        "Nothing inside — the big rewards are still hiding!",
+        "No reward — try again on the next egg 🥚",
+        "This egg was empty — unlucky!",
+        "No prize here — keep cracking eggs 🔨",
+        "Nothing found — maybe the next one 👀",
+        "No win — but you’re getting closer 🍀",
+    ],
+}
+
+EASTER_TESTING = {
+    "enabled": False,
+    "bypass_unlocks": False,
+    "force_result": None,
+}
+
+# add near your easter config
+EASTER_PREVIEW_EVENT_ID = "2026_easter_preview"
+
+def _has_easter_preview_access() -> bool:
+    return bool(session.get("easter_wins_authed", False)) or is_staff()
+
+def _preview_open_state(discord_id: str | None = None):
+    if not discord_id:
+        return {}
+
+    client = get_mongo_client()
+    col = client["Website"]["easter_user_opens"]
+    try:
+        doc = col.find_one({"_id": f"{EASTER_PREVIEW_EVENT_ID}:{discord_id}"})
+        return (doc or {}).get("opened", {})
+    finally:
+        client.close()
+
+def _save_preview_opened_egg(discord_id: str, egg_id: int, reward: str, rarity: str):
+    client = get_mongo_client()
+    col = client["Website"]["easter_user_opens"]
+    try:
+        now = datetime.now(timezone.utc)
+        col.update_one(
+            {"_id": f"{EASTER_PREVIEW_EVENT_ID}:{discord_id}"},
+            {
+                "$set": {
+                    "event_id": EASTER_PREVIEW_EVENT_ID,
+                    "discord_id": str(discord_id),
+                    f"opened.{egg_id}": {
+                        "reward": reward,
+                        "rarity": rarity,
+                        "opened_at": now.isoformat(),
+                    },
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True
+        )
+    finally:
+        client.close()
+
+
+def _easter_user_opened_col():
+    client = get_mongo_client()
+    return client, client["Website"]["easter_user_opens"]
+
+def _event_open_state(discord_id: str | None = None):
+    if not discord_id:
+        return {}
+
+    client, col = _easter_user_opened_col()
+    try:
+        doc = col.find_one({
+            "_id": f"{EASTER_EVENT_ID}:{discord_id}"
+        })
+        return (doc or {}).get("opened", {})
+    finally:
+        client.close()
+
+def _release_pending_easter_egg(discord_id: str, egg_id: int):
+    client = get_mongo_client()
+    col = client["Website"]["easter_user_opens"]
+    try:
+        col.update_one(
+            {"_id": f"{EASTER_EVENT_ID}:{discord_id}"},
+            {"$unset": {f"opened.{egg_id}": ""}}
+        )
+    finally:
+        client.close()
+
+def _save_opened_egg(discord_id: str, egg_id: int, reward: str, rarity: str):
+    client = get_mongo_client()
+    col = client["Website"]["easter_user_opens"]
+    try:
+        now = datetime.now(timezone.utc)
+        col.update_one(
+            {"_id": f"{EASTER_EVENT_ID}:{discord_id}"},
+            {
+                "$set": {
+                    "event_id": EASTER_EVENT_ID,
+                    "discord_id": str(discord_id),
+                    f"opened.{egg_id}": {
+                        "reward": reward,
+                        "rarity": rarity,
+                        "opened_at": now.isoformat(),
+                    },
+                    "updated_at": now,
+                },
+                "$setOnInsert": {
+                    "created_at": now,
+                }
+            },
+            upsert=True
+        )
+    finally:
+        client.close()
+
+EASTER_EVENT_ID = "2026_easter"
+
+def _easter_collections():
+    client = get_mongo_client()
+    db = client["Website"]
+    return (
+        client,
+        db["easter_events"],
+        db["easter_contributions"],
+        db["easter_wins"],
+        db["event_analytics"],
+        db["event_analytics_log"],
+    )
+
+def _analytics_doc_id(event_id: str) -> str:
+    return f"analytics:{event_id}"
+
+def _hour_key(dt: datetime | None = None) -> str:
+    dt = dt or datetime.now(timezone.utc)
+    return dt.strftime("%H")
+
+def _day_key(dt: datetime | None = None) -> str:
+    dt = dt or datetime.now(timezone.utc)
+    return dt.strftime("%Y-%m-%d")
+
+def _client_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or ""
+
+def _client_session_key() -> str:
+    if "analytics_sid" not in session:
+        session["analytics_sid"] = secrets.token_hex(16)
+        session.modified = True
+    return session["analytics_sid"]
+
+def _ensure_event_analytics(event_id: str = EASTER_EVENT_ID):
+    client, _, _, _, analytics_col, _ = _easter_collections()
+    try:
+        doc = analytics_col.find_one({"_id": _analytics_doc_id(event_id)})
+        if doc:
+            return doc
+
+        egg_defaults = {
+            str(egg["id"]): {
+                "views": 0,
+                "clicks": 0,
+                "open_attempts": 0,
+                "successful_opens": 0,
+                "wins": 0,
+                "losses": 0,
+                "already_opened_attempts": 0,
+                "locked_attempts": 0,
+                "invalid_attempts": 0,
+            }
+            for egg in EASTER_EVENT["eggs"]
+        }
+
+        doc = {
+            "_id": _analytics_doc_id(event_id),
+            "event_id": event_id,
+            "event_type": "easter",
+            "event_name": EASTER_EVENT["title"],
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+
+            "counters": {
+                "page_views": 0,
+                "unique_page_views": 0,
+                "logged_in_views": 0,
+                "member_views": 0,
+                "banner_views": 0,
+                "banner_clicks": 0,
+                "banner_closes": 0,
+                "cta_clicks": 0,
+                "egg_clicks": 0,
+                "open_attempts": 0,
+                "successful_opens": 0,
+                "duplicate_open_attempts": 0,
+                "locked_egg_attempts": 0,
+                "invalid_egg_attempts": 0,
+                "login_gate_hits": 0,
+                "admin_tab_clicks": 0,
+                "member_gate_hits": 0,
+                "event_over_attempts": 0,
+                "preview_opens": 0,
+                "admin_views": 0,
+            },
+
+            "results": {
+                "real_wins": 0,
+                "soft_losses": 0,
+            },
+
+            "eggs": egg_defaults,
+            "prizes": {},
+            "traffic": {
+                "by_day": {},
+                "by_hour": {},
+            },
+            "users": {
+                "unique_viewers": 0,
+                "unique_openers": 0,
+            },
+            "performance": {
+                "open_requests": 0,
+                "open_response_ms_total": 0,
+                "last_open_response_ms": 0,
+            },
+        }
+        analytics_col.insert_one(doc)
+        return doc
+    finally:
+        client.close()
+
+def _analytics_inc(event_id: str, inc_ops: dict, extra_set: dict | None = None):
+    client, _, _, _, analytics_col, _ = _easter_collections()
+    try:
+        _ensure_event_analytics(event_id)
+        update = {
+            "$inc": inc_ops,
+            "$set": {"updated_at": datetime.now(timezone.utc)},
+        }
+        if extra_set:
+            update["$set"].update(extra_set)
+        analytics_col.update_one({"_id": _analytics_doc_id(event_id)}, update)
+    finally:
+        client.close()
+
+def _analytics_log(action: str, event_id: str = EASTER_EVENT_ID, **data):
+    client, _, _, _, _, analytics_log_col = _easter_collections()
+    try:
+        analytics_log_col.insert_one({
+            "event_id": event_id,
+            "action": action,
+            "discord_id": str(session.get("discord_id")) if session.get("discord_id") else None,
+            "session_id": _client_session_key(),
+            "ip": _client_ip(),
+            "user_agent": request.headers.get("User-Agent"),
+            "path": request.path,
+            "created_at": datetime.now(timezone.utc),
+            **data,
+        })
+    finally:
+        client.close()
+
+def _analytics_track_page_view(access: dict, event_id: str = EASTER_EVENT_ID):
+    _ensure_event_analytics(event_id)
+
+    inc = {
+        "counters.page_views": 1,
+        f"traffic.by_day.{_day_key()}.views": 1,
+        f"traffic.by_hour.{_hour_key()}.views": 1,
+    }
+
+    if access.get("logged_in"):
+        inc["counters.logged_in_views"] = 1
+    if access.get("is_member"):
+        inc["counters.member_views"] = 1
+
+    # simple unique view per session
+    seen_key = f"analytics_seen:{event_id}"
+    if not session.get(seen_key):
+        inc["counters.unique_page_views"] = 1
+        inc["users.unique_viewers"] = 1
+        session[seen_key] = True
+        session.modified = True
+
+    _analytics_inc(event_id, inc)
+    _analytics_log(
+        "page_view",
+        event_id=event_id,
+        logged_in=bool(access.get("logged_in")),
+        is_member=bool(access.get("is_member")),
+    )
+
+def _analytics_track_open_result(
+    egg_id: int,
+    result: str,
+    reward: str | None = None,
+    rarity: str | None = None,
+    response_ms: int | None = None,
+    event_id: str = EASTER_EVENT_ID,
+):
+    inc = {
+        "counters.open_attempts": 1,
+        f"eggs.{egg_id}.open_attempts": 1,
+        "performance.open_requests": 1,
+        f"traffic.by_day.{_day_key()}.opens": 1,
+        f"traffic.by_hour.{_hour_key()}.opens": 1,
+    }
+
+    if result == "win":
+        inc["counters.successful_opens"] = 1
+        inc["results.real_wins"] = 1
+        inc[f"eggs.{egg_id}.successful_opens"] = 1
+        inc[f"eggs.{egg_id}.wins"] = 1
+        inc[f"traffic.by_day.{_day_key()}.wins"] = 1
+        inc[f"traffic.by_hour.{_hour_key()}.wins"] = 1
+        if reward:
+            inc[f"prizes.{reward}.won"] = 1
+
+    elif result == "soft_loss":
+        inc["counters.successful_opens"] = 1
+        inc["results.soft_losses"] = 1
+        inc[f"eggs.{egg_id}.successful_opens"] = 1
+        inc[f"eggs.{egg_id}.losses"] = 1
+
+    elif result == "already_opened":
+        inc["counters.duplicate_open_attempts"] = 1
+        inc[f"eggs.{egg_id}.already_opened_attempts"] = 1
+
+    elif result == "locked":
+        inc["counters.locked_egg_attempts"] = 1
+        inc[f"eggs.{egg_id}.locked_attempts"] = 1
+
+    elif result == "invalid":
+        inc["counters.invalid_egg_attempts"] = 1
+        inc[f"eggs.{egg_id}.invalid_attempts"] = 1
+
+    opener_seen_key = f"analytics_opened:{event_id}"
+    if result in ("win", "soft_loss") and not session.get(opener_seen_key):
+        inc["users.unique_openers"] = 1
+        session[opener_seen_key] = True
+        session.modified = True
+
+    set_ops = {}
+    if response_ms is not None:
+        inc["performance.open_response_ms_total"] = int(response_ms)
+        set_ops["performance.last_open_response_ms"] = int(response_ms)
+
+    _analytics_inc(event_id, inc, extra_set=set_ops)
+    _analytics_log(
+        "open_result",
+        event_id=event_id,
+        egg_id=egg_id,
+        result=result,
+        reward=reward,
+        rarity=rarity,
+        response_ms=response_ms,
+    )
+
+def _json_safe(value):
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+def _event_analytics_state(event_id: str = EASTER_EVENT_ID):
+    _ensure_event_analytics(event_id)
+    client, _, _, _, analytics_col, _ = _easter_collections()
+    try:
+        return analytics_col.find_one({"_id": _analytics_doc_id(event_id)}) or {}
+    finally:
+        client.close()
+
+def _recent_event_logs(event_id: str = EASTER_EVENT_ID, limit: int = 50):
+    client, _, _, _, _, analytics_log_col = _easter_collections()
+    try:
+        return list(
+            analytics_log_col.find({"event_id": event_id})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+    finally:
+        client.close()
+
+def _easter_feed_entries(limit: int = 20):
+    client = get_mongo_client()
+    try:
+        db = client["Website"]
+        feed_col = db["easter_feed"]
+        usernames_col = db["usernames"]
+
+        rows = list(
+            feed_col.find({"event_id": EASTER_EVENT_ID})
+            .sort("opened_at", -1)
+            .limit(limit)
+        )
+
+        user_ids = list({
+            str(row.get("discord_id"))
+            for row in rows
+            if row.get("discord_id")
+        })
+
+        user_map = {}
+        if user_ids:
+            for doc in usernames_col.find(
+                {"_id": {"$in": user_ids}},
+                {"display_name": 1, "username": 1, "avatar": 1}
+            ):
+                user_map[str(doc["_id"])] = doc
+
+        feed = []
+        for row in rows:
+            discord_id = str(row.get("discord_id") or "")
+            profile = user_map.get(discord_id, {})
+
+            display_name = (
+                profile.get("display_name")
+                or profile.get("username")
+                or row.get("username")
+                or f"User {discord_id[-4:]}" if discord_id else "Unknown"
+            )
+
+            feed.append({
+                "_id": str(row.get("_id")),
+                "discord_id": discord_id,
+                "display_name": display_name,
+                "avatar": profile.get("avatar"),
+                "egg_id": row.get("egg_id"),
+                "reward": row.get("reward"),
+                "rarity": row.get("rarity"),
+                "opened_at": row.get("opened_at"),
+            })
+
+        return feed
+    finally:
+        client.close()
+
+
+def _insert_easter_feed_entry(discord_id: str, egg_id: int, reward: str, rarity: str):
+    client = get_mongo_client()
+    try:
+        db = client["Website"]
+        feed_col = db["easter_feed"]
+
+        feed_col.insert_one({
+            "event_id": EASTER_EVENT_ID,
+            "discord_id": str(discord_id),
+            "egg_id": int(egg_id),
+            "reward": reward,
+            "rarity": rarity,
+            "opened_at": datetime.now(timezone.utc),
+        })
+    finally:
+        client.close()
+
+def _has_easter_wins_access() -> bool:
+    if is_staff():
+        return True
+    return bool(session.get("easter_wins_authed", False))
+
+def _ensure_easter_event():
+    client, events_col, _, _, _, _ = _easter_collections()
+    try:
+        doc = events_col.find_one({"_id": EASTER_EVENT_ID})
+        if not doc:
+            reserved_inventory = {
+                str(egg_id): pool.copy()
+                for egg_id, pool in EASTER_EVENT["reserved_prize_inventory"].items()
+            }
+
+            egg_stats = {
+                str(egg["id"]): {
+                    "total_opens": 0,
+                    "total_real_wins": 0,
+                    "soft_losses": 0,
+                }
+                for egg in EASTER_EVENT["eggs"]
+            }
+
+            doc = {
+                "_id": EASTER_EVENT_ID,
+                "title": EASTER_EVENT["title"],
+                "created_at": datetime.now(timezone.utc),
+                "analytics_enabled": True,
+                "prize_pool_by_egg": reserved_inventory,
+                "stats": {
+                    "total_opens": 0,
+                    "total_real_wins": 0,
+                    "soft_losses": 0,
+                    "eggs": egg_stats,
+                },
+                "rollover_done_from_egg": {},
+                "contributors": {}
+            }
+            events_col.insert_one(doc)
+        return doc
+    finally:
+        client.close()
+
+def _event_inventory_state():
+    doc = _ensure_easter_event()
+    return doc.get("prize_pool_by_egg", {})
+
+
+def _event_stats_state():
+    doc = _ensure_easter_event()
+    return doc.get("stats", {
+        "total_opens": 0,
+        "total_real_wins": 0,
+        "soft_losses": 0,
+        "eggs": {},
+    })
+
+def _egg_inventory_state(egg_id: int) -> dict:
+    inventory = _event_inventory_state()
+    return inventory.get(str(egg_id), {})
+
+def _egg_stats_state(egg_id: int) -> dict:
+    stats = _event_stats_state()
+    return (stats.get("eggs") or {}).get(str(egg_id), {
+        "total_opens": 0,
+        "total_real_wins": 0,
+        "soft_losses": 0,
+    })
+
+def _rollover_unused_stock_to_egg(target_egg_id: int):
+    """
+    Move all leftover stock from earlier eggs into this egg once.
+    Example:
+    - opening egg 4 can absorb leftovers from egg 1, 2 and 3
+    - each source egg is only rolled forward once
+    """
+    if target_egg_id <= 1:
+        return
+
+    client, events_col, _, _, _, _ = _easter_collections()
+    try:
+        doc = events_col.find_one({"_id": EASTER_EVENT_ID}) or {}
+        pools = doc.get("prize_pool_by_egg", {}) or {}
+        rollover_done = doc.get("rollover_done_from_egg", {}) or {}
+
+        inc_ops = {}
+        set_ops = {}
+        moved_any = False
+
+        for source_egg_id in range(1, target_egg_id):
+            source_key = str(source_egg_id)
+
+            if rollover_done.get(source_key):
+                continue
+
+            source_pool = pools.get(source_key, {}) or {}
+            for prize_name, qty in source_pool.items():
+                qty = int(qty or 0)
+                if qty <= 0:
+                    continue
+
+                inc_ops[f"prize_pool_by_egg.{target_egg_id}.{prize_name}"] = (
+                    inc_ops.get(f"prize_pool_by_egg.{target_egg_id}.{prize_name}", 0) + qty
+                )
+                inc_ops[f"prize_pool_by_egg.{source_egg_id}.{prize_name}"] = (
+                    inc_ops.get(f"prize_pool_by_egg.{source_egg_id}.{prize_name}", 0) - qty
+                )
+                moved_any = True
+
+            set_ops[f"rollover_done_from_egg.{source_key}"] = True
+
+        if set_ops:
+            update = {"$set": set_ops}
+            if moved_any:
+                update["$inc"] = inc_ops
+            events_col.update_one({"_id": EASTER_EVENT_ID}, update)
+
+    finally:
+        client.close()
+
+def _remaining_prizes(inventory: dict) -> int:
+    total = 0
+    for value in inventory.values():
+        if isinstance(value, dict):
+            total += _remaining_prizes(value)
+        else:
+            total += max(0, int(value))
+    return total
+
+
+def _adaptive_win_chance(inventory: dict, stats: dict) -> float:
+    remaining_stock = _remaining_prizes(inventory)
+    if remaining_stock <= 0:
+        return 0.0
+
+    total_opens = max(0, int(stats.get("total_opens", 0)))
+    base_target_opens = max(1, int(EASTER_EVENT.get("target_total_opens", 500)))
+    scale_factor = max(1, int(EASTER_EVENT.get("egg_scale_factor", 3)))
+
+    scaled_target_opens = max(base_target_opens, total_opens * scale_factor)
+    remaining_expected_opens = max(1, scaled_target_opens - total_opens)
+
+    base_chance = remaining_stock / remaining_expected_opens
+    return max(0.01, min(0.35, base_chance))
+
+
+def _should_win(inventory: dict, stats: dict) -> bool:
+    chance = _adaptive_win_chance(inventory, stats)
+    return random.random() < chance
+
+def add_easter_contribution(contributor_id: str, contributor_name: str, egg_id: int, prizes: dict):
+    clean_prizes = {
+        str(k): int(v)
+        for k, v in prizes.items()
+        if str(k).strip() and int(v) > 0
+    }
+    if not clean_prizes:
+        return
+
+    egg_id = int(egg_id)
+    if egg_id < 1 or egg_id > len(EASTER_EVENT["eggs"]):
+        raise ValueError("Invalid egg_id")
+
+    client, events_col, contributions_col, _, _, _ = _easter_collections()
+    try:
+        inc_fields = {
+            f"prize_pool_by_egg.{egg_id}.{k}": v
+            for k, v in clean_prizes.items()
+        }
+
+        update_doc = {
+            "$setOnInsert": {
+                "_id": EASTER_EVENT_ID,
+                "title": EASTER_EVENT["title"],
+                "created_at": datetime.now(timezone.utc),
+            },
+            "$inc": inc_fields,
+            "$set": {
+                f"contributors.{contributor_id}.name": contributor_name,
+                f"contributors.{contributor_id}.discord_id": contributor_id,
+            }
+        }
+
+        for prize_name, qty in clean_prizes.items():
+            update_doc["$inc"][f"contributors.{contributor_id}.totals.{prize_name}"] = qty
+
+        events_col.update_one(
+            {"_id": EASTER_EVENT_ID},
+            update_doc,
+            upsert=True
+        )
+
+        contributions_col.insert_one({
+            "event_id": EASTER_EVENT_ID,
+            "egg_id": egg_id,
+            "contributor_id": contributor_id,
+            "contributor_name": contributor_name,
+            "prizes": clean_prizes,
+            "created_at": datetime.now(timezone.utc),
+        })
+    finally:
+        client.close()
+
+def _pick_weighted_prize(egg_id: int) -> str | None:
+    inventory = _egg_inventory_state(egg_id)
+    available = [(name, int(qty)) for name, qty in inventory.items() if int(qty) > 0]
+    if not available:
+        return None
+
+    total_weight = sum(qty for _, qty in available)
+    roll = random.randint(1, total_weight)
+
+    current = 0
+    chosen = None
+    for name, qty in available:
+        current += qty
+        if roll <= current:
+            chosen = name
+            break
+
+    if not chosen:
+        return None
+
+    client, events_col, _, _, _, _ = _easter_collections()
+    try:
+        result = events_col.update_one(
+            {
+                "_id": EASTER_EVENT_ID,
+                f"prize_pool_by_egg.{egg_id}.{chosen}": {"$gt": 0}
+            },
+            {
+                "$inc": {
+                    f"prize_pool_by_egg.{egg_id}.{chosen}": -1
+                }
+            }
+        )
+        if result.modified_count == 0:
+            return None
+        return chosen
+    finally:
+        client.close()
+
+
+def _pick_soft_loss_reward() -> str:
+    return random.choice(EASTER_EVENT["soft_loss_rewards"])
+
+def _is_easter_event_over() -> bool:
+    ends_at = EASTER_EVENT.get("ends_at")
+    if not ends_at:
+        return False
+    return datetime.now(timezone.utc) > ends_at
+
+def _next_available_eggs():
+    if _is_easter_testing_enabled() and EASTER_TESTING.get("bypass_unlocks"):
+        return len(EASTER_EVENT["eggs"])
+
+    now = datetime.now(timezone.utc)
+
+    available = 0
+    for egg in EASTER_EVENT["eggs"]:
+        unlock_at = egg.get("unlock_at")
+        if unlock_at and now >= unlock_at:
+            available += 1
+
+    return available
+
+def _claim_easter_egg_slot(discord_id: str, egg_id: int) -> bool:
+    client = get_mongo_client()
+    col = client["Website"]["easter_user_opens"]
+    try:
+        now = datetime.now(timezone.utc)
+
+        result = col.update_one(
+            {
+                "_id": f"{EASTER_EVENT_ID}:{discord_id}",
+                f"opened.{egg_id}": {"$exists": False},
+            },
+            {
+                "$set": {
+                    "event_id": EASTER_EVENT_ID,
+                    "discord_id": str(discord_id),
+                    f"opened.{egg_id}": {
+                        "pending": True,
+                        "opened_at": now.isoformat(),
+                    },
+                    "updated_at": now,
+                },
+                "$setOnInsert": {
+                    "created_at": now,
+                }
+            },
+            upsert=True
+        )
+
+        return result.modified_count > 0 or result.upserted_id is not None
+    finally:
+        client.close()
+
+def _is_easter_testing_enabled() -> bool:
+    return bool(EASTER_TESTING.get("enabled", False))
+
+def _session_role_ids() -> set[str]:
+    return {str(r) for r in (session.get("roles") or [])}
+
+def _is_easter_member() -> bool:
+    return str(MEMBER_ROLE_ID) in _session_role_ids()
+
+def _easter_access_state() -> dict:
+    logged_in = "discord_id" in session
+    is_member = _is_easter_member() if logged_in else False
+    can_open = logged_in and is_member
+
+    if not logged_in:
+        gate_message = "Log in with Discord to open eggs."
+    elif not is_member:
+        gate_message = "You must be a server member to open eggs."
+    else:
+        gate_message = None
+
+    return {
+        "unlocked": True,
+        "logged_in": logged_in,
+        "is_member": is_member,
+        "can_open": can_open,
+        "gate_message": gate_message,
+    }
 
 def get_mongo_client():
     mongo_uri = os.getenv("MONGO_URI")
@@ -2376,6 +3296,395 @@ def admin_panel():
         return "Unauthorized", 403
     return render_template("admin.html", year=datetime.now().year)
 
+@csrf.exempt
+@app.post("/easter/track")
+def easter_track():
+    action = (request.form.get("action") or "").strip()
+    egg_id_raw = request.form.get("egg_id")
+    meta = (request.form.get("meta") or "").strip()
+
+    egg_id = None
+    if egg_id_raw and str(egg_id_raw).isdigit():
+        egg_id = int(egg_id_raw)
+
+    inc = {}
+
+    if action == "banner_view":
+        inc["counters.banner_views"] = 1
+    elif action == "banner_click":
+        inc["counters.banner_clicks"] = 1
+    elif action == "banner_close":
+        inc["counters.banner_closes"] = 1
+    elif action == "cta_click":
+        inc["counters.cta_clicks"] = 1
+    elif action == "egg_click":
+        inc["counters.egg_clicks"] = 1
+        if egg_id:
+            inc[f"eggs.{egg_id}.clicks"] = 1
+    elif action == "admin_view":
+        inc["counters.admin_views"] = 1
+
+    elif action == "admin_tab_click":
+        inc["counters.admin_tab_clicks"] = 1
+
+    elif action == "egg_view":
+        if egg_id:
+            inc[f"eggs.{egg_id}.views"] = 1
+    if inc:
+        _analytics_inc(EASTER_EVENT_ID, inc)
+        _analytics_log("frontend_action", action_name=action, egg_id=egg_id, meta=meta)
+
+    return jsonify(ok=True)
+
+@csrf.exempt
+@app.route("/admin/easter-wins", methods=["GET", "POST"])
+def admin_easter_wins():
+    if request.method == "POST":
+        entered = (request.form.get("password") or "").strip()
+        expected = os.getenv("EASTER_WINS_PASSWORD", "").strip()
+
+        if expected and entered == expected:
+            session["easter_wins_authed"] = True
+            session.modified = True
+            return redirect(url_for("admin_easter_wins"))
+
+        return render_template(
+            "admin_easter_wins.html",
+            needs_password=True,
+            wins=[],
+            analytics={},
+            logs=[],
+            error="Wrong password."
+        )
+
+    if not _has_easter_wins_access():
+        return render_template(
+            "admin_easter_wins.html",
+            needs_password=True,
+            wins=[],
+            analytics={},
+            logs=[],
+            error=None
+        )
+
+    _analytics_inc(EASTER_EVENT_ID, {"counters.admin_views": 1})
+    _analytics_log("admin_dashboard_view")
+
+    with get_mongo_client() as client:
+        wins_col = client["Website"]["easter_wins"]
+        wins = list(
+            wins_col.find({"event_id": EASTER_EVENT_ID})
+            .sort("opened_at", -1)
+            .limit(200)
+        )
+
+    analytics = _event_analytics_state()
+    logs = _recent_event_logs(limit=100)
+    stats = _event_stats_state()
+    inventory = _event_inventory_state()
+
+    counters = analytics.get("counters", {})
+    results = analytics.get("results", {})
+    performance = analytics.get("performance", {})
+
+    total_open_attempts = int(counters.get("open_attempts", 0))
+    real_wins = int(results.get("real_wins", 0))
+    soft_losses = int(results.get("soft_losses", 0))
+    successful_opens = real_wins + soft_losses
+
+    win_rate = round((real_wins / successful_opens) * 100, 2) if successful_opens else 0
+    soft_loss_rate = round((soft_losses / successful_opens) * 100, 2) if successful_opens else 0
+    avg_open_response_ms = round(
+        performance.get("open_response_ms_total", 0) / performance.get("open_requests", 1), 1
+    ) if performance.get("open_requests", 0) else 0
+
+    return render_template(
+        "admin_easter_wins.html",
+        needs_password=False,
+        event=EASTER_EVENT,
+        wins=wins,
+        analytics=analytics,
+        stats=stats,
+        inventory=inventory,
+        logs=logs,
+        total_open_attempts=total_open_attempts,
+        successful_opens=successful_opens,
+        win_rate=win_rate,
+        soft_loss_rate=soft_loss_rate,
+        avg_open_response_ms=avg_open_response_ms,
+        error=None
+    )
+
+@csrf.exempt
+@app.get("/admin/easter-analytics.json")
+def admin_easter_analytics_json():
+    if not _has_easter_wins_access():
+        return jsonify(ok=False, error="Unauthorized"), 403
+
+    analytics = _event_analytics_state()
+    stats = _event_stats_state()
+    inventory = _event_inventory_state()
+    logs = _recent_event_logs(limit=100)
+
+    return jsonify(
+        ok=True,
+        analytics=_json_safe(analytics),
+        stats=_json_safe(stats),
+        inventory=_json_safe(inventory),
+        logs=_json_safe(logs),
+    )
+
+@csrf.exempt
+@app.post("/admin/easter-wins/logout")
+def admin_easter_wins_logout():
+    session.pop("easter_wins_authed", None)
+    session.modified = True
+    return redirect(url_for("admin_easter_wins"))
+
+@csrf.exempt
+@app.route("/easter")
+def easter_event_page():
+    access = _easter_access_state()
+    _analytics_track_page_view(access)
+
+    return render_template(
+        "easter_event.html",
+        easter_live=EASTER_LIVE,
+        year=datetime.now(timezone.utc).year,
+        event=EASTER_EVENT,
+        available_count=_next_available_eggs(),
+        opened=_event_open_state(str(session["discord_id"])) if "discord_id" in session else {},
+        stats=_event_stats_state(),
+        analytics=_event_analytics_state(),
+        remaining_real_prizes=_remaining_prizes(_event_inventory_state()),
+        live_feed=_easter_feed_entries(limit=20),
+        testing_enabled=False,
+        testing_config=EASTER_TESTING,
+        easter_access=access,
+        error=None,
+    )
+
+@csrf.exempt
+@app.get("/api/easter-feed")
+def api_easter_feed():
+    return jsonify(
+        ok=True,
+        feed=_json_safe(_easter_feed_entries(limit=20))
+    )
+
+@limiter.limit("5 per minute")
+@app.post("/easter/open")
+def easter_open_egg():
+    start_ts = time.time()
+    access = _easter_access_state()
+
+    if not access["logged_in"]:
+        _analytics_inc(EASTER_EVENT_ID, {"counters.login_gate_hits": 1})
+        _analytics_log("open_blocked_login")
+        return jsonify(ok=False, error="Please log in with Discord first."), 401
+
+    if not access["is_member"]:
+        _analytics_inc(EASTER_EVENT_ID, {"counters.member_gate_hits": 1})
+        _analytics_log("open_blocked_member")
+        return jsonify(ok=False, error="You must be a server member to open eggs."), 403
+        
+    if _is_easter_event_over():
+        _analytics_inc(EASTER_EVENT_ID, {"counters.event_over_attempts": 1})
+        _analytics_log("open_blocked_event_over")
+        return jsonify(ok=False, error="This Easter event has ended."), 400
+    
+    try:
+        egg_id = int(request.form.get("egg_id", 0))
+    except ValueError:
+        return jsonify(ok=False, error="Invalid egg id"), 400
+
+    available_count = _next_available_eggs()
+    discord_id = str(session["discord_id"])
+    opened = _event_open_state(discord_id)
+    key = str(egg_id)
+
+    if egg_id < 1 or egg_id > len(EASTER_EVENT["eggs"]):
+        _analytics_track_open_result(
+            egg_id=egg_id,
+            result="invalid",
+            response_ms=int((time.time() - start_ts) * 1000),
+        )
+        return jsonify(ok=False, error="Unknown egg"), 404
+
+    if egg_id > available_count:
+        _analytics_track_open_result(
+            egg_id=egg_id,
+            result="locked",
+            response_ms=int((time.time() - start_ts) * 1000),
+        )
+        return jsonify(ok=False, error="This egg is not unlocked yet."), 400
+
+    if key in opened:
+        _analytics_track_open_result(
+            egg_id=egg_id,
+            result="already_opened",
+            reward=opened[key]["reward"],
+            rarity=opened[key]["rarity"],
+            response_ms=int((time.time() - start_ts) * 1000),
+        )
+        return jsonify(
+            ok=True,
+            already_opened=True,
+            reward=opened[key]["reward"],
+            rarity=opened[key]["rarity"]
+        )
+    
+    try:
+        _rollover_unused_stock_to_egg(egg_id)
+
+        claimed = _claim_easter_egg_slot(discord_id, egg_id)
+        if not claimed:
+            opened = _event_open_state(discord_id)
+            existing = opened.get(key)
+            if existing:
+                _analytics_track_open_result(
+                    egg_id=egg_id,
+                    result="already_opened",
+                    reward=existing.get("reward"),
+                    rarity=existing.get("rarity"),
+                    response_ms=int((time.time() - start_ts) * 1000),
+                )
+                return jsonify(
+                    ok=True,
+                    already_opened=True,
+                    reward=existing.get("reward", "Already opened"),
+                    rarity=existing.get("rarity", "bonus")
+                )
+
+            _analytics_track_open_result(
+                egg_id=egg_id,
+                result="already_opened",
+                response_ms=int((time.time() - start_ts) * 1000),
+            )
+            return jsonify(ok=False, error="This egg was already opened."), 409
+
+        client, events_col, _, wins_col, _, _ = _easter_collections()
+        try:
+            events_col.update_one(
+                {"_id": EASTER_EVENT_ID},
+                {
+                    "$inc": {
+                        "stats.total_opens": 1,
+                        f"stats.eggs.{egg_id}.total_opens": 1
+                    }
+                }
+            )
+        finally:
+            client.close()
+
+        inventory = _egg_inventory_state(egg_id)
+        stats = _egg_stats_state(egg_id)
+
+        forced_result = None
+        if _is_easter_testing_enabled():
+            forced_result = EASTER_TESTING.get("force_result")
+
+        if forced_result == "win":
+            did_win = True
+        elif forced_result == "soft_loss":
+            did_win = False
+        else:
+            did_win = _should_win(inventory, stats)
+
+        if did_win:
+            reward = _pick_weighted_prize(egg_id)
+            if reward:
+                rarity = "winner"
+
+                client, events_col, _, wins_col, _, _ = _easter_collections()
+                try:
+                    events_col.update_one(
+                        {"_id": EASTER_EVENT_ID},
+                        {
+                            "$inc": {
+                                "stats.total_real_wins": 1,
+                                f"stats.eggs.{egg_id}.total_real_wins": 1
+                            }
+                        }
+                    )
+
+                    wins_col.insert_one({
+                        "event_id": EASTER_EVENT_ID,
+                        "discord_id": str(session["discord_id"]),
+                        "display_name": session.get("display_name"),
+                        "username": session.get("username"),
+                        "egg_id": egg_id,
+                        "reward": reward,
+                        "rarity": "winner",
+                        "opened_at": datetime.now(timezone.utc),
+                    })
+
+                    _insert_easter_feed_entry(
+                        discord_id=str(session["discord_id"]),
+                        egg_id=egg_id,
+                        reward=reward,
+                        rarity="winner",
+                    )
+
+                    _analytics_track_open_result(
+                        egg_id=egg_id,
+                        result="win",
+                        reward=reward,
+                        rarity=rarity,
+                        response_ms=int((time.time() - start_ts) * 1000),
+                    )                    
+                finally:
+                    client.close()
+            else:
+                rarity = "bonus"
+                reward = random.choice(EASTER_EVENT["soft_loss_rewards"])
+        else:
+            rarity = "bonus"
+            reward = random.choice(EASTER_EVENT["soft_loss_rewards"])
+
+        if rarity == "bonus":
+            client, events_col, _, _, _, _ = _easter_collections()
+            try:
+                events_col.update_one(
+                    {"_id": EASTER_EVENT_ID},
+                    {
+                        "$inc": {
+                            "stats.soft_losses": 1,
+                            f"stats.eggs.{egg_id}.soft_losses": 1
+                        }
+                    }
+                )
+
+                _insert_easter_feed_entry(
+                    discord_id=str(session["discord_id"]),
+                    egg_id=egg_id,
+                    reward=reward,
+                    rarity="bonus",
+                )
+
+                _analytics_track_open_result(
+                    egg_id=egg_id,
+                    result="soft_loss",
+                    reward=reward,
+                    rarity=rarity,
+                    response_ms=int((time.time() - start_ts) * 1000),
+                )                
+            finally:
+                client.close()
+
+        _save_opened_egg(discord_id, egg_id, reward, rarity)
+
+        return jsonify(
+            ok=True,
+            already_opened=False,
+            reward=reward,
+            rarity=rarity
+        )
+
+    except Exception:
+        _release_pending_easter_egg(discord_id, egg_id)
+        raise
+
 @app.route("/admin/competition")
 def admin_competition():
     if not is_staff(): 
@@ -3297,7 +4606,6 @@ def toggle_privacy():
     return redirect(url_for("profile"))
 
 
-
 @app.route("/leaderboard")
 def leaderboard():
     page = int(request.args.get("page", 1))
@@ -3332,7 +4640,7 @@ def leaderboard():
         if lb_type == "streak":
             col = client["Economy"]["Users"]
             total_users = col.count_documents({"streak": {"$gt": 0}})
-            users = list(col.find().sort("streak", -1).skip(skip).limit(limit))
+            users = list(col.find({"streak": {"$gt": 0}}).sort("streak", -1).skip(skip).limit(limit))
             user_ids = [str(u["_id"]) for u in users]
 
         elif lb_type == "mentions":
@@ -3451,7 +4759,13 @@ def leaderboard():
             try:
                 if lb_type in ("coins", "streak", "trivia"):
                     econ = client["Economy"]["Users"]
-                    me = econ.find_one({"_id": vid}) or {}
+
+                    try:
+                        econ_id = int(vid)
+                    except (TypeError, ValueError):
+                        econ_id = vid
+
+                    me = econ.find_one({"_id": econ_id}) or {}
 
                     if lb_type == "coins":
                         my_val = int(me.get("coins", 0) or 0)
@@ -3471,7 +4785,7 @@ def leaderboard():
                             return (u.get("trivia_correct", 0) / max(u.get("trivia_total", 1), 1))
                         raw_sorted = sorted(raw, key=_ratio, reverse=True)
                         for idx, u in enumerate(raw_sorted):
-                            if str(u.get("_id")) == vid:
+                            if u.get("_id") == econ_id:
                                 viewer_rank = idx + 1
                                 break
 
@@ -4615,6 +5929,39 @@ def public_profile(discord_id):
 def builder():
     return render_template("builder.html")
 
+
+_TIER_RE = re.compile(r"^(?P<prefix>.+)_t(?P<tier>\d+)$")
+
+def _sorted_shop_items(shop_items: dict):
+    """
+    Sort rules:
+    1) Most expensive 'group' first (group = prefix before _tX)
+    2) Inside a group, Tier III, II, I next to each other (highest tier first)
+    3) Fallback sorting by price desc
+    """
+    rows = []
+    for key, item in shop_items.items():
+        key_l = (key or "").lower()
+
+        m = _TIER_RE.match(key_l)
+        group = m.group("prefix") if m else key_l
+        tier = int(m.group("tier")) if m else 0
+        price = int(item.get("price", 0) or 0)
+
+        rows.append((key, item, group, tier, price))
+
+    # group max price (so grouped tier sets sort by their strongest tier)
+    group_max = {}
+    for _, _, group, _, price in rows:
+        group_max[group] = max(group_max.get(group, 0), price)
+
+    # Sort: group expensive first, then tier high->low, then price high->low
+    rows.sort(key=lambda r: (-group_max[r[2]], -r[3], -r[4], r[0]))
+
+    # Return list of (key, item) tuples for Jinja: {% for key, item in items %}
+    return [(k, it) for (k, it, _, _, _) in rows]
+
+
 @app.route("/shop")
 def shop():
     if "discord_id" not in session:
@@ -4683,9 +6030,11 @@ def shop():
         if passive_tier >= 3:
             owned_items.add("passive_income_t3")
 
+    sorted_items = _sorted_shop_items(SHOP_ITEMS)
+
     return render_template(
         "shop.html",
-        items=SHOP_ITEMS,
+        items=sorted_items,     
         coins=coins,
         owned_items=list(owned_items)
     )

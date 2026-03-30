@@ -360,68 +360,13 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+
   function buildSpring(decor) {
-    if (!motionAllowed()) return;
-    // --- Static spring decor (vines + flowers) ---
-    const vines = document.createElement("div");
-    vines.className = "spring-vines";
-    decor.appendChild(vines);
-
-    // 🌸 Emoji Flower Field (HayDay style)
-    const flowers = ["🌸","🌼","🌺","🌷","🌻"];
-
-    const flowerCount = Math.min(12, Math.max(8, Math.floor(window.innerWidth / 180)));
-
-    for (let i = 0; i < flowerCount; i++) {
-      const f = document.createElement("div");
-      f.className = "spring-emoji-flower";
-      f.innerText = flowers[Math.floor(Math.random() * flowers.length)];
-
-      const r = Math.random();
-      // 70% chance flowers are on left/right edges, 30% anywhere
-      let x;
-      if (r < 0.35) x = rand(0, 18);        // left edge
-      else if (r < 0.70) x = rand(82, 100); // right edge
-      else x = rand(18, 82);               // middle occasionally
-      f.style.setProperty("--x", x.toFixed(2) + "%");
-      f.style.setProperty("--y", (6 + Math.random() * 24).toFixed(0) + "px");
-
-      f.style.setProperty("--t", (10 + Math.random() * 6) + "s");
-      f.style.animationDelay = (-Math.random() * 10) + "s";
-
-      decor.appendChild(f);
-    }
-    // --- Bees (always 1, full header fly) ---
-    const bee = document.createElement("div");
-    bee.className = "spring-bee";
-
-    bee.style.top = "18px";
-    bee.style.setProperty("--t", "40s"); // slow farm bee
-    bee.style.animationDelay = (-Math.random() * 40).toFixed(2) + "s";
-
-    decor.parentElement.appendChild(bee); // attaches to header.site-header
-
-    // small clean sparkle count
-    const count = Math.min(22, Math.max(12, Math.floor(window.innerWidth / 90)));
-
-    for (let i = 0; i < count; i++) {
-      const s = document.createElement("div");
-      s.className = "spring-pollen";
-
-      s.style.setProperty("--x", rand(0, 100).toFixed(1) + "%");
-      s.style.setProperty("--y", rand(10, 90).toFixed(1) + "%");
-      s.style.setProperty("--dx", rand(-18, 18).toFixed(0) + "px");
-      s.style.setProperty("--dy", rand(-12, 12).toFixed(0) + "px");
-
-      s.style.setProperty("--t", rand(5.5, 9.5).toFixed(1) + "s");
-      s.style.setProperty("--b", rand(1.8, 3.2).toFixed(1) + "s");
-      s.style.setProperty("--o", rand(0.35, 0.85).toFixed(2));
-
-      s.style.animationDelay = (-rand(0, 9)).toFixed(2) + "s";
-
-      decor.appendChild(s);
-    }
+    const vine = document.createElement("div");
+    vine.className = "spring-vine-strip";
+    decor.appendChild(vine);
   }
+
 
   function buildAutumn(decor) {
     if (!motionAllowed()) return;
@@ -494,3 +439,57 @@ window.addEventListener("DOMContentLoaded", () => {
   // Optional: if you change theme via localStorage manually, call this:
   window.applyHeaderEffects = applyHeaderEffects;
 })();
+document.addEventListener("DOMContentLoaded", () => {
+  const html = document.documentElement;
+  html.classList.add("has-bee-cursor");
+
+  const bee = document.createElement("div");
+  bee.id = "bee-cursor";
+  document.body.appendChild(bee);
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let currentX = mouseX;
+  let currentY = mouseY;
+
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    bee.style.opacity = "1";
+  });
+
+  document.addEventListener("mouseleave", () => {
+    bee.style.opacity = "0";
+  });
+
+  document.addEventListener("mouseenter", () => {
+    bee.style.opacity = "1";
+  });
+
+  const hoverSelector = 'a, button, .nav-button, [role="button"], input[type="submit"], input[type="button"]';
+
+  document.addEventListener("mouseover", (e) => {
+    if (e.target.closest(hoverSelector)) {
+      bee.classList.add("is-hover");
+    } else {
+      bee.classList.remove("is-hover");
+    }
+  });
+
+  document.addEventListener("mouseout", (e) => {
+    if (e.target.closest(hoverSelector)) {
+      bee.classList.remove("is-hover");
+    }
+  });
+
+  function animateBee() {
+    currentX += (mouseX - currentX) * 0.35;
+    currentY += (mouseY - currentY) * 0.35;
+    bee.style.left = `${currentX}px`;
+    bee.style.top = `${currentY}px`;
+    requestAnimationFrame(animateBee);
+  }
+
+  bee.style.opacity = "0";
+  animateBee();
+});

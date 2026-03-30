@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+
+{% block title %}HayDay 🍀 Easter Winners{% endblock %}
+
+{% block head_extra %}
+<style>
+  .admin-wrap{
+    max-width:1200px;
+    margin:0 auto;
+    padding:110px 20px 80px;
+  }
+
+  .admin-card{
+    background:linear-gradient(180deg, rgba(18,25,21,.94), rgba(10,14,12,.98));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:26px;
+    box-shadow:0 22px 50px rgba(0,0,0,.28);
+    padding:24px;
+  }
+
+  .admin-hero{
+    margin-bottom:18px;
+  }
+
+  .admin-kicker{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 14px;
+    border-radius:999px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    color:#e8f5e8;
+    font-size:.85rem;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:14px;
+  }
+
+  .admin-title{
+    margin:0 0 10px;
+    color:#f7fff8;
+    font-size:clamp(1.9rem, 4vw, 2.8rem);
+    line-height:1.05;
+  }
+
+  .admin-sub{
+    margin:0;
+    color:#cfe0d1;
+    line-height:1.7;
+    max-width:780px;
+  }
+
+  .login-box{
+    max-width:520px;
+    margin:40px auto 0;
+    background:rgba(255,255,255,.03);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:22px;
+    padding:24px;
+  }
+
+  .login-box h2{
+    margin:0 0 10px;
+    color:#fff;
+    font-size:1.25rem;
+  }
+
+  .login-box p{
+    margin:0 0 16px;
+    color:#d1ddd1;
+    line-height:1.65;
+  }
+
+  .password-form{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .password-input{
+    flex:1;
+    min-width:220px;
+    padding:14px 16px;
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.06);
+    color:#fff;
+    outline:none;
+    font-size:1rem;
+  }
+
+  .password-input::placeholder{
+    color:#9fb09f;
+  }
+
+  .admin-btn{
+    appearance:none;
+    border:none;
+    border-radius:16px;
+    padding:13px 18px;
+    font-weight:900;
+    cursor:pointer;
+    transition:transform .15s ease, opacity .15s ease;
+  }
+
+  .admin-btn:hover{
+    transform:translateY(-1px);
+  }
+
+  .admin-btn.primary{
+    background:linear-gradient(180deg, #8fe06a, #5ebe45);
+    color:#fff;
+  }
+
+  .admin-btn.dark{
+    background:linear-gradient(180deg, #353a40, #23272c);
+    color:#f4f7f4;
+    border:1px solid rgba(255,255,255,.08);
+  }
+
+  .error-box{
+    margin-top:12px;
+    color:#ffb5b5;
+    font-weight:800;
+  }
+
+  .toolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    margin:22px 0 16px;
+  }
+
+  .toolbar-left{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+
+  .toolbar-stat{
+    padding:10px 14px;
+    border-radius:16px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    color:#e5f1e3;
+    font-weight:800;
+  }
+
+  .toolbar-stat strong{
+    color:#fff0ad;
+  }
+
+  .wins-grid{
+    display:grid;
+    gap:14px;
+  }
+
+  .win-card{
+    display:grid;
+    grid-template-columns:1.1fr .9fr .6fr .9fr;
+    gap:14px;
+    align-items:center;
+    padding:16px;
+    border-radius:20px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);
+  }
+
+  .winner-main{
+    min-width:0;
+  }
+
+  .winner-name{
+    color:#fff;
+    font-weight:900;
+    font-size:1.02rem;
+    margin-bottom:4px;
+  }
+
+  .winner-meta{
+    color:#bfd0c1;
+    font-size:.92rem;
+    line-height:1.55;
+    word-break:break-word;
+  }
+
+  .reward-block{
+    min-width:0;
+  }
+
+  .reward-label{
+    color:#b8cab8;
+    font-size:.82rem;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    font-weight:900;
+    margin-bottom:6px;
+  }
+
+  .reward-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 12px;
+    border-radius:14px;
+    font-weight:900;
+    line-height:1.4;
+  }
+
+  .reward-pill.winner{
+    background:linear-gradient(180deg, rgba(255,246,203,.98), rgba(255,219,103,.96));
+    color:#6a4900;
+    border:1px solid rgba(219,164,39,.24);
+  }
+
+  .reward-pill.bonus{
+    background:linear-gradient(180deg, rgba(226,249,210,.98), rgba(168,225,128,.95));
+    color:#255c1f;
+    border:1px solid rgba(72,147,50,.22);
+  }
+
+  .egg-badge{
+    justify-self:start;
+    padding:10px 12px;
+    border-radius:14px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    color:#edf7e8;
+    font-weight:900;
+  }
+
+  .time-block{
+    color:#d5e2d6;
+    line-height:1.55;
+    font-size:.93rem;
+  }
+
+  .time-block strong{
+    color:#fff;
+    display:block;
+    margin-bottom:4px;
+  }
+
+  .empty-state{
+    text-align:center;
+    padding:36px 20px;
+    border-radius:22px;
+    background:rgba(255,255,255,.03);
+    border:1px dashed rgba(255,255,255,.10);
+    color:#cfddcf;
+  }
+
+  @media (max-width: 980px){
+    .win-card{
+      grid-template-columns:1fr 1fr;
+    }
+  }
+
+  @media (max-width: 640px){
+    .admin-wrap{
+      padding:92px 14px 70px;
+    }
+
+    .admin-card{
+      padding:18px;
+    }
+
+    .win-card{
+      grid-template-columns:1fr;
+    }
+
+    .password-form{
+      flex-direction:column;
+    }
+
+    .password-input{
+      min-width:0;
+      width:100%;
+    }
+  }
+
+  .admin-tabs{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:18px 0 18px;
+  }
+  .admin-tab{
+    appearance:none;
+    border:none;
+    border-radius:14px;
+    padding:12px 16px;
+    font-weight:900;
+    cursor:pointer;
+    background:rgba(255,255,255,.06);
+    color:#e7f3e8;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .admin-tab.active{
+    background:linear-gradient(180deg, #8fe06a, #5ebe45);
+    color:#fff;
+  }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .stats-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+    gap:14px;
+  }
+  .stat-card{
+    padding:18px;
+    border-radius:18px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);
+  }
+  .stat-card span{
+    display:block;
+    color:#bfd0c1;
+    font-size:.88rem;
+    margin-bottom:8px;
+  }
+  .stat-card strong{
+    color:#fff;
+    font-size:1.55rem;
+    font-weight:900;
+  }
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-wrap">
+  <div class="admin-card">
+    <div class="admin-hero">
+      <div class="admin-kicker">🥚 Easter Admin</div>
+      <h1 class="admin-title">Easter Winners</h1>
+      <p class="admin-sub">
+        View logged Easter prize wins for the current event. Staff can access this automatically, and approved non-staff viewers can enter with the event password.
+      </p>
+    </div>
+
+    {% if needs_password %}
+      <div class="login-box">
+        <h2>Protected page</h2>
+        <p>Enter the Easter winners password to continue.</p>
+
+        <form method="post" class="password-form">
+          <input
+            class="password-input"
+            type="password"
+            name="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+          >
+          <button class="admin-btn primary" type="submit">Unlock</button>
+        </form>
+
+        {% if error %}
+          <div class="error-box">{{ error }}</div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="toolbar-stat">Logged wins: <strong>{{ wins|length }}</strong></div>
+        </div>
+
+        <form method="post" action="{{ url_for('admin_easter_wins_logout') }}">
+          <button class="admin-btn dark" type="submit">Logout password access</button>
+        </form>
+      </div>
+      <div class="admin-tabs">
+        <button class="admin-tab active" type="button" data-tab="overview">Overview</button>
+        <button class="admin-tab" type="button" data-tab="eggs">Egg Breakdown</button>
+        <button class="admin-tab" type="button" data-tab="prizes">Prize Breakdown</button>
+        <button class="admin-tab" type="button" data-tab="live">Live Feed</button>
+        <button class="admin-tab" type="button" data-tab="wins">Wins</button>
+      </div>
+      <div class="tab-panel active" data-panel="overview">
+        <div class="stats-grid">
+          <div class="stat-card"><span>Total page views</span><strong>{{ analytics.get('counters', {}).get('page_views', 0) }}</strong></div>
+          <div class="stat-card"><span>Unique viewers</span><strong>{{ analytics.get('users', {}).get('unique_viewers', 0) }}</strong></div>
+          <div class="stat-card"><span>Open requests</span><strong>{{ total_open_attempts }}</strong></div>
+          <div class="stat-card"><span>Successful opens</span><strong>{{ successful_opens }}</strong></div>
+          <div class="stat-card"><span>Win rate</span><strong>{{ win_rate }}%</strong></div>
+          <div class="stat-card"><span>Soft loss rate</span><strong>{{ soft_loss_rate }}%</strong></div>
+          <div class="stat-card"><span>Duplicate attempts</span><strong>{{ analytics.counters.duplicate_open_attempts or 0 }}</strong></div>
+          <div class="stat-card"><span>Locked attempts</span><strong>{{ analytics.counters.locked_egg_attempts or 0 }}</strong></div>
+          <div class="stat-card"><span>Login gate hits</span><strong>{{ analytics.counters.login_gate_hits or 0 }}</strong></div>
+          <div class="stat-card"><span>Member gate hits</span><strong>{{ analytics.counters.member_gate_hits or 0 }}</strong></div>
+          <div class="stat-card"><span>Banner closes</span><strong>{{ analytics.counters.banner_closes or 0 }}</strong></div>
+          <div class="stat-card"><span>Avg open response</span><strong>{{ avg_open_response_ms }} ms</strong></div>
+        </div>
+      </div>      
+        <div class="tab-panel" data-panel="eggs">
+          <div class="wins-grid">
+            {% for egg in event.eggs %}
+              {% set egg_key = egg.id|string %}
+              {% set egg_data = analytics.eggs.get(egg_key, {}) %}
+              <div class="win-card">
+                <div>
+                  <div class="winner-name">{{ egg.name }}</div>
+                  <div class="winner-meta">{{ egg.label }}</div>
+                </div>
+                <div class="winner-meta">
+                  Views: {{ egg_data.views or 0 }}<br>
+                  Clicks: {{ egg_data.clicks or 0 }}<br>
+                  Open requests: {{ egg_data.open_attempts or 0 }}
+                </div>
+                <div class="winner-meta">
+                  Successful opens: {{ egg_data.successful_opens or 0 }}<br>
+                  Wins: {{ egg_data.wins or 0 }}<br>
+                  Losses: {{ egg_data.losses or 0 }}
+                </div>
+                <div class="winner-meta">
+                  Already opened: {{ egg_data.already_opened_attempts or 0 }}<br>
+                  Locked: {{ egg_data.locked_attempts or 0 }}<br>
+                  Invalid: {{ egg_data.invalid_attempts or 0 }}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>     
+          <div class="tab-panel" data-panel="prizes">
+            <div class="wins-grid">
+              {% for egg_id, prizes in inventory.items() %}
+                {% for prize_name, qty_left in prizes.items() %}
+                  <div class="win-card">
+                    <div>
+                      <div class="winner-name">{{ prize_name }}</div>
+                      <div class="winner-meta">Egg {{ egg_id }}</div>
+                    </div>
+                    <div class="winner-meta">
+                      Won: {{ (analytics.get('prizes', {})).get(prize_name, {}).get('won', 0) }}
+                    </div>
+                    <div class="winner-meta">
+                      Left: {{ qty_left }}
+                    </div>
+                    <div class="winner-meta">
+                      Type: Real prize
+                    </div>
+                  </div>
+                {% endfor %}
+              {% endfor %}
+            </div>
+          </div>  
+          <div class="tab-panel" data-panel="live">
+            {% if logs %}
+              <div class="wins-grid">
+                {% for row in logs %}
+                  <div class="win-card">
+                    <div>
+                      <div class="winner-name">{{ row.action }}</div>
+                      <div class="winner-meta">{{ row.discord_id or "Guest" }}</div>
+                    </div>
+                    <div class="winner-meta">
+                      Egg: {{ row.egg_id or "-" }}<br>
+                      Result: {{ row.result or "-" }}
+                    </div>
+                    <div class="winner-meta">
+                      Reward: {{ row.reward or "-" }}
+                    </div>
+                    <div class="winner-meta">
+                      {{ row.created_at.strftime("%Y-%m-%d %H:%M:%S") if row.created_at else "-" }}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="empty-state">No live log data yet.</div>
+            {% endif %}
+          </div>
+
+          <div class="tab-panel" data-panel="wins">
+            {% if wins %}
+              <div class="wins-grid">
+                {% for win in wins %}
+                  <div class="win-card">
+                    <div class="winner-main">
+                      <div class="winner-name">
+                        {{ win.display_name or win.username or "Unknown user" }}
+                      </div>
+                      <div class="winner-meta">
+                        {% if win.username %}@{{ win.username }}<br>{% endif %}
+                        Discord ID: {{ win.discord_id }}
+                      </div>
+                    </div>
+
+                    <div class="reward-block">
+                      <div class="reward-label">Reward</div>
+                      <div class="reward-pill {{ win.rarity or 'winner' }}">
+                        {% if win.rarity == "winner" %}💎{% else %}🎁{% endif %}
+                        {{ win.reward }}
+                      </div>
+                    </div>
+
+                    <div class="egg-badge">
+                      Egg {{ win.egg_id }}
+                    </div>
+
+                    <div class="time-block">
+                      <strong>Opened at</strong>
+                      {% if win.opened_at %}
+                        {{ win.opened_at.strftime('%Y-%m-%d %H:%M UTC') if win.opened_at.strftime is defined else win.opened_at }}
+                      {% else %}
+                        Unknown time
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="empty-state">
+                No Easter wins have been logged yet.
+              </div>
+            {% endif %}
+          </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const tabs = document.querySelectorAll(".admin-tab");
+  const panels = document.querySelectorAll(".tab-panel");
+
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const name = tab.dataset.tab;
+
+      tabs.forEach(t => t.classList.remove("active"));
+      panels.forEach(p => p.classList.remove("active"));
+
+      tab.classList.add("active");
+      document.querySelector(`[data-panel="${name}"]`)?.classList.add("active");
+
+      fetch("/easter/track", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+        },
+        body: new URLSearchParams({
+          action: "admin_tab_click",
+          meta: name
+        }).toString()
+      }).catch(() => {});
+    });
+  });
+
+  setInterval(() => {
+    if (document.querySelector('[data-panel="live"]')?.classList.contains("active")) {
+      window.location.reload();
+    }
+  }, 30000);
+});
+</script>
+{% endblock %}

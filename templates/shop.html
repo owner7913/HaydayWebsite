@@ -120,25 +120,26 @@
 {% endif %}
     </div>
     <div class="shop-grid">
- {% for key, item in items.items() | sort(attribute='1.price', reverse=True) %}
-  <div class="item-card">
-    <div class="item-name">{{ item.name }}</div>
-    <div class="item-desc">{{ item.description }}</div>
-    <div class="item-price">{{ item.price | format }} coins</div>
+      {% for key, item in items %}
+        <div class="item-card">
+          <div class="item-name">{{ item.name }}</div>
+          <div class="item-desc">{{ item.description }}</div>
+          <div class="item-price">{{ item.price | format }} coins</div>
 
-    {% if coins is not none %}
-      {% if item.permanent and owned_items and key in owned_items %}
-        <div style="margin-top: 10px; font-size: 13px; color: #66bb6a;">✅ Already Owned</div>
-      {% else %}
-        <form method="POST" action="/buy" style="margin-top: 10px;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="item_id" value="{{ key }}">
-          <button type="submit" class="buy-button">Buy</button>
-        </form>
-      {% endif %}
-    {% endif %}
-  </div>
-{% endfor %}
+          {% if coins is not none %}
+            {% if item.permanent and owned_items and key in owned_items %}
+              <div style="margin-top: 10px; font-size: 13px; color: #66bb6a;">✅ Already Owned</div>
+            {% else %}
+              <form method="POST" action="/buy" style="margin-top: 10px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="item_id" value="{{ key }}">
+                <button type="submit" class="buy-button">Buy</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
 
 
     </div>

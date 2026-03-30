@@ -10,6 +10,7 @@
 header.site-header {
   width: 100%;
   padding: 12px 24px;
+  min-height: 78px;
   background: var(--panel-bg-light);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   box-sizing: border-box; 
@@ -968,8 +969,8 @@ body[data-site-theme]:not([data-site-theme="default"]) .maint-banner {
    ========================= */
 
 .site-header {
-  position: fixed;
-  overflow: visible; /* allow icicles/snow to hang outside */
+  position: relative;
+  overflow: visible;
 }
 
 /* Decor must always span full header area */
@@ -1262,6 +1263,7 @@ body[data-site-theme="spring"] .theme-header-decor {
   right: 24px;
   top: 0;
   bottom: 0;
+  overflow: hidden;
 }
 /* ---------- Autumn: leaves ---------- */
 .autumn-leaf {
@@ -1356,4 +1358,145 @@ body[data-site-theme="winter"] header.site-header::before {
 /* Extend decor zone beyond header so flakes appear around it */
 body[data-site-theme="winter"] .theme-header-decor {
   inset: -26px -12px -26px -12px; /* top/right/bottom/left */
+}
+
+/* Keep nav/logo above the gif */
+.site-header .navbar,
+.site-header .nav-logo,
+.site-header .nav-links,
+.site-header .nav-toggle,
+.site-header .nav-close {
+  position: relative;
+  z-index: 10;
+}
+/* =========================
+   Spring header art
+   ========================= */
+
+body[data-site-theme="spring"] .theme-header-decor {
+  left: 24px;
+  right: 24px;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+body[data-site-theme="spring"] .theme-header-decor {
+  left: 24px;
+  right: 24px;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+/* =========================
+   Spring header art
+   ========================= */
+
+body[data-site-theme="spring"] .theme-header-decor {
+  left: 24px;
+  right: 24px;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+
+/* animals */
+.spring-animal {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 4;
+  opacity: 0.98;
+}
+
+.spring-fox {
+  height: 90px;
+}
+
+.spring-rabbit {
+  height: 90px;
+}
+
+.spring-chick {
+  height: 90px;
+}
+
+/* responsiveness */
+@media (max-width: 900px) {
+  .spring-fox { height: 40px; }
+  .spring-rabbit { height: 42px; }
+  .spring-chick { height: 24px; }
+
+  .spring-vine-strip {
+    height: 54px;
+    background-size: auto 54px;
+  }
+}
+
+@media (max-width: 767px) {
+  .spring-rabbit {
+    display: none;
+  }
+
+  .spring-fox { height: 34px; }
+  .spring-chick { height: 20px; }
+
+  .spring-vine-strip {
+    height: 44px;
+    background-size: auto 44px;
+  }
+}
+.spring-vine-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;              /* fill the full header height */
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.96;
+
+  background-image: url("/static/img/IMG_9770.gif");
+  background-repeat: repeat-x;
+  background-position: center center;
+  background-size: auto 100%;   /* scale to the header height */
+}
+/* Fake animated bee cursor */
+html.has-bee-cursor,
+html.has-bee-cursor * {
+  cursor: none !important;
+}
+
+#bee-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+  z-index: 99999;
+  transform: translate(-6px, -6px);
+  background: url("/static/img/cursors/bee_cursor_default.svg") no-repeat center / contain;
+  transition: transform 0.08s ease;
+  will-change: transform, background-image;
+}
+
+#bee-cursor.is-hover {
+  width: 38px;
+  height: 38px;
+  background-image: url("/static/img/cursors/bee_cursor_hover.svg");
+  transform: translate(-8px, -8px) scale(1.04);
+}
+
+@media (hover: none), (pointer: coarse) {
+  html.has-bee-cursor,
+  html.has-bee-cursor * {
+    cursor: auto !important;
+  }
+
+  #bee-cursor {
+    display: none !important;
+  }
 }
