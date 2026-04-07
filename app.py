@@ -38,6 +38,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from flask import send_from_directory
 import json, re, unicodedata
+from itsdangerous import URLSafeSerializer, BadSignature
 from bs4 import BeautifulSoup 
 import email.utils as eut
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -93,6 +94,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_DOMAIN"] = ".hayday.info"
 app.config["SESSION_COOKIE_NAME"] = "hayday_session"
 Session(app)
+oauth_state_serializer = URLSafeSerializer(app.secret_key, salt="discord-oauth-state")
 
 
 MONGO_URI = os.getenv("MONGO_URI")
@@ -765,6 +767,16 @@ app.jinja_env.globals['is_staff'] = is_staff
 
 def is_admin():
     return session.get("staff_role") in ["Owner", "Co-Owner", "Head Admin"]
+
+def can_manage_verifications():
+    return session.get("staff_role") in [
+        "Owner",
+        "Co-Owner",
+        "Head Admin",
+        "Moderator",
+        "Trial Moderator",
+        "Verifier",
+    ]
 
 def normalize(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode("ascii")
@@ -4425,9 +4437,10 @@ def login_page():
 @app.route("/login")
 @limiter.limit("5 per minute", key_func=get_remote_address, error_message="Too many login attempts. Please wait a minute.")
 def login():
-    state = secrets.token_urlsafe(16)
-    session["oauth_state"] = state
     next_page = _safe_next_path(request.args.get("next", _current_request_path()))
+    nonce = secrets.token_urlsafe(16)
+    state = oauth_state_serializer.dumps({"nonce": nonce, "next": next_page})
+    session["oauth_state"] = nonce
     session["next_page"] = next_page
     session.modified = True
 
@@ -5931,6 +5944,18 @@ def callback():
         if not code:
             return "❌ Missing code from Discord redirect", 400
 
+        state_next_page = "/"
+        expected_nonce = session.get("oauth_state")
+        if state:
+            try:
+                state_payload = oauth_state_serializer.loads(state)
+                state_next_page = _safe_next_path(state_payload.get("next"), default="/")
+                state_nonce = state_payload.get("nonce")
+                if expected_nonce and state_nonce != expected_nonce:
+                    return "❌ Invalid OAuth state", 400
+            except BadSignature:
+                return "❌ Invalid OAuth state", 400
+
         data = {
             "client_id": DISCORD_CLIENT_ID,
             "client_secret": DISCORD_CLIENT_SECRET,
@@ -6011,7 +6036,7 @@ def callback():
             session["staff_role"] = None
 
         session.modified = True      
-        next_page = _safe_next_path(session.get("next_page"), default="/")
+        next_page = _safe_next_path(state_next_page or session.get("next_page"), default="/")
 
         session.pop("oauth_state", None)
         session.pop("next_page", None)
@@ -7978,6 +8003,223 @@ def dashboard():
         ticket_types=ticket_types,
         support_settings=support_settings
     )
+
+
+def _parse_verification_message(content):
+    content = content or ""
+    hayday_match = re.search(r"HayDay ID:\s*([#A-Z0-9]+)", content, re.I)
+    level_match = re.search(r"Your level:\s*(\d+)", content, re.I)
+    farm_name_match = re.search(r"Farm Name:\s*(.+)", content, re.I)
+    one_piece_match = re.search(r"Likes One Piece\?:\s*(.+)", content, re.I)
+
+    farm_name = farm_name_match.group(1).strip() if farm_name_match else None
+    if farm_name and "\n" in farm_name:
+        farm_name = farm_name.splitlines()[0].strip()
+
+    one_piece = one_piece_match.group(1).strip() if one_piece_match else None
+    if one_piece and "\n" in one_piece:
+        one_piece = one_piece.splitlines()[0].strip()
+
+    return {
+        "hayday_id": hayday_match.group(1).strip().upper() if hayday_match else None,
+        "level": int(level_match.group(1)) if level_match else None,
+        "farm_name": farm_name,
+        "one_piece": one_piece,
+    }
+
+
+def _format_verification_doc(doc):
+    parsed = _parse_verification_message(doc.get("Message content", ""))
+    guild_id = GUILD_ID
+    verify_channel_id = 1274074702712934410
+    discord_message_id = doc.get("discord_message_id")
+    message_link = doc.get("message_link")
+
+    if not message_link and discord_message_id:
+        message_link = (
+            f"https://discord.com/channels/{guild_id}/{verify_channel_id}/{discord_message_id}"
+        )
+
+    flags = doc.get("flags") or {}
+    return {
+        "_id": str(doc.get("_id", "")),
+        "user_name": doc.get("User Name"),
+        "user_id": doc.get("id"),
+        "status": doc.get("status", "pending"),
+        "submitted_at": doc.get("submitted_at"),
+        "reviewed_at": doc.get("reviewed_at"),
+        "reviewed_by": doc.get("reviewed_by"),
+        "reviewed_by_id": doc.get("reviewed_by_id"),
+        "review_reason": doc.get("review_reason"),
+        "platform": doc.get("platform"),
+        "screenshot_url": doc.get("screenshot_url"),
+        "discord_message_id": discord_message_id,
+        "hayday_id_message_id": doc.get("hayday_id_message_id"),
+        "message_link": message_link,
+        "blacklisted": bool(flags.get("blacklisted")),
+        "duplicate": bool(flags.get("duplicate")),
+        "raw_content": doc.get("Message content", ""),
+        **parsed,
+    }
+
+
+@app.route("/verification-dashboard")
+def verification_dashboard():
+    if "discord_id" not in session or not is_staff():
+        return "Unauthorized", 403
+
+    client = get_db()
+    verify_col = client["log"]["verify"]
+
+    active_status = (request.args.get("status") or "pending").strip().lower()
+    search_query = (request.args.get("q") or "").strip()
+
+    query = {}
+    if active_status != "all":
+        query["status"] = active_status
+
+    if search_query:
+        search_filters = [
+            {"User Name": {"$regex": re.escape(search_query), "$options": "i"}},
+            {"Message content": {"$regex": re.escape(search_query), "$options": "i"}},
+        ]
+
+        if search_query.isdigit():
+            numeric_value = int(search_query)
+            search_filters.extend(
+                [
+                    {"id": numeric_value},
+                    {"discord_message_id": numeric_value},
+                ]
+            )
+
+        if query:
+            query = {"$and": [query, {"$or": search_filters}]}
+        else:
+            query = {"$or": search_filters}
+
+    docs = list(
+        verify_col.find(query)
+        .sort("submitted_at", -1)
+        .limit(150)
+    )
+
+    entries = [_format_verification_doc(doc) for doc in docs]
+    counts = {
+        "pending": verify_col.count_documents({"status": "pending"}),
+        "approved": verify_col.count_documents({"status": "approved"}),
+        "denied": verify_col.count_documents({"status": "denied"}),
+        "tag_not_found": verify_col.count_documents({"status": "tag_not_found"}),
+        "all": verify_col.count_documents({}),
+    }
+
+    return render_template(
+        "verification_dashboard.html",
+        year=datetime.now().year,
+        entries=serialize_mongo(entries),
+        counts=counts,
+        active_status=active_status,
+        search_query=search_query,
+        can_action=can_manage_verifications(),
+    )
+
+
+@app.route("/api/verification/action", methods=["POST"])
+def api_verification_action():
+    if "discord_id" not in session or not can_manage_verifications():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    action = (data.get("action") or "").strip().lower()
+    reason = (data.get("reason") or "").strip()
+
+    if action not in {"approve", "deny", "tag_not_found", "no_tag", "no_pfp"}:
+        return jsonify({"error": "Invalid action"}), 400
+
+    try:
+        message_id = int(data.get("message_id"))
+        user_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Missing or invalid message_id/user_id"}), 400
+
+    bot_base = os.getenv("BOT_WEBHOOK_URL")
+    bot_key = os.getenv("BOT_WEBHOOK_KEY")
+    if not bot_base or not bot_key:
+        return jsonify({"error": "Missing bot webhook configuration"}), 500
+
+    payload = {
+        "user_id": user_id,
+        "message_id": message_id,
+        "action": action,
+        "reason": reason or None,
+        "mod_username": session.get("username", "Website Moderator"),
+        "mod_id": session.get("discord_id"),
+    }
+
+    try:
+        bot_response = requests.post(
+            f"{bot_base.rstrip('/')}/webhook/verify",
+            json=payload,
+            headers={"Authorization": bot_key},
+            timeout=8,
+        )
+    except Exception as e:
+        return jsonify({"error": f"Failed to contact bot: {e}"}), 502
+
+    if not bot_response.ok:
+        try:
+            error_payload = bot_response.json()
+        except Exception:
+            error_payload = {"error": bot_response.text or "Bot webhook failed"}
+        return jsonify(error_payload), bot_response.status_code
+
+    status_map = {
+        "approve": "approved",
+        "deny": "denied",
+        "tag_not_found": "tag_not_found",
+        "no_tag": "no_tag",
+        "no_pfp": "no_pfp",
+    }
+
+    client = get_db()
+    verify_col = client["log"]["verify"]
+    update_doc = {
+        "status": status_map[action],
+        "reviewed_at": datetime.utcnow(),
+        "reviewed_by": session.get("username", "Website Moderator"),
+        "reviewed_by_id": session.get("discord_id"),
+    }
+    if reason:
+        update_doc["review_reason"] = reason
+
+    verify_col.update_one(
+        {"discord_message_id": message_id},
+        {"$set": update_doc},
+    )
+
+    return jsonify({"success": True, "status": status_map[action]})
+
+
+@app.route("/api/verification/delete", methods=["POST"])
+def api_verification_delete():
+    if "discord_id" not in session or not can_manage_verifications():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        message_id = int(data.get("message_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Missing or invalid message_id"}), 400
+
+    client = get_db()
+    verify_col = client["log"]["verify"]
+    result = verify_col.delete_one({"discord_message_id": message_id})
+
+    if result.deleted_count == 0:
+        return jsonify({"error": "Verification record not found"}), 404
+
+    return jsonify({"success": True, "deleted": True})
 
 
 

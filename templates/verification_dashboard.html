@@ -1,0 +1,603 @@
+{% extends 'base.html' %}
+{% block title %}Verification Dashboard{% endblock %}
+
+{% block head_extra %}
+<style>
+.dashboard-wrapper {
+  display: flex;
+  min-height: 100vh;
+  margin-top: 60px;
+}
+
+.dashboard-content {
+  flex: 1;
+  padding: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(117, 201, 255, 0.14), transparent 28%),
+    linear-gradient(180deg, #f6f8fb 0%, #eef2f7 100%);
+}
+
+body.dark .dashboard-content {
+  background:
+    radial-gradient(circle at top right, rgba(117, 201, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, #15181d 0%, #101318 100%);
+}
+
+.hero-card,
+.summary-card,
+.entry-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+}
+
+body.dark .hero-card,
+body.dark .summary-card,
+body.dark .entry-card {
+  background: rgba(28, 32, 40, 0.95);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+}
+
+.hero-card {
+  padding: 24px;
+  margin-bottom: 22px;
+}
+
+.hero-card h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+}
+
+.hero-card p {
+  margin: 0;
+  color: #5b6472;
+}
+
+body.dark .hero-card p {
+  color: #a7b0be;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  margin-top: 18px;
+  align-items: center;
+}
+
+.search-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-form input,
+.search-form select {
+  border: 1px solid #cfd6e3;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  background: white;
+  min-width: 180px;
+}
+
+body.dark .search-form input,
+body.dark .search-form select {
+  background: #12161d;
+  color: #eef4ff;
+  border-color: #2d3747;
+}
+
+.button,
+.action-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.button:hover,
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.button-primary {
+  background: #2f7dff;
+  color: white;
+}
+
+.button-muted {
+  background: #e9eef7;
+  color: #23314f;
+}
+
+body.dark .button-muted {
+  background: #1a2230;
+  color: #d9e6ff;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.summary-card {
+  padding: 18px;
+}
+
+.summary-card .label {
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.summary-card .value {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+body.dark .summary-card .label {
+  color: #93a0b5;
+}
+
+.entries-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px;
+}
+
+.entry-card {
+  overflow: hidden;
+}
+
+.entry-image {
+  background: linear-gradient(180deg, #dbeafe 0%, #f8fafc 100%);
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.dark .entry-image {
+  background: linear-gradient(180deg, #182233 0%, #11151c 100%);
+}
+
+.entry-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.entry-image .empty {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.entry-body {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.entry-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entry-title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.entry-subtitle {
+  color: #64748b;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+body.dark .entry-subtitle {
+  color: #97a4b8;
+}
+
+.status-pill {
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.status-pending { background: #fff4cc; color: #8a6500; }
+.status-approved { background: #dff7e8; color: #13653b; }
+.status-denied { background: #ffe0e0; color: #8d1f1f; }
+.status-tag-not-found { background: #e7ebff; color: #3247a8; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.detail {
+  background: rgba(148, 163, 184, 0.10);
+  border-radius: 12px;
+  padding: 11px 12px;
+}
+
+body.dark .detail {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.detail-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.detail-value {
+  font-size: 14px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.flag-row,
+.meta-row,
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.flag {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flag.warn {
+  background: #fff7d6;
+  color: #8a6500;
+}
+
+.meta-row a {
+  color: #2f7dff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.action-btn.approve {
+  background: #188a4a;
+  color: white;
+}
+
+.action-btn.deny {
+  background: #d13f3f;
+  color: white;
+}
+
+.action-btn.info {
+  background: #3c5ecc;
+  color: white;
+}
+
+.action-btn.neutral {
+  background: #64748b;
+  color: white;
+}
+
+.action-btn.warning {
+  background: #8b5e34;
+  color: white;
+}
+
+.action-btn.secondary {
+  background: #eef2f7;
+  color: #23314f;
+}
+
+body.dark .action-btn.secondary {
+  background: #1a2230;
+  color: #dce6f8;
+}
+
+.empty-state {
+  padding: 26px;
+  text-align: center;
+  color: #64748b;
+}
+
+body.dark .empty-state {
+  color: #93a0b5;
+}
+
+@media (max-width: 980px) {
+  .dashboard-wrapper {
+    flex-direction: column;
+  }
+
+  .dashboard-content {
+    padding: 18px;
+  }
+
+  .toolbar,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+  {% include 'sidepanel.html' %}
+
+  <main class="dashboard-content">
+    <section class="hero-card">
+      <h1>Verification Queue</h1>
+      <p>Review Discord verification submissions, inspect screenshots, and action the queue from the website.</p>
+
+      <div class="toolbar">
+        <form class="search-form" method="GET" action="/verification-dashboard">
+          <select name="status">
+            <option value="pending" {% if active_status == "pending" %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if active_status == "approved" %}selected{% endif %}>Approved</option>
+            <option value="denied" {% if active_status == "denied" %}selected{% endif %}>Denied</option>
+            <option value="tag_not_found" {% if active_status == "tag_not_found" %}selected{% endif %}>Tag Not Found</option>
+            <option value="all" {% if active_status == "all" %}selected{% endif %}>All statuses</option>
+          </select>
+          <input type="text" name="q" value="{{ search_query }}" placeholder="Search tag, farm, user ID, or message ID">
+          <button class="button button-primary" type="submit">Apply</button>
+          {% if search_query or active_status != "pending" %}
+          <a class="button button-muted" href="/verification-dashboard">Reset</a>
+          {% endif %}
+        </form>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="summary-card">
+        <div class="label">Pending</div>
+        <div class="value">{{ counts.pending }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Approved</div>
+        <div class="value">{{ counts.approved }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Denied</div>
+        <div class="value">{{ counts.denied }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Tag Not Found</div>
+        <div class="value">{{ counts.tag_not_found }}</div>
+      </div>
+    </section>
+
+    {% if entries %}
+    <section class="entries-grid">
+      {% for entry in entries %}
+      {% set status_class = entry.status|replace('_', '-') %}
+      <article class="entry-card" id="entry-{{ entry.discord_message_id }}">
+        <div class="entry-image">
+          {% if entry.screenshot_url %}
+          <img src="{{ entry.screenshot_url }}" alt="Verification screenshot for {{ entry.farm_name or entry.user_name }}">
+          {% else %}
+          <div class="empty">No screenshot attached</div>
+          {% endif %}
+        </div>
+
+        <div class="entry-body">
+          <div class="entry-top">
+            <div>
+              <h2 class="entry-title">{{ entry.farm_name or "Unknown Farm" }}</h2>
+              <div class="entry-subtitle">{{ entry.user_name or "Unknown user" }}{% if entry.user_id %} · {{ entry.user_id }}{% endif %}</div>
+            </div>
+            <span class="status-pill status-{{ status_class }}">{{ entry.status|replace('_', ' ') }}</span>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail">
+              <div class="detail-label">Hay Day Tag</div>
+              <div class="detail-value">{{ entry.hayday_id or "Unknown" }}</div>
+            </div>
+            <div class="detail">
+              <div class="detail-label">Level</div>
+              <div class="detail-value">{{ entry.level or "Unknown" }}</div>
+            </div>
+            <div class="detail">
+              <div class="detail-label">One Piece</div>
+              <div class="detail-value">{{ entry.one_piece or "Not answered" }}</div>
+            </div>
+            <div class="detail">
+              <div class="detail-label">Submitted</div>
+              <div class="detail-value">
+                {% if entry.submitted_at %}
+                {{ entry.submitted_at[:19].replace("T", " ") }} UTC
+                {% else %}
+                Unknown
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% if entry.blacklisted or entry.duplicate %}
+          <div class="flag-row">
+            {% if entry.blacklisted %}<span class="flag">Blacklisted tag</span>{% endif %}
+            {% if entry.duplicate %}<span class="flag warn">Duplicate tag</span>{% endif %}
+          </div>
+          {% endif %}
+
+          <div class="meta-row">
+            {% if entry.message_link %}
+            <a href="{{ entry.message_link }}" target="_blank" rel="noopener noreferrer">Open Discord message</a>
+            {% endif %}
+            {% if entry.user_id %}
+            <a href="https://discord.com/users/{{ entry.user_id }}" target="_blank" rel="noopener noreferrer">Open Discord profile</a>
+            {% endif %}
+          </div>
+
+          {% if entry.reviewed_by or entry.review_reason %}
+          <div class="detail">
+            <div class="detail-label">Review Notes</div>
+            <div class="detail-value">
+              {% if entry.reviewed_by %}By {{ entry.reviewed_by }}{% endif %}
+              {% if entry.reviewed_at %} · {{ entry.reviewed_at[:19].replace("T", " ") }} UTC{% endif %}
+              {% if entry.review_reason %}<br>{{ entry.review_reason }}{% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if can_action and entry.status == "pending" %}
+          <div class="action-row">
+            <button class="action-btn approve" type="button"
+              onclick="runVerificationAction('{{ entry.discord_message_id }}', '{{ entry.user_id }}', 'approve')">
+              Approve
+            </button>
+            <button class="action-btn deny" type="button"
+              onclick="runVerificationAction('{{ entry.discord_message_id }}', '{{ entry.user_id }}', 'deny', true)">
+              Deny
+            </button>
+            <button class="action-btn info" type="button"
+              onclick="runVerificationAction('{{ entry.discord_message_id }}', '{{ entry.user_id }}', 'tag_not_found', true)">
+              Tag Not Found
+            </button>
+            <button class="action-btn neutral" type="button"
+              onclick="runVerificationAction('{{ entry.discord_message_id }}', '{{ entry.user_id }}', 'no_tag', true)">
+              No Tag
+            </button>
+            <button class="action-btn warning" type="button"
+              onclick="runVerificationAction('{{ entry.discord_message_id }}', '{{ entry.user_id }}', 'no_pfp', true)">
+              No PFP
+            </button>
+            <button class="action-btn secondary" type="button"
+              onclick="deleteVerificationRecord('{{ entry.discord_message_id }}')">
+              Delete Record
+            </button>
+          </div>
+          {% elif can_action %}
+          <div class="action-row">
+            <button class="action-btn secondary" type="button"
+              onclick="deleteVerificationRecord('{{ entry.discord_message_id }}')">
+              Delete Record
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% else %}
+    <section class="entry-card empty-state">
+      No verification entries matched this filter.
+    </section>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function runVerificationAction(messageId, userId, action, askReason = false) {
+  const labels = {
+    approve: "approve",
+    deny: "deny",
+    tag_not_found: "mark as tag not found",
+    no_tag: "mark as no tag",
+    no_pfp: "mark as no profile picture"
+  };
+
+  let reason = "";
+  if (askReason) {
+    reason = window.prompt(`Optional reason for ${labels[action]}:`, "") || "";
+  }
+
+  const ok = window.confirm(`Are you sure you want to ${labels[action]} this verification?`);
+  if (!ok) return;
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const response = await fetch("/api/verification/action", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      message_id: Number(messageId),
+      user_id: Number(userId),
+      action,
+      reason
+    })
+  });
+
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (e) {
+    payload = {};
+  }
+
+  if (!response.ok || !payload.success) {
+    alert(payload.error || "Verification action failed.");
+    return;
+  }
+
+  window.location.reload();
+}
+
+async function deleteVerificationRecord(messageId) {
+  const ok = window.confirm(
+    "Delete this verification record from the website database? This is useful for stuck old entries."
+  );
+  if (!ok) return;
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const response = await fetch("/api/verification/delete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      message_id: Number(messageId)
+    })
+  });
+
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (e) {
+    payload = {};
+  }
+
+  if (!response.ok || !payload.success) {
+    alert(payload.error || "Failed to delete verification record.");
+    return;
+  }
+
+  window.location.reload();
+}
+</script>
+{% endblock %}
