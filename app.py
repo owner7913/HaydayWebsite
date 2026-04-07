@@ -2200,14 +2200,19 @@ def read_maintenance_banner():
     doc = col.find_one({"_id": "maintenance_banner"})
 
     if not doc:
-        data = {"enabled": False, "message": "", "require_ack": False, "version": 1}
+        data = {"enabled": False, "message": "", "require_ack": False}
     else:
         data = {
             "enabled": bool(doc.get("enabled", False)),
             "message": doc.get("message", ""),
             "require_ack": bool(doc.get("require_ack", True)),
-            "version": int(doc.get("version", 1)),
         }
+
+    ack_source = json.dumps({
+        "message": data["message"],
+        "require_ack": data["require_ack"],
+    }, sort_keys=True, ensure_ascii=True)
+    data["ack_key"] = hashlib.sha1(ack_source.encode("utf-8")).hexdigest()[:12]
 
     _MAINT_BANNER_CACHE["data"] = data
     _MAINT_BANNER_CACHE["expires"] = now + 30
@@ -2219,8 +2224,28 @@ def inject_maintenance_banner():
     try:
         banner = read_maintenance_banner()
     except Exception:
-        banner = {"enabled": False, "message": "", "require_ack": False, "version": 1}
+        banner = {"enabled": False, "message": "", "require_ack": False, "ack_key": "default"}
     return {"maintenance_banner": banner}
+
+
+def _safe_next_path(value, default="/"):
+    value = (value or "").strip()
+    if not value.startswith("/"):
+        return default
+    return value
+
+
+def _current_request_path(default="/"):
+    query = request.query_string.decode("utf-8", errors="ignore")
+    current = request.path or default
+    if query:
+        current = f"{current}?{query}"
+    return _safe_next_path(current, default=default)
+
+
+@app.context_processor
+def inject_login_next_path():
+    return {"login_next_path": _current_request_path()}
 
 @app.errorhandler(404)
 def page_not_found(e):
@@ -2311,8 +2336,15 @@ def api_update_setting():
     if key == "maintenance_banner":
         if not isinstance(value, dict):
             return jsonify({"error": "maintenance_banner value must be an object"}), 400
+        value = {
+            "enabled": bool(value.get("enabled", False)),
+            "message": str(value.get("message", "")),
+            "require_ack": bool(value.get("require_ack", True)),
+        }
         value["_id"] = "maintenance_banner"
         col.update_one({"_id": "maintenance_banner"}, {"$set": value}, upsert=True)
+        _MAINT_BANNER_CACHE["data"] = None
+        _MAINT_BANNER_CACHE["expires"] = 0
         return jsonify({"message": "Maintenance banner updated"}), 200
 
     # Fallback for your other scalar settings (e.g., prefix)
@@ -2834,7 +2866,7 @@ def force_logout_all():
 @app.route("/update-bio", methods=["POST"])
 def update_bio():
     if "discord_id" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("login", next=url_for("profile")))
 
     new_bio = request.form.get("bio", "").strip()
     if len(new_bio) > 300:
@@ -4387,7 +4419,7 @@ def home():
 
 @app.route("/login-page")
 def login_page():
-    next_path = request.args.get("next", "/")
+    next_path = _safe_next_path(request.args.get("next", "/"))
     return redirect(url_for("login", next=next_path))
 
 @app.route("/login")
@@ -4395,7 +4427,7 @@ def login_page():
 def login():
     state = secrets.token_urlsafe(16)
     session["oauth_state"] = state
-    next_page = request.args.get("next", "/")
+    next_page = _safe_next_path(request.args.get("next", _current_request_path()))
     session["next_page"] = next_page
     session.modified = True
 
@@ -4608,7 +4640,6 @@ PETSHOP_ITEMS = {
     "bunny_ears": {"name": "Bunny Ears", "price": 14000, "type": "cosmetic", "description": "Cute bunny ear headband."},
     "royal_crown": {"name": "Royal Crown", "price": 90000, "type": "cosmetic", "description": "Prestige pet cosmetic."},
     "cloud_bed": {"name": "Cloud Bed", "price": 25000, "type": "cosmetic", "description": "A dreamy pet bed."},
-    "lucky_bandana": {"name": "Lucky Bandana", "price": 18000, "type": "cosmetic", "description": "A lucky-looking bandana."},
     "scholar_glasses": {"name": "Scholar Glasses", "price": 22000, "type": "cosmetic", "description": "Smart pet glasses."},
 }
 
@@ -4621,7 +4652,6 @@ PET_COSMETIC_META = {
     "bunny_ears": {"emoji": "🐇", "slot": "head", "asset": "bunny_ears", "asset_ext": "png", "fallback_asset": "bunny_ears.svg"},
     "royal_crown": {"emoji": "👑", "slot": "head", "asset": "royal_crown", "asset_ext": "png", "fallback_asset": "royal_crown.svg"},
     "cloud_bed": {"emoji": "☁️", "slot": "aura", "asset": "cloud_bed", "asset_ext": "png", "fallback_asset": "cloud_bed.svg"},
-    "lucky_bandana": {"emoji": "🧣", "slot": "neck", "asset": "lucky_bandana", "asset_ext": "png", "fallback_asset": "lucky_bandana.svg"},
     "scholar_glasses": {"emoji": "👓", "slot": "face", "asset": "scholar_glasses", "asset_ext": "png", "fallback_asset": "scholar_glasses.svg"},
 }
 
@@ -4939,6 +4969,14 @@ def _pet_load_user(user_id: int):
         elif pet["web_style"].get("accent_color") not in {sw["key"] for sw in PET_STYLE_SWATCHES}:
             pet["web_style"]["accent_color"] = "strawberry"
             changed = True
+        valid_cosmetics = [key for key in pet.get("owned_cosmetics", []) if key in PETSHOP_ITEMS and PETSHOP_ITEMS[key]["type"] == "cosmetic"]
+        if valid_cosmetics != list(pet.get("owned_cosmetics", [])):
+            pet["owned_cosmetics"] = valid_cosmetics
+            changed = True
+        valid_equipped = [key for key in pet.get("equipped_cosmetics", []) if key in valid_cosmetics and key in PET_COSMETIC_META]
+        if valid_equipped != list(pet.get("equipped_cosmetics", [])):
+            pet["equipped_cosmetics"] = valid_equipped
+            changed = True
         pet, decay_changed = _pet_sync_decay(pet)
         changed = changed or decay_changed
         if changed:
@@ -5054,6 +5092,8 @@ def _pet_context_from_doc(user_doc: dict):
 
     owned_cosmetic_items = []
     for key in pet.get("owned_cosmetics", []):
+        if key not in PETSHOP_ITEMS:
+            continue
         item = dict(PETSHOP_ITEMS.get(key, {}))
         item["key"] = key
         item.update(PET_COSMETIC_META.get(key, {}))
@@ -5471,7 +5511,7 @@ def pet_shop_buy():
 @app.route("/profile")
 def profile():
     if "discord_id" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("login", next=request.path))
 
     discord_id = session["discord_id"]
 
@@ -5610,7 +5650,7 @@ def test_flash():
 def toggle_privacy():
     if "discord_id" not in session:
         flash("Session expired. Please log in again.", "error")
-        return redirect(url_for("login"))
+        return redirect(url_for("login", next=url_for("profile")))
 
     discord_id = session["discord_id"]
     users_collection = get_db("Website")["users"]
@@ -5971,10 +6011,7 @@ def callback():
             session["staff_role"] = None
 
         session.modified = True      
-        next_page = session.get("next_page", url_for("profile"))
-
-        if not str(next_page).startswith("/"):
-            next_page = url_for("profile")
+        next_page = _safe_next_path(session.get("next_page"), default="/")
 
         session.pop("oauth_state", None)
         session.pop("next_page", None)
@@ -7081,7 +7118,7 @@ def shop():
 def buy_item():
     if "discord_id" not in session:
         flash("⚠️ You need to log in to make a purchase.", "error")
-        return redirect(url_for("login"))
+        return redirect(url_for("login", next=url_for("shop")))
 
     item_id = (request.form.get("item_id") or "").strip().lower()
     if not item_id or item_id not in SHOP_ITEMS:

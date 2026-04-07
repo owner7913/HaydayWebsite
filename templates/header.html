@@ -66,7 +66,7 @@
               <li><a href="/logout?next=/">Logout</a></li>
             </ul>
           {% else %}
-            <a href="/login?next={{ request.path }}">Login</a>
+            <a href="{{ url_for('login', next=login_next_path) }}">Login</a>
           {% endif %}
         </li>
       </ul>

@@ -53,6 +53,17 @@
         0 8px 18px rgba(0,0,0,0.18),
         inset 0 1px 4px rgba(255,255,255,0.08);
       z-index: 2;
+      text-decoration: none;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      cursor: pointer;
+    }
+
+    .pet-emblem:hover {
+      transform: translateY(-50%) translateX(-2px);
+      box-shadow:
+        0 12px 22px rgba(0,0,0,0.22),
+        inset 0 1px 4px rgba(255,255,255,0.1);
+      border-color: rgba(224, 191, 128, 0.92);
     }
 
     .pet-emblem::after {
@@ -737,14 +748,14 @@ dialog.styled-modal::backdrop {
     <div class="profile-header">
     <div class="profile-avatar-wrap">
       {% if pet and pet.type %}
-        <div class="pet-emblem" title="{{ pet.name or (pet.type|title) }}">
+        <a class="pet-emblem" href="/profile/pet" title="Open {{ pet.name or (pet.type|title) }}'s pet page">
           <img
             class="pet-emblem-image"
             src="{{ url_for('static', filename='img/pets_ai/' ~ pet.type ~ '.png') }}"
             alt="{{ pet.name or (pet.type|title) }}"
             onerror="this.src='{{ url_for('static', filename='img/pets/' ~ pet.type ~ '.svg') }}'">
           <div class="pet-emblem-label">{{ pet.name or (pet.type|title) }}</div>
-        </div>
+        </a>
       {% endif %}
       <img class="avatar" src="{{ avatar_url }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
     </div>
@@ -796,7 +807,7 @@ dialog.styled-modal::backdrop {
     {% endif %}
 
       
-    <div class="discord-tag">👤 {{ user.display_name }}</div>
+    <div class="discord-tag">{{ user.display_name }}</div>
       <div class="discord-id">Discord ID: {{ discord_id }}</div>
       {% if user.bio %}
         <div class="bio-box">{{ user.bio | replace('\r\n', '\n') | trim }}</div>

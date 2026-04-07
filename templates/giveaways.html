@@ -244,7 +244,6 @@
   .giveaway-card {
     position: relative;
     padding: 22px;
-    isolation: isolate;
   }
 
   .giveaway-card::before {
@@ -906,52 +905,54 @@
           <div class="button-row">
             <button type="button" onclick="openParticipantsModal({{ loop.index0 }})" class="action-btn secondary">View participants</button>
           </div>
-
-          <div class="participants-modal" id="modal-{{ loop.index0 }}">
-            <div class="participants-dialog" role="dialog" aria-modal="true" aria-labelledby="participants-title-{{ loop.index0 }}">
-              <div class="dialog-head">
-                <div>
-                  <h3 class="dialog-title" id="participants-title-{{ loop.index0 }}">{{ g.prize }}</h3>
-                  <p class="dialog-sub">Search the participant list and review how entries are distributed.</p>
-                </div>
-
-                <button type="button" class="dialog-close" aria-label="Close" onclick="closeParticipantsModal({{ loop.index0 }})">x</button>
-              </div>
-
-              <input
-                id="search-input-{{ loop.index0 }}"
-                class="search-input"
-                oninput="loadParticipantPage({{ loop.index0 }}, 1)"
-                placeholder="Search participant name"
-              >
-
-              <div class="participant-list" id="participant-list-{{ loop.index0 }}">
-                {% for p in g.participant_info %}
-                <div
-                  class="participant-row{% if p.id == discord_id %} me{% endif %}"
-                  data-name="{{ p.name | lower }}"
-                  data-entries="{{ p.count }}"
-                  style="display:none;"
-                >
-                  <div class="participant-main">
-                    <img src="{{ p.avatar }}" alt="{{ p.name }}" class="participant-avatar">
-                    <div>
-                      <div class="participant-name">{{ p.name }}</div>
-                      <div class="participant-entry">{{ p.count }} entr{{ "y" if p.count == 1 else "ies" }}</div>
-                    </div>
-                  </div>
-
-                  <div class="participant-share">{{ p.percent }}%</div>
-                </div>
-                {% endfor %}
-              </div>
-
-              <div id="pagination-{{ loop.index0 }}" class="inline-pagination"></div>
-            </div>
-          </div>
         </article>
         {% endfor %}
       </div>
+
+      {% for g in giveaways %}
+      <div class="participants-modal" id="modal-{{ loop.index0 }}">
+        <div class="participants-dialog" role="dialog" aria-modal="true" aria-labelledby="participants-title-{{ loop.index0 }}">
+          <div class="dialog-head">
+            <div>
+              <h3 class="dialog-title" id="participants-title-{{ loop.index0 }}">{{ g.prize }}</h3>
+              <p class="dialog-sub">Search the participant list and review how entries are distributed.</p>
+            </div>
+
+            <button type="button" class="dialog-close" aria-label="Close" onclick="closeParticipantsModal({{ loop.index0 }})">x</button>
+          </div>
+
+          <input
+            id="search-input-{{ loop.index0 }}"
+            class="search-input"
+            oninput="loadParticipantPage({{ loop.index0 }}, 1)"
+            placeholder="Search participant name"
+          >
+
+          <div class="participant-list" id="participant-list-{{ loop.index0 }}">
+            {% for p in g.participant_info %}
+            <div
+              class="participant-row{% if p.id == discord_id %} me{% endif %}"
+              data-name="{{ p.name | lower }}"
+              data-entries="{{ p.count }}"
+              style="display:none;"
+            >
+              <div class="participant-main">
+                <img src="{{ p.avatar }}" alt="{{ p.name }}" class="participant-avatar">
+                <div>
+                  <div class="participant-name">{{ p.name }}</div>
+                  <div class="participant-entry">{{ p.count }} entr{{ "y" if p.count == 1 else "ies" }}</div>
+                </div>
+              </div>
+
+              <div class="participant-share">{{ p.percent }}%</div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div id="pagination-{{ loop.index0 }}" class="inline-pagination"></div>
+        </div>
+      </div>
+      {% endfor %}
       {% else %}
       <div class="empty-state">
         There are no active giveaways right now. When a new one goes live, it will appear here with its timer, entry count, and join flow.

@@ -106,16 +106,12 @@
     border-radius: 28px;
     margin: 18px 0;
     padding: 26px 18px 22px;
-    background:
-      radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--accent) 32%, white 68%), transparent 36%),
-      linear-gradient(180deg, rgba(255,255,255,.44), rgba(255,255,255,.08));
+    background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.08));
     overflow: hidden;
   }
 
   body.dark .pet-stage {
-    background:
-      radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--accent) 34%, white 66%), transparent 34%),
-      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
   }
 
   .pet-stage::before {
@@ -203,14 +199,14 @@
   .pet-cat .accessory-aura { bottom: -26px; width: 272px; z-index: -1; }
 
   .pet-cat .accessory-red_bow { top: -12px; width: 128px; }
+  .pet-cat .accessory-farmer_hat { top: -10px; width: 140px; }
   .pet-cat .accessory-flower_crown { top: -8px; width: 126px; }
-  .pet-cat .accessory-scholar_glasses { top: 88px; width: 88px; }
-  .pet-cat .accessory-lucky_bandana { top: 150px; width: 118px; }
-  .pet-cat .accessory-golden_collar { top: 146px; width: 120px; }
-  .pet-cat .accessory-royal_crown { top: -4px; width: 138px; }
-  .pet-cat .accessory-bunny_ears { top: -38px; width: 126px; }
-  .pet-cat .accessory-bee_wings { top: 70px; width: 254px; }
-  .pet-cat .accessory-cloud_bed { bottom: -28px; width: 288px; }
+  .pet-cat .accessory-scholar_glasses { top: 44px; width: 132px; }
+  .pet-cat .accessory-golden_collar { top: 156px; width: 112px; }
+  .pet-cat .accessory-royal_crown { top: -34px; width: 126px; z-index: -1; }
+  .pet-cat .accessory-bunny_ears { top: -26px; width: 136px; }
+  .pet-cat .accessory-bee_wings { top: 62px; width: 336px; z-index: -1; opacity: .96; }
+  .pet-cat .accessory-cloud_bed { bottom: -6px; width: 236px; z-index: 1; opacity: .96; }
 
   .pet-dog .accessory-head { top: 4px; width: 138px; }
   .pet-dog .accessory-face { top: 98px; width: 112px; }
@@ -860,24 +856,6 @@
                 <button class="pet-button ghost" type="submit">Switch Pet Type</button>
               </div>
             </form>
-          </div>
-
-          <div class="pet-style-grid">
-            {% set accent_key = pet.web_style.accent_color if pet.web_style and pet.web_style.accent_color else 'strawberry' %}
-            {% for swatch in style_swatches %}
-              <form method="POST" action="{{ url_for('pet_style') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="accent_color" value="{{ swatch.key }}">
-                <div class="pet-style-card">
-                  <div style="width: 100%; height: 52px; border-radius: 14px; background: {{ swatch.color }};"></div>
-                  <h3 class="pet-item-name" style="margin-top: 10px;">{{ swatch.label }}</h3>
-                  <p class="pet-item-meta">{% if swatch.key == accent_key %}Current theme{% else %}Switch stage glow{% endif %}</p>
-                  <button class="pet-button {% if swatch.key == accent_key %}ghost{% else %}soft{% endif %}" type="submit">
-                    {% if swatch.key == accent_key %}Selected{% else %}Use {{ swatch.label }}{% endif %}
-                  </button>
-                </div>
-              </form>
-            {% endfor %}
           </div>
 
           <div style="margin-top: 18px;">

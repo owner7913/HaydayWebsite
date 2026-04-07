@@ -288,9 +288,9 @@
   (function() {
     const cfg = {
       requireAck: {{ 'true' if maintenance_banner.require_ack else 'false' }},
-      version: {{ maintenance_banner.version|int }},
+      ackKey: {{ maintenance_banner.ack_key|tojson }},
     };
-    const key = "maintenance_ack_v" + cfg.version;
+    const key = "maintenance_ack_" + cfg.ackKey;
     const banner = document.getElementById("maint-banner");
     const okBtn = document.getElementById("maint-ok");
 

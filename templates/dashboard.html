@@ -124,12 +124,6 @@ button:hover {
       <div></div>
     </div>
 
-    <div class="toggle-row">
-      <label>Version</label>
-      <input type="text" id="mb-version" placeholder="1">
-      <div></div>
-    </div>
-
     <button type="button" onclick="saveMaintenanceBanner()">Save Banner</button>
     <p id="mb-status"></p>
   </div>
@@ -183,13 +177,11 @@ async function loadMaintenanceBanner() {
   document.getElementById('mb-enabled').value = String(!!cfg.enabled);
   document.getElementById('mb-require').value = String(!!cfg.require_ack);
   document.getElementById('mb-message').value = cfg.message || "";
-  document.getElementById('mb-version').value = String(cfg.version || 1);
 }
 async function saveMaintenanceBanner() {
   const enabled = document.getElementById('mb-enabled').value === "true";
   const requireAck = document.getElementById('mb-require').value === "true";
   const message = document.getElementById('mb-message').value.trim();
-  const version = parseInt(document.getElementById('mb-version').value || "1", 10);
 
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   const res = await fetch('/api/update-setting', {
@@ -204,15 +196,14 @@ async function saveMaintenanceBanner() {
       value: {
         enabled: enabled,
         message: message,
-        require_ack: requireAck,
-        version: isNaN(version) ? 1 : version
+        require_ack: requireAck
       }
     })
   });
 
   const p = document.getElementById('mb-status');
   if (res.ok) {
-    p.textContent = '✅ Saved. If you increased the version, users will be prompted again.';
+    p.textContent = 'Saved.';
     p.style.color = 'green';
   } else {
     p.textContent = '❌ Failed to save.';
@@ -344,5 +335,3 @@ function updateSetting(event, key) {
   loadButtonSettings();
 </script>
 {% endblock %}
-
-

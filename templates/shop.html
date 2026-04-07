@@ -116,7 +116,7 @@
       {% if coins is not none %}
   <div class="coin-balance">💰 You have <strong>{{ coins | format }}</strong> coins</div>
 {% else %}
-  <div class="coin-balance">🔒 <a href="/login" style="color: #3b82f6;">Log in</a> to view your coin balance</div>
+  <div class="coin-balance">🔒 <a href="{{ url_for('login', next=login_next_path) }}" style="color: #3b82f6;">Log in</a> to view your coin balance</div>
 {% endif %}
     </div>
     <div class="shop-grid">
