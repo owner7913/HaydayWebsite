@@ -26,8 +26,83 @@
       width: 96px;
       height: 96px;
       border-radius: 50%;
-      margin-bottom: 20px;
+      margin-bottom: 0;
+      display: block;
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    .profile-avatar-wrap {
+      position: relative;
+      width: fit-content;
+      margin: 0 auto 20px;
+    }
+
+    .pet-emblem {
+      position: absolute;
+      top: 50%;
+      left: -162px;
+      transform: translateY(-50%);
+      width: 108px;
+      height: 108px;
+      border-radius: 50%;
+      padding: 5px;
+      background:
+        linear-gradient(145deg, #5d5242, #3c342a);
+      border: 2px solid rgba(201, 163, 96, 0.82);
+      box-shadow:
+        0 8px 18px rgba(0,0,0,0.18),
+        inset 0 1px 4px rgba(255,255,255,0.08);
+      z-index: 2;
+    }
+
+    .pet-emblem::after {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.42);
+      pointer-events: none;
+    }
+
+    .pet-emblem-image {
+      width: calc(100% - 10px);
+      height: calc(100% - 10px);
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
+      margin: 5px;
+      background: #2b2722;
+    }
+
+    body.dark .pet-emblem {
+      background: linear-gradient(145deg, #544938, #2a241d);
+      border-color: rgba(208, 173, 109, 0.76);
+      box-shadow:
+        0 10px 20px rgba(0,0,0,0.24),
+        inset 0 1px 4px rgba(255,255,255,0.05);
+    }
+
+    .pet-emblem-label {
+      position: absolute;
+      left: 50%;
+      bottom: -28px;
+      transform: translateX(-50%);
+      max-width: 120px;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #e8dcc3;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+      z-index: 3;
+      text-align: center;
+    }
+
+    body.dark .pet-emblem-label {
+      color: #ecdcb8;
     }
 
     .discord-tag {
@@ -46,6 +121,7 @@
     }
 
     .profile-header {
+      position: relative;
       margin-bottom: 30px;
       padding-bottom: 10px;
     }
@@ -578,6 +654,23 @@ dialog.styled-modal::backdrop {
     height: 72px;
   }
 
+  .profile-avatar-wrap {
+    margin-bottom: 16px;
+  }
+
+  .pet-emblem {
+    width: 76px;
+    height: 76px;
+    left: -98px;
+    padding: 4px;
+  }
+
+  .pet-emblem-label {
+    bottom: -22px;
+    max-width: 86px;
+    font-size: 10px;
+  }
+
   .discord-tag {
     font-size: 18px;
   }
@@ -642,7 +735,19 @@ dialog.styled-modal::backdrop {
   <div class="profile-container">
 
     <div class="profile-header">
-    <img class="avatar" src="{{ avatar_url }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+    <div class="profile-avatar-wrap">
+      {% if pet and pet.type %}
+        <div class="pet-emblem" title="{{ pet.name or (pet.type|title) }}">
+          <img
+            class="pet-emblem-image"
+            src="{{ url_for('static', filename='img/pets_ai/' ~ pet.type ~ '.png') }}"
+            alt="{{ pet.name or (pet.type|title) }}"
+            onerror="this.src='{{ url_for('static', filename='img/pets/' ~ pet.type ~ '.svg') }}'">
+          <div class="pet-emblem-label">{{ pet.name or (pet.type|title) }}</div>
+        </div>
+      {% endif %}
+      <img class="avatar" src="{{ avatar_url }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+    </div>
     {% if user.featured_achievement %}
       <div class="featured-badge-floating sparkle">
         {{ user.featured_achievement }}

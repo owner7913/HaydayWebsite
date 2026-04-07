@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 140">
+  <defs>
+    <linearGradient id="straw" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f2d88c"/>
+      <stop offset="100%" stop-color="#c89a4d"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="110" cy="96" rx="94" ry="24" fill="#b17d37" opacity=".22"/>
+  <ellipse cx="110" cy="88" rx="100" ry="26" fill="url(#straw)"/>
+  <path d="M62 86V56c0-20 21-36 48-36s48 16 48 36v30Z" fill="url(#straw)"/>
+  <path d="M62 75h96" stroke="#e9c66a" stroke-width="8" stroke-linecap="round"/>
+  <path d="M77 74c8-10 20-15 33-15s25 5 33 15" fill="none" stroke="#7ab65a" stroke-width="12" stroke-linecap="round"/>
+</svg>

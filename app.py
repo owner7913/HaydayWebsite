@@ -3018,10 +3018,12 @@ def giveaways_page():
         host_id = str(g.get("host_id"))
         host = user_map.get(host_id)
         g["host_display"] = host.get("display_name", f"<@{host_id}>") if host else f"<@{host_id}>"
-        g["host_avatar"] = (
-            f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
-            if host and host.get("avatar_hash") else None
-        )
+        g["host_avatar"] = None
+        if host:
+            if host.get("avatar"):
+                g["host_avatar"] = host.get("avatar")
+            elif host.get("avatar_hash"):
+                g["host_avatar"] = f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
 
         # participants info…
         total_entries = g["entry_count"]
@@ -4611,16 +4613,16 @@ PETSHOP_ITEMS = {
 }
 
 PET_COSMETIC_META = {
-    "red_bow": {"emoji": "🎀", "slot": "head"},
-    "farmer_hat": {"emoji": "👒", "slot": "head"},
-    "flower_crown": {"emoji": "🌸", "slot": "head"},
-    "golden_collar": {"emoji": "✨", "slot": "neck"},
-    "bee_wings": {"emoji": "🪽", "slot": "back"},
-    "bunny_ears": {"emoji": "🐇", "slot": "head"},
-    "royal_crown": {"emoji": "👑", "slot": "head"},
-    "cloud_bed": {"emoji": "☁️", "slot": "aura"},
-    "lucky_bandana": {"emoji": "🧣", "slot": "neck"},
-    "scholar_glasses": {"emoji": "👓", "slot": "face"},
+    "red_bow": {"emoji": "🎀", "slot": "head", "asset": "red_bow", "asset_ext": "png", "fallback_asset": "red_bow.svg"},
+    "farmer_hat": {"emoji": "👒", "slot": "head", "asset": "farmer_hat", "asset_ext": "png", "fallback_asset": "farmer_hat.svg"},
+    "flower_crown": {"emoji": "🌸", "slot": "head", "asset": "flower_crown", "asset_ext": "png", "fallback_asset": "flower_crown.svg"},
+    "golden_collar": {"emoji": "✨", "slot": "neck", "asset": "golden_collar", "asset_ext": "png", "fallback_asset": "golden_collar.svg"},
+    "bee_wings": {"emoji": "🪽", "slot": "back", "asset": "bee_wings", "asset_ext": "png", "fallback_asset": "bee_wings.svg"},
+    "bunny_ears": {"emoji": "🐇", "slot": "head", "asset": "bunny_ears", "asset_ext": "png", "fallback_asset": "bunny_ears.svg"},
+    "royal_crown": {"emoji": "👑", "slot": "head", "asset": "royal_crown", "asset_ext": "png", "fallback_asset": "royal_crown.svg"},
+    "cloud_bed": {"emoji": "☁️", "slot": "aura", "asset": "cloud_bed", "asset_ext": "png", "fallback_asset": "cloud_bed.svg"},
+    "lucky_bandana": {"emoji": "🧣", "slot": "neck", "asset": "lucky_bandana", "asset_ext": "png", "fallback_asset": "lucky_bandana.svg"},
+    "scholar_glasses": {"emoji": "👓", "slot": "face", "asset": "scholar_glasses", "asset_ext": "png", "fallback_asset": "scholar_glasses.svg"},
 }
 
 CONSUMABLE_CAPS = {
@@ -4968,6 +4970,49 @@ def _pet_inventory_counts(items: list[str]):
     return counts
 
 
+def _pet_format_remaining(delta: timedelta) -> str:
+    total_seconds = max(0, int(delta.total_seconds()))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    if hours and minutes:
+        return f"{hours}h {minutes}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+
+def _pet_care_actions_state(pet: dict):
+    now = _pet_now()
+    configs = {
+        "feed": {"field": "last_fed", "hours": 4, "title": "Feed", "subtitle": "Every 4 hours"},
+        "play": {"field": "last_played", "hours": 3, "title": "Play", "subtitle": "Every 3 hours"},
+        "clean": {"field": "last_cleaned", "hours": 6, "title": "Clean", "subtitle": "Every 6 hours"},
+    }
+
+    states = {}
+    for key, config in configs.items():
+        last_at = pet.get(config["field"])
+        ready_at = None
+        remaining = None
+        is_ready = True
+        if isinstance(last_at, datetime):
+            ready_at = last_at + timedelta(hours=config["hours"])
+            remaining_delta = ready_at - now
+            if remaining_delta.total_seconds() > 0:
+                is_ready = False
+                remaining = _pet_format_remaining(remaining_delta)
+
+        states[key] = {
+            "title": config["title"],
+            "subtitle": config["subtitle"],
+            "is_ready": is_ready,
+            "remaining": remaining,
+            "ready_at": ready_at,
+        }
+
+    return states
+
+
 def _pet_context_from_doc(user_doc: dict):
     pet = user_doc.get("pet")
     coins = int(user_doc.get("coins", 0))
@@ -4990,18 +5035,22 @@ def _pet_context_from_doc(user_doc: dict):
         "visible_cleanliness": 0,
         "consumable_counts": {},
         "pet_xp_needed": None,
+        "care_actions": {},
+        "pet_mood_slug": "happy",
     }
 
     if not pet:
         return context
 
     context["mood"] = _pet_mood(pet)
+    context["pet_mood_slug"] = str(context["mood"]).lower()
     context["pet_xp_needed"] = _pet_xp_needed(int(pet.get("level", 1)))
     context["visible_hunger"] = _pet_visible_stat(int(pet.get("hunger", 100)))
     context["visible_happiness"] = _pet_visible_stat(int(pet.get("happiness", 100)))
     context["visible_cleanliness"] = _pet_visible_stat(int(pet.get("cleanliness", 100)))
     context["consumable_counts"] = _pet_inventory_counts(pet.get("owned_consumables", []))
     context["equipped_cosmetic_items"] = _pet_preview_cosmetics(pet)
+    context["care_actions"] = _pet_care_actions_state(pet)
 
     owned_cosmetic_items = []
     for key in pet.get("owned_cosmetics", []):
@@ -5328,6 +5377,40 @@ def pet_style():
     return _pet_flash_redirect()
 
 
+@app.post("/profile/pet/change")
+def pet_change():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    new_type = (request.form.get("pet_type") or "").strip().lower()
+    if new_type not in PET_STARTERS:
+        flash("❌ Invalid pet choice.", "error")
+        return _pet_flash_redirect()
+
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    old_type = pet.get("type")
+    if old_type == new_type:
+        flash(f"❌ {pet.get('name', 'Your pet')} is already a {new_type}.", "error")
+        return _pet_flash_redirect()
+
+    starter = PET_STARTERS[new_type]
+    pet["type"] = new_type
+    pet["emoji"] = starter["emoji"]
+    pet["equipped_cosmetics"] = []
+
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "change_pet_type", {"old_type": old_type, "new_type": new_type})
+    flash(f"✅ Your pet is now a {starter['name']}. Equipped cosmetics were cleared.", "success")
+    return _pet_flash_redirect()
+
+
 @app.post("/profile/pet/shop")
 def pet_shop_buy():
     login_redirect = _pet_require_login()
@@ -5509,7 +5592,8 @@ def profile():
         streak=streak,
         coins=coins,
         achievements=achievements,
-        friend_count=friend_count
+        friend_count=friend_count,
+        pet=eco_user.get("pet")
     )
 
 
@@ -6872,7 +6956,8 @@ def public_profile(discord_id):
         highest_role=None,
         coins=coins,
         streak=streak,
-        is_owner=is_owner
+        is_owner=is_owner,
+        pet=eco_user.get("pet")
     )
 
 

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Cute dog</title>
+  <desc id="desc">A soft chibi-style puppy with floppy ears and a tiny muzzle.</desc>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7cb84"/>
+      <stop offset="100%" stop-color="#d99262"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#5f381e" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M98 130c-22-16-31-48-13-69 19-21 50-14 63 10 9 15 9 33 2 47Z" fill="#9d653e"/>
+    <path d="M222 130c22-16 31-48 13-69-19-21-50-14-63 10-9 15-9 33-2 47Z" fill="#9d653e"/>
+    <rect x="80" y="96" width="160" height="150" rx="58" fill="url(#body)"/>
+    <ellipse cx="160" cy="188" rx="48" ry="40" fill="#fff0d1" opacity=".5"/>
+    <ellipse cx="121" cy="151" rx="12" ry="16" fill="#56425f"/>
+    <ellipse cx="199" cy="151" rx="12" ry="16" fill="#56425f"/>
+    <circle cx="125" cy="146" r="3" fill="#fff"/>
+    <circle cx="203" cy="146" r="3" fill="#fff"/>
+    <ellipse cx="160" cy="180" rx="25" ry="19" fill="#fff1d7"/>
+    <ellipse cx="160" cy="176" rx="11" ry="8" fill="#513728"/>
+    <path d="M145 186c4 7 9 10 15 10s11-3 15-10" fill="none" stroke="#8f664f" stroke-linecap="round" stroke-width="6"/>
+    <path d="M137 199c0 16 10 28 23 28s23-12 23-28" fill="none" stroke="#7f2a65" stroke-linecap="round" stroke-width="10"/>
+    <circle cx="108" cy="190" r="10" fill="#e2a26f" opacity=".55"/>
+    <circle cx="212" cy="190" r="10" fill="#e2a26f" opacity=".55"/>
+    <ellipse cx="126" cy="225" rx="18" ry="10" fill="#efd0a1"/>
+    <ellipse cx="194" cy="225" rx="18" ry="10" fill="#efd0a1"/>
+  </g>
+</svg>

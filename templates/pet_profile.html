@@ -107,38 +107,35 @@
     margin: 18px 0;
     padding: 26px 18px 22px;
     background:
-      radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--accent) 34%, white 66%), transparent 38%),
-      linear-gradient(180deg, #cceeff 0%, #eef8ff 46%, #a6d67f 47%, #7fbb58 100%);
+      radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--accent) 32%, white 68%), transparent 36%),
+      linear-gradient(180deg, rgba(255,255,255,.44), rgba(255,255,255,.08));
     overflow: hidden;
   }
 
   body.dark .pet-stage {
     background:
-      radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--accent) 38%, white 62%), transparent 34%),
-      linear-gradient(180deg, #1b2b46 0%, #29466b 40%, #3f6730 41%, #27451c 100%);
+      radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--accent) 34%, white 66%), transparent 34%),
+      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
   }
 
   .pet-stage::before {
     content: "";
     position: absolute;
-    inset: auto -8% 58px;
-    height: 86px;
+    inset: auto 13% 32px;
+    height: 42px;
     border-radius: 50%;
-    background: rgba(255,255,255,.25);
+    background: rgba(0,0,0,.14);
     filter: blur(12px);
   }
 
   .pet-stage::after {
     content: "";
     position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: 16px;
-    height: 64px;
-    border-radius: 999px 999px 20px 20px;
+    inset: 0;
     background:
-      linear-gradient(180deg, rgba(112,76,36,.18), rgba(112,76,36,.34)),
-      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 12px, rgba(0,0,0,.04) 12px 24px);
+      radial-gradient(circle at 18% 22%, rgba(255,255,255,.22), transparent 18%),
+      radial-gradient(circle at 82% 18%, rgba(255,255,255,.16), transparent 16%);
+    pointer-events: none;
   }
 
   .pet-avatar {
@@ -149,11 +146,23 @@
     min-height: 210px;
   }
 
-  .pet-emoji {
+  .pet-character {
     position: relative;
-    font-size: clamp(92px, 14vw, 146px);
-    filter: drop-shadow(0 18px 20px rgba(0,0,0,.18));
-    animation: pet-bob 3.8s ease-in-out infinite;
+    display: inline-grid;
+    place-items: center;
+    animation: pet-float 4.4s ease-in-out infinite;
+    transform-origin: center bottom;
+  }
+
+  .pet-art {
+    position: relative;
+    width: clamp(180px, 44vw, 266px);
+    max-width: 100%;
+    display: block;
+    border-radius: 32px;
+    box-shadow:
+      0 24px 36px rgba(0,0,0,.18),
+      0 0 0 8px rgba(255,255,255,.24);
   }
 
   .pet-shadow {
@@ -170,16 +179,58 @@
 
   .pet-accessory {
     position: absolute;
-    font-size: 34px;
-    line-height: 1;
+    display: block;
     filter: drop-shadow(0 6px 10px rgba(0,0,0,.16));
+    pointer-events: none;
   }
 
-  .accessory-head { top: 18px; left: 50%; transform: translateX(-50%); }
-  .accessory-face { top: 102px; left: 50%; transform: translateX(-50%); }
-  .accessory-neck { top: 148px; left: 50%; transform: translateX(-50%); }
-  .accessory-back { top: 92px; left: calc(50% + 56px); transform: translateX(-50%); }
-  .accessory-aura { bottom: 26px; left: 50%; transform: translateX(-50%); font-size: 56px; }
+  .pet-accessory img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .accessory-head { top: -8px; left: 50%; transform: translateX(-50%); width: 132px; }
+  .accessory-face { top: 92px; left: 50%; transform: translateX(-50%); width: 118px; }
+  .accessory-neck { top: 146px; left: 50%; transform: translateX(-50%); width: 134px; }
+  .accessory-back { top: 86px; left: 50%; transform: translateX(-50%); width: 206px; z-index: -1; }
+  .accessory-aura { bottom: -6px; left: 50%; transform: translateX(-50%); width: 230px; z-index: -2; }
+
+  .pet-cat .accessory-head { top: -10px; width: 126px; }
+  .pet-cat .accessory-face { top: 94px; width: 106px; }
+  .pet-cat .accessory-neck { top: 150px; width: 128px; }
+  .pet-cat .accessory-back { top: 74px; width: 240px; z-index: 0; }
+  .pet-cat .accessory-aura { bottom: -26px; width: 272px; z-index: -1; }
+
+  .pet-cat .accessory-red_bow { top: -12px; width: 128px; }
+  .pet-cat .accessory-flower_crown { top: -8px; width: 126px; }
+  .pet-cat .accessory-scholar_glasses { top: 88px; width: 88px; }
+  .pet-cat .accessory-lucky_bandana { top: 150px; width: 118px; }
+  .pet-cat .accessory-golden_collar { top: 146px; width: 120px; }
+  .pet-cat .accessory-royal_crown { top: -4px; width: 138px; }
+  .pet-cat .accessory-bunny_ears { top: -38px; width: 126px; }
+  .pet-cat .accessory-bee_wings { top: 70px; width: 254px; }
+  .pet-cat .accessory-cloud_bed { bottom: -28px; width: 288px; }
+
+  .pet-dog .accessory-head { top: 4px; width: 138px; }
+  .pet-dog .accessory-face { top: 98px; width: 112px; }
+  .pet-dog .accessory-neck { top: 154px; width: 136px; }
+  .pet-dog .accessory-back { top: 92px; width: 196px; }
+
+  .pet-bunny .accessory-head { top: -34px; width: 134px; }
+  .pet-bunny .accessory-face { top: 98px; width: 108px; }
+  .pet-bunny .accessory-neck { top: 154px; width: 130px; }
+  .pet-bunny .accessory-back { top: 90px; width: 196px; }
+
+  .pet-bee .accessory-head { top: 4px; width: 116px; }
+  .pet-bee .accessory-face { top: 94px; width: 104px; }
+  .pet-bee .accessory-neck { top: 148px; width: 122px; }
+  .pet-bee .accessory-back { top: 88px; width: 224px; }
+
+  .pet-duck .accessory-head { top: -2px; width: 126px; }
+  .pet-duck .accessory-face { top: 92px; width: 104px; }
+  .pet-duck .accessory-neck { top: 150px; width: 128px; }
+  .pet-duck .accessory-back { top: 90px; width: 196px; }
 
   .pet-nameplate {
     position: relative;
@@ -437,6 +488,13 @@
     box-shadow: 0 14px 28px rgba(255, 184, 91, 0.3);
   }
 
+  .pet-button:disabled {
+    cursor: not-allowed;
+    transform: none;
+    opacity: .78;
+    box-shadow: none;
+  }
+
   .pet-button.secondary {
     color: #fff;
     background: linear-gradient(135deg, #70c36d, #4f9e58);
@@ -514,6 +572,11 @@
     50% { transform: translateY(-7px); }
   }
 
+  @keyframes pet-float {
+    0%, 100% { transform: translateY(0) rotate(-1deg); }
+    50% { transform: translateY(-7px) rotate(1deg); }
+  }
+
   @media (max-width: 980px) {
     .pet-shell {
       grid-template-columns: 1fr;
@@ -557,10 +620,41 @@
         <div class="pet-stage" style="--accent: {{ accent_color }};">
           <div class="pet-avatar pet-{{ pet.type }}">
             <div class="pet-shadow"></div>
-            <div class="pet-emoji">{{ pet.emoji }}</div>
-            {% for item in equipped_cosmetic_items %}
-              <span class="pet-accessory accessory-{{ item.slot }}">{{ item.emoji }}</span>
-            {% endfor %}
+            <div class="pet-character">
+              {% for item in equipped_cosmetic_items if item.slot in ['back', 'aura'] %}
+                <span class="pet-accessory accessory-{{ item.slot }} accessory-{{ item.key }}">
+                  <picture>
+                    <source srcset="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.webp') }}" type="image/webp">
+                    <img
+                      src="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.png') }}"
+                      alt="{{ item.name }}"
+                      onerror="this.src='{{ url_for('static', filename='img/pet_accessories/' ~ item.fallback_asset) }}'"
+                    >
+                  </picture>
+                </span>
+              {% endfor %}
+              <picture>
+                <source srcset="{{ url_for('static', filename='img/pet_moods/' ~ pet.type ~ '/' ~ pet_mood_slug ~ '.webp') }}" type="image/webp">
+                <img
+                  class="pet-art"
+                  src="{{ url_for('static', filename='img/pet_moods/' ~ pet.type ~ '/' ~ pet_mood_slug ~ '.png') }}"
+                  alt="{{ pet.type|title }} pet art in {{ pet_mood_slug }} mood"
+                  onerror="this.src='{{ url_for('static', filename='img/pets_ai/' ~ pet.type ~ '.png') }}'; this.onerror=function(){this.src='{{ url_for('static', filename='img/pets/' ~ pet.type ~ '.svg') }}';};"
+                >
+              </picture>
+              {% for item in equipped_cosmetic_items if item.slot not in ['back', 'aura'] %}
+                <span class="pet-accessory accessory-{{ item.slot }} accessory-{{ item.key }}">
+                  <picture>
+                    <source srcset="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.webp') }}" type="image/webp">
+                    <img
+                      src="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.png') }}"
+                      alt="{{ item.name }}"
+                      onerror="this.src='{{ url_for('static', filename='img/pet_accessories/' ~ item.fallback_asset) }}'"
+                    >
+                  </picture>
+                </span>
+              {% endfor %}
+            </div>
           </div>
         </div>
 
@@ -647,10 +741,22 @@
                   <div class="pet-item-icon">🥕</div>
                   <div>
                     <h3 class="pet-item-name">Feed</h3>
-                    <p class="pet-item-meta">Every 4 hours</p>
+                    <p class="pet-item-meta">
+                      {% if care_actions.feed and not care_actions.feed.is_ready %}
+                        Ready in {{ care_actions.feed.remaining }}
+                      {% else %}
+                        Every 4 hours
+                      {% endif %}
+                    </p>
                   </div>
                 </div>
-                <button class="pet-button secondary" type="submit">Feed {{ pet.name }}</button>
+                <button class="pet-button secondary" type="submit" {% if care_actions.feed and not care_actions.feed.is_ready %}disabled{% endif %}>
+                  {% if care_actions.feed and not care_actions.feed.is_ready %}
+                    Feed in {{ care_actions.feed.remaining }}
+                  {% else %}
+                    Feed {{ pet.name }}
+                  {% endif %}
+                </button>
               </div>
             </form>
 
@@ -662,10 +768,22 @@
                   <div class="pet-item-icon">🎾</div>
                   <div>
                     <h3 class="pet-item-name">Play</h3>
-                    <p class="pet-item-meta">Every 3 hours</p>
+                    <p class="pet-item-meta">
+                      {% if care_actions.play and not care_actions.play.is_ready %}
+                        Ready in {{ care_actions.play.remaining }}
+                      {% else %}
+                        Every 3 hours
+                      {% endif %}
+                    </p>
                   </div>
                 </div>
-                <button class="pet-button secondary" type="submit">Play With {{ pet.name }}</button>
+                <button class="pet-button secondary" type="submit" {% if care_actions.play and not care_actions.play.is_ready %}disabled{% endif %}>
+                  {% if care_actions.play and not care_actions.play.is_ready %}
+                    Play in {{ care_actions.play.remaining }}
+                  {% else %}
+                    Play With {{ pet.name }}
+                  {% endif %}
+                </button>
               </div>
             </form>
 
@@ -677,10 +795,22 @@
                   <div class="pet-item-icon">🫧</div>
                   <div>
                     <h3 class="pet-item-name">Clean</h3>
-                    <p class="pet-item-meta">Every 6 hours</p>
+                    <p class="pet-item-meta">
+                      {% if care_actions.clean and not care_actions.clean.is_ready %}
+                        Ready in {{ care_actions.clean.remaining }}
+                      {% else %}
+                        Every 6 hours
+                      {% endif %}
+                    </p>
                   </div>
                 </div>
-                <button class="pet-button secondary" type="submit">Clean {{ pet.name }}</button>
+                <button class="pet-button secondary" type="submit" {% if care_actions.clean and not care_actions.clean.is_ready %}disabled{% endif %}>
+                  {% if care_actions.clean and not care_actions.clean.is_ready %}
+                    Clean in {{ care_actions.clean.remaining }}
+                  {% else %}
+                    Clean {{ pet.name }}
+                  {% endif %}
+                </button>
               </div>
             </form>
           </div>
@@ -707,6 +837,27 @@
                 </div>
                 <input class="pet-input" type="text" name="pet_name" maxlength="24" value="{{ pet.name }}">
                 <button class="pet-button soft" type="submit">Save Name</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="pet-actions" style="margin-bottom: 16px;">
+            <form class="pet-inline-stack" method="POST" action="{{ url_for('pet_change') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="pet-action-card">
+                <div class="pet-item-top">
+                  <div class="pet-item-icon">🔄</div>
+                  <div>
+                    <h3 class="pet-item-name">Change Pet</h3>
+                    <p class="pet-item-meta">Keeps progress and items, clears equipped cosmetics.</p>
+                  </div>
+                </div>
+                <select class="pet-select" name="pet_type">
+                  {% for key, starter in pet_starters.items() %}
+                    <option value="{{ key }}" {% if pet.type == key %}selected{% endif %}>{{ starter.name }}</option>
+                  {% endfor %}
+                </select>
+                <button class="pet-button ghost" type="submit">Switch Pet Type</button>
               </div>
             </form>
           </div>
@@ -852,6 +1003,7 @@
             {% for category in shop_categories %}
               {% for key, item in pet_items.items() %}
                 {% if item.type == category %}
+                  {% set is_owned = (category == 'boost' and pet and key in pet.owned_boosts) or (category == 'cosmetic' and pet and key in pet.owned_cosmetics) %}
                   <form method="POST" action="{{ url_for('pet_shop_buy') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="item_key" value="{{ key }}">
@@ -867,7 +1019,9 @@
                       </div>
                       <p class="pet-item-desc">{{ item.description }}</p>
                       <p class="pet-item-meta" style="margin-top: 10px;">{{ item.price | format }} coins</p>
-                      <button class="pet-button" type="submit">Buy</button>
+                      <button class="pet-button {% if is_owned %}ghost{% endif %}" type="submit" {% if is_owned %}disabled{% endif %}>
+                        {% if is_owned %}Owned{% else %}Buy{% endif %}
+                      </button>
                     </div>
                   </form>
                 {% endif %}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 180">
+  <g opacity=".9">
+    <ellipse cx="78" cy="92" rx="44" ry="64" fill="#eefdff"/>
+    <ellipse cx="182" cy="92" rx="44" ry="64" fill="#eefdff"/>
+    <ellipse cx="92" cy="95" rx="28" ry="46" fill="#d0f4ff"/>
+    <ellipse cx="168" cy="95" rx="28" ry="46" fill="#d0f4ff"/>
+  </g>
+</svg>

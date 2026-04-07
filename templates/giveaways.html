@@ -1,701 +1,1301 @@
-{% extends 'base.html' %}
-{% block title %}🎉 Giveaways - HayDay 🍀{% endblock %}
+{% extends "base.html" %}
+{% block title %}Giveaways - HayDay{% endblock %}
 
 {% block head_extra %}
-  <style>
-.giveaway-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-  padding: 30px;
-  box-sizing: border-box;
-}
+<style>
+  :root {
+    --gw-bg-1: #08120d;
+    --gw-bg-2: #101c15;
+    --gw-panel: rgba(15, 23, 19, 0.92);
+    --gw-panel-strong: rgba(10, 15, 12, 0.96);
+    --gw-line: rgba(255, 255, 255, 0.09);
+    --gw-soft: rgba(255, 255, 255, 0.05);
+    --gw-text: #f4fff6;
+    --gw-muted: #cfe1d2;
+    --gw-green-1: #8de36e;
+    --gw-green-2: #55ba4d;
+    --gw-gold-1: #fff0b0;
+    --gw-gold-2: #efc24d;
+    --gw-blue-1: #8fd2ff;
+    --gw-blue-2: #4aa3ea;
+    --gw-danger-1: #ffb0b0;
+    --gw-danger-2: #e05b5b;
+    --gw-chip: rgba(255, 255, 255, 0.07);
+    --gw-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  }
 
-.giveaway-card {
-  background-color: #fff;
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-  transition: all 0.3s ease;
-}
+  .giveaways-page {
+    position: relative;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 110px 20px 84px;
+  }
 
-body.dark .giveaway-card {
-  background-color: #1e1e1e;
-  color: #eee;
-}
+  .giveaways-page::before {
+    content: "";
+    position: absolute;
+    inset: -120px -20px auto;
+    height: 420px;
+    background:
+      radial-gradient(circle at 15% 15%, rgba(118, 221, 113, 0.14), transparent 25%),
+      radial-gradient(circle at 85% 10%, rgba(255, 211, 106, 0.12), transparent 24%),
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05), transparent 28%);
+    pointer-events: none;
+    z-index: -1;
+  }
 
-.giveaway-card h3 {
-  font-size: 1.2rem;
-  margin-bottom: 8px;
-  color: #4caf50;
-}
+  .giveaways-page,
+  .giveaway-shell,
+  .giveaway-card,
+  .stat-card,
+  .section-card,
+  .participants-dialog {
+    backdrop-filter: blur(12px);
+  }
 
-.giveaway-card p {
-  font-size: 15px;
-  line-height: 1.4;
-  margin: 6px 0;
-}
+  .giveaway-shell {
+    display: grid;
+    gap: 22px;
+  }
 
-.giveaway-card p strong {
-  color: #ccc;
-  font-weight: 600;
-  margin-right: 4px;
-}
+  .hero-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 30px;
+    padding: 34px;
+    background: linear-gradient(145deg, rgba(16, 25, 20, 0.96), rgba(8, 13, 10, 0.98));
+    border: 1px solid rgba(255, 224, 137, 0.14);
+    box-shadow: var(--gw-shadow);
+  }
 
-.countdown {
-  font-weight: bold;
-  color: #ff9800;
-}
+  .hero-card::before {
+    content: "";
+    position: absolute;
+    right: -80px;
+    bottom: -80px;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 205, 89, 0.18), transparent 68%);
+    pointer-events: none;
+  }
 
+  .hero-card::after {
+    content: "";
+    position: absolute;
+    left: -90px;
+    top: -110px;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(109, 220, 120, 0.13), transparent 68%);
+    pointer-events: none;
+  }
 
-.you-entered {
-  opacity: 1;
-  transition: opacity 0.3s ease;
-  display: inline-block;
-  background: #2e7d32;
-  color: white;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  margin-top: 6px;
-}
-.you-entered.show {
-  opacity: 1;
-}
-.giveaway-card details {
-  margin-top: 10px;
-}
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+    gap: 24px;
+    align-items: center;
+  }
 
-.giveaway-card details summary {
-  cursor: pointer;
-  font-weight: bold;
-  color: #0077cc;
-}
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    background: linear-gradient(180deg, rgba(255, 233, 150, 0.12), rgba(255, 196, 73, 0.07));
+    border: 1px solid rgba(255, 223, 121, 0.2);
+    color: #ffe9ab;
+    font-size: 0.88rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
 
-.view-participants-btn {
-  margin-top: 10px;
-  padding: 6px 12px;
-  font-size: 14px;
-  border: none;
-  background-color: #0077cc;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-}
+  .hero-title {
+    margin: 0 0 12px;
+    font-size: clamp(1.9rem, 4vw, 3.3rem);
+    line-height: 0.98;
+    color: var(--gw-text);
+    max-width: 700px;
+  }
 
-.participants-modal {
-  display: none;
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background-color: rgba(0,0,0,0.8);
-  z-index: 9999;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  box-sizing: border-box;
-}
+  .hero-sub {
+    margin: 0 0 16px;
+    max-width: 620px;
+    color: var(--gw-muted);
+    font-size: 0.98rem;
+    line-height: 1.6;
+  }
 
-.participants-modal.show {
-  display: flex;
-}
+  .hero-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
 
-.modal-content {
-  background: #1e1e1e;
-  padding: 20px;
-  max-height: 85vh;
-  overflow-y: auto;
-  width: 100%;
-  max-width: 500px;
-  border-radius: 12px;
-  color: #eee;
-  box-sizing: border-box;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
-}
-.modal-content::-webkit-scrollbar {
-  display: none;
-}
-.close-button {
-  float: right;
-  background: none;
-  border: none;
-  color: #eee;
-  font-size: 18px;
-  cursor: pointer;
-}
+  .hero-pill {
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: #ecf8ee;
+    font-weight: 800;
+    font-size: 0.92rem;
+  }
 
-.participant-list {
-  margin-top: 20px;
-}
+  .hero-side {
+    position: relative;
+    border-radius: 26px;
+    padding: 22px;
+    background:
+      radial-gradient(circle at top right, rgba(255, 207, 82, 0.14), transparent 38%),
+      linear-gradient(180deg, rgba(27, 37, 31, 0.96), rgba(13, 18, 15, 0.99));
+    border: 1px solid rgba(255, 225, 136, 0.14);
+    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.28);
+  }
 
-.participant-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid #333;
-}
+  .hero-side-kicker {
+    margin-bottom: 6px;
+    color: #ffe39f;
+    font-size: 0.8rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
 
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-}
+  .hero-side-title {
+    margin: 0 0 10px;
+    color: var(--gw-text);
+    font-size: 1.15rem;
+    font-weight: 900;
+  }
 
-.name {
-  font-weight: bold;
-}
+  .hero-side-value {
+    margin: 0 0 10px;
+    color: var(--gw-text);
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 900;
+    line-height: 0.95;
+  }
 
-.entries {
-  font-size: 14px;
-  font-weight: 500;
-  color: #ccc;
-}
+  .hero-side-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    margin-bottom: 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #eef8ef;
+    font-size: 0.86rem;
+    font-weight: 800;
+  }
 
-.participant-row.me {
-  background: #1e5e2e;
-  border-radius: 6px;
-}
+  .hero-side-note {
+    color: #d5e4d7;
+    font-size: 0.94rem;
+    line-height: 1.6;
+  }
 
-body {
-  font-family: 'Segoe UI', 'Inter', 'Roboto', sans-serif;
-}
-
-.verify-warning {
-  background: #a32d2d;
-  color: white;
-  padding: 10px;
-  border-radius: 10px;
-  font-size: 0.95rem;
-  margin-top: 10px;
-  line-height: 1.4;
-}
-
-.verify-warning a {
-  color: #fff;
-  text-decoration: underline;
-}
-
-.refresh-btn {
-  background: #d32f2f;
-  color: white;
-  padding: 6px 14px;
-  border-radius: 8px;
-  text-decoration: none;
-  display: inline-block;
-  margin: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: background 0.2s ease, transform 0.1s ease;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
-}
-.refresh-btn:hover {
-  background: #b72b2b;
-  transform: scale(1.03);
-}
-input[type="text"] {
-  padding: 6px;
-  border-radius: 6px;
-  border: 1px solid #444;
-  background: #2c2c2c;
-  color: white;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-@media (max-width: 600px) {
+  .section-card,
   .giveaway-card {
-    padding: 16px;
+    background: linear-gradient(180deg, rgba(18, 25, 21, 0.92), rgba(10, 14, 12, 0.96));
+    border: 1px solid var(--gw-line);
+    border-radius: 24px;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
   }
 
-  .giveaway-card h3 {
-    font-size: 1rem;
+  .section-card {
+    padding: 24px;
   }
 
-  .view-participants-btn {
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 18px;
+  }
+
+  .section-title {
+    margin: 0 0 6px;
+    color: var(--gw-text);
+    font-size: 1.45rem;
+    font-weight: 900;
+  }
+
+  .section-sub {
+    margin: 0;
+    color: var(--gw-muted);
+    line-height: 1.65;
+  }
+
+  .giveaway-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+
+  .giveaway-card {
+    position: relative;
+    padding: 22px;
+    isolation: isolate;
+  }
+
+  .giveaway-card::before {
+    content: "";
+    position: absolute;
+    inset: auto -40px -40px auto;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 214, 102, 0.1), transparent 70%);
+    pointer-events: none;
+  }
+
+  .giveaway-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 16px;
+  }
+
+  .giveaway-prize {
+    margin: 0;
+    color: var(--gw-text);
+    font-size: 1.28rem;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+
+  .giveaway-badge {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #ecf8ee;
+    font-size: 0.82rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .host-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    color: #dcebdd;
+    font-weight: 700;
+  }
+
+  .host-avatar,
+  .participant-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .host-meta {
+    display: grid;
+    gap: 2px;
+  }
+
+  .host-label {
+    color: #9fb7a4;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .meta-tile {
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--gw-soft);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .meta-tile-label {
+    color: #9fb7a4;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+
+  .meta-tile-value {
+    color: var(--gw-text);
+    font-size: 1.02rem;
+    font-weight: 900;
+  }
+
+  .meta-link,
+  .notice-box a {
+    color: #9bd6ff;
+    text-decoration: none;
+  }
+
+  .meta-link:hover,
+  .notice-box a:hover {
+    text-decoration: underline;
+  }
+
+  .role-pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
+  }
+
+  .role-pill {
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(255, 204, 108, 0.08);
+    border: 1px solid rgba(255, 208, 115, 0.16);
+    color: #ffe7ae;
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+
+  .notice-box {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    line-height: 1.65;
+    font-size: 0.94rem;
+    border: 1px solid transparent;
+  }
+
+  .notice-box.success {
+    background: rgba(97, 196, 90, 0.1);
+    border-color: rgba(111, 215, 104, 0.16);
+    color: #e7ffe5;
+  }
+
+  .notice-box.warn {
+    background: rgba(224, 91, 91, 0.12);
+    border-color: rgba(255, 157, 157, 0.18);
+    color: #ffe5e5;
+  }
+
+  .notice-strong {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 900;
+  }
+
+  .action-area {
+    margin-top: 14px;
+  }
+
+  .action-form {
+    display: grid;
+    gap: 12px;
+  }
+
+  .confirm-box {
+    display: flex;
+    gap: 10px;
+    align-items: start;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #dceadc;
+    font-size: 0.93rem;
+    line-height: 1.55;
+  }
+
+  .confirm-box input {
+    margin-top: 3px;
+    accent-color: #6bc85b;
+  }
+
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .action-btn,
+  .inline-pagination button {
+    appearance: none;
+    border: none;
+    border-radius: 16px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+  }
+
+  .action-btn:hover,
+  .inline-pagination button:hover {
+    transform: translateY(-2px);
+  }
+
+  .action-btn:active,
+  .inline-pagination button:active {
+    transform: translateY(0);
+  }
+
+  .action-btn:disabled,
+  .inline-pagination button:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .action-btn.primary {
+    background: linear-gradient(180deg, var(--gw-green-1), var(--gw-green-2));
+    color: #fff;
+    box-shadow: 0 14px 28px rgba(78, 169, 70, 0.24);
+  }
+
+  .action-btn.secondary {
+    background: linear-gradient(180deg, #3f4b43, #262f29);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #eff7f0;
+  }
+
+  .action-btn.blue {
+    background: linear-gradient(180deg, var(--gw-blue-1), var(--gw-blue-2));
+    color: #082236;
+    box-shadow: 0 14px 28px rgba(63, 143, 212, 0.24);
+  }
+
+  .action-btn.danger {
+    background: linear-gradient(180deg, var(--gw-danger-1), var(--gw-danger-2));
+    color: #4f1111;
+    box-shadow: 0 14px 28px rgba(187, 76, 76, 0.2);
+  }
+
+  .action-btn.full {
     width: 100%;
-    padding: 10px;
-    font-size: 15px;
+    justify-content: center;
+  }
+
+  .won-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+
+  .won-card {
+    padding: 20px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(22, 30, 25, 0.94), rgba(10, 15, 12, 0.98));
+    border: 1px solid rgba(255, 223, 128, 0.12);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+  }
+
+  .won-title {
+    margin: 0 0 12px;
+    color: var(--gw-text);
+    font-size: 1.12rem;
+    font-weight: 900;
+  }
+
+  .won-meta {
+    display: grid;
+    gap: 10px;
+    color: #dceadc;
+    line-height: 1.55;
+    margin-bottom: 16px;
+  }
+
+  .empty-state {
+    padding: 28px 20px;
+    border-radius: 22px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    color: #d4e4d7;
+    line-height: 1.7;
   }
 
   .participants-modal {
-    padding: 10px;
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 5, 3, 0.8);
+    z-index: 12000;
   }
 
-  .modal-content {
-    padding: 15px;
-    max-height: 85vh;
-    font-size: 0.95rem;
+  .participants-modal.show {
+    display: flex;
+  }
+
+  .participants-dialog {
+    width: min(1040px, calc(100vw - 48px));
+    max-height: 86vh;
+    overflow: auto;
+    padding: 28px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(18, 25, 21, 0.97), rgba(9, 14, 11, 0.99));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.4);
+    color: var(--gw-text);
+    position: relative;
+    pointer-events: auto;
+  }
+
+  .participants-dialog::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .participants-dialog::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+
+  .dialog-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 16px;
+  }
+
+  .dialog-title {
+    margin: 0 0 6px;
+    font-size: 1.35rem;
+    font-weight: 900;
+  }
+
+  .dialog-sub {
+    margin: 0;
+    color: var(--gw-muted);
+    line-height: 1.6;
+  }
+
+  .dialog-close {
+    appearance: none;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #f6fff7;
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    outline: none;
+    box-sizing: border-box;
+    margin-bottom: 16px;
+  }
+
+  .participant-list {
+    display: grid;
+    gap: 12px;
   }
 
   .participant-row {
-    flex-direction: row;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
     align-items: center;
-    font-size: 14px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
-  .countdown {
-    font-size: 0.95rem;
+  .participant-row.me {
+    background: rgba(102, 200, 92, 0.12);
+    border-color: rgba(120, 215, 112, 0.18);
   }
 
-  .you-entered {
-    font-size: 0.75rem;
-    width: 100%;
-    text-align: center;
+  .participant-main {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-width: 0;
   }
 
-  .verify-warning {
-    font-size: 0.85rem;
+  .participant-name {
+    color: var(--gw-text);
+    font-weight: 900;
   }
-}
-.giveaway-card form {
-  background: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  display: block;
-}
 
-.giveaway-card form label {
-  margin-top: 10px;
-  display: block;
-  font-size: 0.9rem;
-  color: inherit;
-}
+  .participant-entry {
+    color: #bdd1c0;
+    font-size: 0.92rem;
+    margin-top: 3px;
+  }
 
-.giveaway-card input[type="checkbox"] {
-  margin-right: 6px;
-  transform: scale(1.1);
-  vertical-align: middle;
-}
+  .participant-share {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #eef8ef;
+    font-size: 0.84rem;
+    font-weight: 800;
+  }
 
-.dm-host-btn {
-  background-color: #5865F2;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  display: inline-block;
-  margin-top: 8px;
-  text-align: center;
-  text-decoration: none;
-}
-.dm-host-btn:hover {
-  background-color: #4752C4;
-}
+  @media (min-width: 900px) {
+    .participant-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 
+  .inline-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+    color: #d9e7db;
+    font-weight: 700;
+  }
 
+  .inline-pagination button {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f2fbf3;
+    padding: 10px 14px;
+    border-radius: 14px;
+  }
 
-  </style>
+  @media (max-width: 980px) {
+    .hero-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .giveaways-page {
+      padding: 94px 14px 70px;
+    }
+
+    .hero-card,
+    .section-card,
+    .stat-card,
+    .giveaway-card,
+    .participants-dialog {
+      border-radius: 22px;
+    }
+
+    .hero-card,
+    .section-card,
+    .participants-dialog {
+      padding: 20px;
+    }
+
+    .hero-title {
+      font-size: 2rem;
+    }
+
+    .giveaway-grid,
+    .won-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .meta-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .button-row {
+      flex-direction: column;
+    }
+
+    .action-btn {
+      width: 100%;
+    }
+
+    .participant-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .participant-share {
+      align-self: flex-start;
+    }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
+<main class="giveaways-page">
+  <div class="giveaway-shell">
+    <section class="hero-card">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">Live community giveaways</div>
+          <h1 class="hero-title">Giveaways, cleaned up.</h1>
+          <p class="hero-sub">
+            Active giveaways, cleaner cards, and faster entry.
+          </p>
 
-<main style="padding-top: 80px; padding-bottom: 80px;">
-
-{% if discord_id %}
-<section id="won-section" style="padding: 20px;">
-  <h2 style="text-align:center;">🏆 Recently Won Giveaways</h2>
-  <div id="won-giveaway-cards" class="giveaway-grid"></div>
-  <div id="won-pagination" style="text-align:center; margin-top: 10px;"></div>
-</section>
-{% endif %}
-
-
-<h1 style="text-align:center;">🎉 Ongoing Giveaways</h1>
-
-<div class="giveaway-grid">
-  {% for g in giveaways %}
-  <div class="giveaway-card">
-    <h3>{{ g.prize }}</h3>
-    <p style="display: flex; align-items: center; gap: 10px;">
-      {% if g.host_avatar %}
-      <img src="{{ g.host_avatar }}" alt="avatar" style="width: 26px; height: 26px; border-radius: 50%;">
-      {% endif %}
-      <strong>Host:</strong> {{ g.host_display }}
-    </p>
-    <p><strong>Ends:</strong> <span class="countdown" data-end="{{ g.end_time_ts }}"></span></p>
-    <p><strong>Winners:</strong> {{ g.winners }}</p>
-    <p><strong>Entries:</strong> <span class="entry-count" data-msgid="{{ g.message_id }}">{{ g.entry_count }}</span></p>
-    {% if g.required_role_display %}
-      <p><strong>Required Roles (OR):</strong>
-        <span style="color:#ff6666;">{{ g.required_role_display }}</span>
-      </p>
-    {% endif %}
-    <p><strong>Link:</strong> <a href="https://discord.com/channels/{{ g.guild_id }}/{{ g.channel_id }}/{{ g.message_id }}" target="_blank">Jump to Giveaway</a></p>
-
-    <!-- ✅ FORM WRAPPER -->
-    <div class="giveaway-action-wrapper" data-msgid="{{ g.message_id }}" data-has-bypass="{{ '1' if g.has_bypass else '0' }}">
-      {% if discord_id in g.participants %}
-        <div class="you-entered">You’ve joined! ({{ g.participants[discord_id] }} entries)</div>
-        <form class="leave-form" style="margin-top: 10px;">
-          <input type="hidden" name="message_id" value="{{ g.message_id }}">
-          <button type="submit" class="view-participants-btn" style="background-color: #d32f2f;">❌ Leave Giveaway</button>
-        </form>
-
-      {% elif g.not_in_guild %}
-        <div class="you-entered" style="background-color: #a32d2d;">
-          🔒 Please <a href="https://discord.gg/haydayy" target="_blank" style="color: white; text-decoration: underline;">join our Discord server</a> to join giveaways.<br>
-          <small>If you just joined, <a href="/logout?next=/login?next=/giveaways" style="color: white; text-decoration: underline;">↻ refresh login</a>.</small>
+          <div class="hero-pills">
+            <div class="hero-pill">{{ giveaways|length }} live giveaway{{ "" if giveaways|length == 1 else "s" }}</div>
+            <div class="hero-pill">Live countdowns</div>
+          </div>
         </div>
 
-      {% elif not g.can_join %}
-        <div class="you-entered" style="background-color: #a32d2d;">❌ Not eligible to join this giveaway</div>
+        <aside class="hero-side">
+          <div class="hero-side-kicker">Active now</div>
+          <div class="hero-side-value">{{ giveaways|length }}</div>
+          <div class="hero-side-meta">Live on site</div>
+          <div class="hero-side-title">Open giveaways</div>
+          <div class="hero-side-note">Join directly from the card and view participant stats without leaving the page.</div>
+        </aside>
+      </div>
+    </section>
 
-      {% else %}
-        <form class="join-form" data-msgid="{{ g.message_id }}" data-has-bypass="{{ '1' if g.has_bypass else '0' }}" style="margin-top: 10px;">
-          <input type="hidden" name="message_id" value="{{ g.message_id }}">
+    {% if discord_id %}
+    <section class="section-card">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Recently won giveaways</h2>
+          <p class="section-sub">A quick personal history of your most recent wins.</p>
+        </div>
+      </div>
 
-        {% if g.has_bypass %}
-        <label>
-          <input type="checkbox" name="confirm" required id="confirm-{{ g.message_id }}">
-          I confirm I’ve read the giveaway title and understand all additional requirements.
-        </label>form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
-        {% endif %}
+      <div id="won-giveaway-cards" class="won-grid">
+        <div class="empty-state">Loading your recent wins...</div>
+      </div>
+      <div id="won-pagination" class="inline-pagination"></div>
+    </section>
+    {% endif %}
 
-          <button type="submit"
-                  class="view-participants-btn"
-                  style="background-color: #4caf50;">
-            🎉 Join Giveaway
-          </button>
-        </form>
-      {% endif %}
-    </div>
-    <!-- ✅ END WRAPPER -->
+    <section class="section-card">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Ongoing giveaways</h2>
+          <p class="section-sub">Everything currently open, with a cleaner structure inspired by the stronger visual polish in your seasonal event pages.</p>
+        </div>
+      </div>
 
-    <button onclick="openParticipantsModal({{ loop.index0 }})" class="view-participants-btn">🔍 View Entry Stats & Participants</button>
+      {% if giveaways %}
+      <div class="giveaway-grid">
+        {% for g in giveaways %}
+        <article class="giveaway-card">
+          <div class="giveaway-top">
+            <h3 class="giveaway-prize">{{ g.prize }}</h3>
+            <div class="giveaway-badge">{{ g.winners }} winner{{ "" if g.winners == 1 else "s" }}</div>
+          </div>
 
-    <div class="participants-modal" id="modal-{{ loop.index0 }}">
-      <div class="modal-content">
-        <button class="close-button" onclick="closeParticipantsModal({{ loop.index0 }})">✖</button>
-        <h3>🎉 Participants</h3>
-
-        <!-- Search Input -->
-        <input id="search-input-{{ loop.index0 }}"
-               oninput="loadParticipantPage({{ loop.index0 }}, 1)"
-               placeholder="🔍 Search name..."
-               style="width: 100%; padding: 6px; margin: 10px 0; border-radius: 6px; border: 1px solid #444; background: #2c2c2c; color: white;">
-
-        <!-- Participant List -->
-        <div class="participant-list" id="participant-list-{{ loop.index0 }}">
-          {% for p in g.participant_info %}
-          <div class="participant-row{% if p.id == discord_id %} me{% endif %}"
-               data-name="{{ p.name | lower }}"
-               data-entries="{{ p.count }}"
-               style="display: none;">
-            {% if p.avatar %}
-            <img src="{{ p.avatar }}" class="avatar">
+          <div class="host-row">
+            {% if g.host_avatar %}
+            <img src="{{ g.host_avatar }}" alt="{{ g.host_display }}" class="host-avatar">
+            {% else %}
+            <div class="host-avatar"></div>
             {% endif %}
-            <div>
-              <div class="name">{{ p.name }}</div>
-              <div class="entries">{{ p.count }} entries ({{ p.percent }}%)</div>
+
+            <div class="host-meta">
+              <div class="host-label">Hosted by</div>
+              <div>{{ g.host_display }}</div>
             </div>
           </div>
-          {% endfor %}
-        </div>
 
-        <!-- Pagination -->
-        <div id="pagination-{{ loop.index0 }}" style="text-align:center; margin-top: 10px;"></div>
+          <div class="meta-grid">
+            <div class="meta-tile">
+              <div class="meta-tile-label">Ends in</div>
+              <div class="meta-tile-value countdown" data-end="{{ g.end_time_ts }}">Calculating...</div>
+            </div>
+
+            <div class="meta-tile">
+              <div class="meta-tile-label">Total entries</div>
+              <div class="meta-tile-value entry-count" data-msgid="{{ g.message_id }}">{{ g.entry_count }}</div>
+            </div>
+
+            <div class="meta-tile">
+              <div class="meta-tile-label">Jump to Discord</div>
+              <div class="meta-tile-value">
+                <a
+                  class="meta-link"
+                  href="https://discord.com/channels/{{ g.guild_id }}/{{ g.channel_id }}/{{ g.message_id }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open message
+                </a>
+              </div>
+            </div>
+
+            <div class="meta-tile">
+              <div class="meta-tile-label">Entry stats</div>
+              <div class="meta-tile-value">{{ g.participant_info|length }} participant{{ "" if g.participant_info|length == 1 else "s" }}</div>
+            </div>
+          </div>
+
+          {% if g.required_role_display %}
+          <div class="role-pill-row">
+            <div class="role-pill">Required roles: {{ g.required_role_display }}</div>
+          </div>
+          {% endif %}
+
+          <div
+            class="action-area giveaway-action-wrapper"
+            data-msgid="{{ g.message_id }}"
+            data-has-bypass="{{ '1' if g.has_bypass else '0' }}"
+          >
+            {% if discord_id in g.participants %}
+            <div class="notice-box success">
+              <span class="notice-strong">You are already entered.</span>
+              Your current entry weight for this giveaway is {{ g.participants[discord_id] }}.
+            </div>
+
+            <form class="action-form leave-form" data-user-entries="{{ g.participants[discord_id] }}">
+              <input type="hidden" name="message_id" value="{{ g.message_id }}">
+              <button type="submit" class="action-btn danger full">Leave giveaway</button>
+            </form>
+
+            {% elif g.not_in_guild %}
+            <div class="notice-box warn">
+              <span class="notice-strong">Discord membership required.</span>
+              Please <a href="https://discord.gg/haydayy" target="_blank" rel="noopener noreferrer">join the server</a> before entering.
+              If you just joined, <a href="/logout?next=/login?next=/giveaways">refresh your login</a> and try again.
+            </div>
+
+            {% elif not g.can_join %}
+            <div class="notice-box warn">
+              <span class="notice-strong">Not eligible for this giveaway.</span>
+              Your account does not currently meet the listed role requirement.
+            </div>
+
+            {% else %}
+            <form class="action-form join-form" data-msgid="{{ g.message_id }}" data-has-bypass="{{ '1' if g.has_bypass else '0' }}">
+              <input type="hidden" name="message_id" value="{{ g.message_id }}">
+
+              {% if g.has_bypass %}
+              <label class="confirm-box">
+                <input type="checkbox" name="confirm" id="confirm-{{ g.message_id }}" required>
+                <span>I confirm that I have read the giveaway title and understand any extra requirements before entering.</span>
+              </label>
+              {% endif %}
+
+              <button type="submit" class="action-btn primary full">Join giveaway</button>
+            </form>
+            {% endif %}
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="openParticipantsModal({{ loop.index0 }})" class="action-btn secondary">View participants</button>
+          </div>
+
+          <div class="participants-modal" id="modal-{{ loop.index0 }}">
+            <div class="participants-dialog" role="dialog" aria-modal="true" aria-labelledby="participants-title-{{ loop.index0 }}">
+              <div class="dialog-head">
+                <div>
+                  <h3 class="dialog-title" id="participants-title-{{ loop.index0 }}">{{ g.prize }}</h3>
+                  <p class="dialog-sub">Search the participant list and review how entries are distributed.</p>
+                </div>
+
+                <button type="button" class="dialog-close" aria-label="Close" onclick="closeParticipantsModal({{ loop.index0 }})">x</button>
+              </div>
+
+              <input
+                id="search-input-{{ loop.index0 }}"
+                class="search-input"
+                oninput="loadParticipantPage({{ loop.index0 }}, 1)"
+                placeholder="Search participant name"
+              >
+
+              <div class="participant-list" id="participant-list-{{ loop.index0 }}">
+                {% for p in g.participant_info %}
+                <div
+                  class="participant-row{% if p.id == discord_id %} me{% endif %}"
+                  data-name="{{ p.name | lower }}"
+                  data-entries="{{ p.count }}"
+                  style="display:none;"
+                >
+                  <div class="participant-main">
+                    <img src="{{ p.avatar }}" alt="{{ p.name }}" class="participant-avatar">
+                    <div>
+                      <div class="participant-name">{{ p.name }}</div>
+                      <div class="participant-entry">{{ p.count }} entr{{ "y" if p.count == 1 else "ies" }}</div>
+                    </div>
+                  </div>
+
+                  <div class="participant-share">{{ p.percent }}%</div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <div id="pagination-{{ loop.index0 }}" class="inline-pagination"></div>
+            </div>
+          </div>
+        </article>
+        {% endfor %}
       </div>
-    </div>
+      {% else %}
+      <div class="empty-state">
+        There are no active giveaways right now. When a new one goes live, it will appear here with its timer, entry count, and join flow.
+      </div>
+      {% endif %}
+    </section>
   </div>
-  {% endfor %}
-</div>
-
-  </main>
-
+</main>
 {% endblock %}
+
 {% block scripts %}
-  <script>
-    function openParticipantsModal(index) {
-      document.getElementById("modal-" + index).classList.add("show");
-      loadParticipantPage(index, 1); // IMPORTANT for pagination init
-    }
+<script>
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
 
-    function closeParticipantsModal(index) {
-      document.getElementById("modal-" + index).classList.remove("show");
-    }
+  function createJoinFormMarkup(messageId, hasBypass) {
+    return `
+      <form class="action-form join-form" data-msgid="${messageId}" data-has-bypass="${hasBypass ? "1" : "0"}">
+        <input type="hidden" name="message_id" value="${messageId}">
+        ${hasBypass ? `
+          <label class="confirm-box">
+            <input type="checkbox" name="confirm" id="confirm-${messageId}" required>
+            <span>I confirm that I have read the giveaway title and understand any extra requirements before entering.</span>
+          </label>
+        ` : ""}
+        <button type="submit" class="action-btn primary full">Join giveaway</button>
+      </form>
+    `;
+  }
 
-    document.addEventListener("keydown", function(event) {
-      if (event.key === "Escape") {
-        document.querySelectorAll(".participants-modal.show").forEach(modal => {
-          modal.classList.remove("show");
-        });
+  function createLeaveFormMarkup(messageId, entries) {
+    return `
+      <div class="notice-box success">
+        <span class="notice-strong">You are already entered.</span>
+        Your current entry weight for this giveaway is ${entries}.
+      </div>
+      <form class="action-form leave-form" data-user-entries="${entries}">
+        <input type="hidden" name="message_id" value="${messageId}">
+        <button type="submit" class="action-btn danger full">Leave giveaway</button>
+      </form>
+    `;
+  }
+
+  function openParticipantsModal(index) {
+    const modal = document.getElementById(`modal-${index}`);
+    if (!modal) return;
+    modal.classList.add("show");
+    loadParticipantPage(index, 1);
+  }
+
+  function closeParticipantsModal(index) {
+    const modal = document.getElementById(`modal-${index}`);
+    if (!modal) return;
+    modal.classList.remove("show");
+  }
+
+  document.addEventListener("click", (event) => {
+    const modal = event.target.closest(".participants-modal");
+    if (modal && event.target === modal) {
+      modal.classList.remove("show");
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      document.querySelectorAll(".participants-modal.show").forEach((modal) => {
+        modal.classList.remove("show");
+      });
+    }
+  });
+
+  async function loadWonGiveaways(page = 1) {
+    const container = document.getElementById("won-giveaway-cards");
+    const pagination = document.getElementById("won-pagination");
+    if (!container || !pagination) return;
+
+    try {
+      const res = await fetch(`/api/giveaways/won?page=${page}`, {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+
+      const data = await res.json();
+      container.innerHTML = "";
+      pagination.innerHTML = "";
+
+      if (!res.ok) {
+        throw new Error(data.error || "Could not load won giveaways");
       }
-    });
-async function loadWonGiveaways(page = 1) {
-  const res = await fetch(`/api/giveaways/won?page=${page}`);
-  const data = await res.json();
 
-  const container = document.getElementById("won-giveaway-cards");
-  const pagination = document.getElementById("won-pagination");
-  container.innerHTML = "";
-  pagination.innerHTML = "";
+      if (Array.isArray(data.giveaways) && data.giveaways.length) {
+        container.innerHTML = data.giveaways.map((g) => `
+          <article class="won-card">
+            <h3 class="won-title">${escapeHtml(g.prize || "Unknown prize")}</h3>
+            <div class="won-meta">
+              <div>Hosted by <strong>${escapeHtml(g.host_display || "Unknown")}</strong></div>
+              <div>Ended ${escapeHtml(new Date((g.end_time_ts || 0) * 1000).toLocaleString())}</div>
+            </div>
+            <div class="button-row">
+              <a
+                href="https://discord.com/channels/${escapeHtml(g.guild_id)}/${escapeHtml(g.channel_id)}/${escapeHtml(g.message_id)}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="action-btn secondary"
+                style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;"
+              >
+                View giveaway
+              </a>
+              ${g.host_id ? `
+                <a
+                  href="https://discord.com/users/${escapeHtml(g.host_id)}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="action-btn blue"
+                  style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;"
+                >
+                  Message host
+                </a>
+              ` : ""}
+            </div>
+          </article>
+        `).join("");
+      } else {
+        container.innerHTML = `<div class="empty-state">No recent giveaway wins found for your account yet.</div>`;
+      }
 
-  if (Array.isArray(data.giveaways)) {
-    data.giveaways.forEach(g => {
-      const card = document.createElement("div");
-      card.className = "giveaway-card";
-      card.innerHTML = `
-        <h3>${g.prize}</h3>
-        <p style="display:flex; align-items:center; gap:8px;">
-          ${g.host_avatar ? `<img src="${g.host_avatar}" style="width:24px; height:24px; border-radius:50%;">` : ""}
-          <strong>Host:</strong> ${g.host_display || "Unknown"}
-        </p>
-        <p><strong>Ended:</strong> ${new Date(g.end_time_ts * 1000).toLocaleString()}</p>
-        <p><strong>Message:</strong> <a href="https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id}" target="_blank">View</a></p>
-        ${g.host_id ? `<a href="https://discord.com/users/${g.host_id}" target="_blank" class="view-participants-btn" style="background:#5865F2;">💬 DM Host</a>` : ""}
-      `;
+      const totalPages = Math.ceil((data.total || 0) / (data.limit || 1));
+      if (totalPages > 1) {
+        const prevDisabled = page <= 1 ? "disabled" : "";
+        const nextDisabled = page >= totalPages ? "disabled" : "";
 
-
-      container.appendChild(card);
-    });
-  } else {
-    container.innerHTML = `<p style="text-align:center;">No giveaways found.</p>`;
+        pagination.innerHTML = `
+          <button type="button" onclick="loadWonGiveaways(${page - 1})" ${prevDisabled}>Previous</button>
+          <span>Page ${page} of ${totalPages}</span>
+          <button type="button" onclick="loadWonGiveaways(${page + 1})" ${nextDisabled}>Next</button>
+        `;
+      }
+    } catch (error) {
+      container.innerHTML = `<div class="empty-state">Could not load your recent wins right now.</div>`;
+      pagination.innerHTML = "";
+    }
   }
 
+  function loadParticipantPage(index, page) {
+    const modal = document.getElementById(`modal-${index}`);
+    const input = document.getElementById(`search-input-${index}`);
+    const pagination = document.getElementById(`pagination-${index}`);
+    if (!modal || !pagination) return;
 
-  const totalPages = Math.ceil(data.total / data.limit);
-  if (totalPages > 1) {
-    if (page > 1) {
-      pagination.innerHTML += `<a class="refresh-btn" onclick="loadWonGiveaways(${page - 1})">⬅ Prev</a>`;
-    }
-    pagination.innerHTML += `<span style="margin: 0 10px;">Page ${page} of ${totalPages}</span>`;
-    if (page < totalPages) {
-      pagination.innerHTML += `<a class="refresh-btn" onclick="loadWonGiveaways(${page + 1})">Next ➡</a>`;
-    }
-  }
-}
+    const searchTerm = (input?.value || "").trim().toLowerCase();
+    const rows = Array.from(modal.querySelectorAll(".participant-row"));
+    const matchingRows = rows.filter((row) => (row.dataset.name || "").includes(searchTerm));
 
-window.addEventListener("DOMContentLoaded", () => {
-  {% if discord_id %} loadWonGiveaways(); {% endif %}
-});
-
-  function checkConfirm(messageId) {
-  const checkbox = document.getElementById(`confirm-${messageId}`);
-  if (!checkbox || checkbox.checked) return true;
-  alert("❗ Please confirm you’ve read the giveaway title and understand the extra requirements.");
-  return false;
-}
-
-function loadParticipantPage(index, page) {
-  const modal = document.getElementById(`modal-${index}`);
-  const input = document.getElementById(`search-input-${index}`);
-  const searchTerm = input?.value?.toLowerCase() || "";
-
-  const allRows = modal.querySelectorAll(".participant-row");
-  const matchingRows = [];
-
-  allRows.forEach(row => {
-    const name = row.dataset.name || "";
-    if (name.includes(searchTerm)) {
-      matchingRows.push(row);
-    } else {
+    rows.forEach((row) => {
       row.style.display = "none";
-    }
-  });
+    });
 
-  const perPage = 10;
-  const totalPages = Math.ceil(matchingRows.length / perPage);
-  const pagination = document.getElementById(`pagination-${index}`);
-  pagination.innerHTML = "";
-
-  const start = (page - 1) * perPage;
-  const end = start + perPage;
-  matchingRows.forEach((row, i) => {
-    row.style.display = (i >= start && i < end) ? "" : "none";
-  });
-
-  if (totalPages > 1) {
-    if (page > 1) {
-      pagination.innerHTML += `<a class="refresh-btn" onclick="loadParticipantPage(${index}, ${page - 1})">⬅ Prev</a>`;
-    }
-    pagination.innerHTML += `<span style="margin: 0 10px;">Page ${page} of ${totalPages}</span>`;
-    if (page < totalPages) {
-      pagination.innerHTML += `<a class="refresh-btn" onclick="loadParticipantPage(${index}, ${page + 1})">Next ➡</a>`;
-    }
-  }
-}
-
-function updateCountdowns() {
-  document.querySelectorAll(".countdown").forEach(el => {
-    const end = parseInt(el.dataset.end, 10) * 1000; // convert to ms
-    if (!end) {
-      el.textContent = "—";
+    if (!matchingRows.length) {
+      pagination.innerHTML = `<span>No matching participants found.</span>`;
       return;
     }
-    const now = Date.now();
-    let diff = Math.max(0, end - now);
 
-    const hours = Math.floor(diff / 3600000);
-    diff %= 3600000;
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
+    const perPage = 10;
+    const totalPages = Math.ceil(matchingRows.length / perPage);
+    const safePage = Math.min(Math.max(page, 1), totalPages);
+    const start = (safePage - 1) * perPage;
+    const end = start + perPage;
 
-    if (end <= now) {
-      el.textContent = "Ended";
-    } else {
-      el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+    matchingRows.forEach((row, indexInList) => {
+      if (indexInList >= start && indexInList < end) {
+        row.style.display = "";
+      }
+    });
+
+    if (totalPages <= 1) {
+      pagination.innerHTML = "";
+      return;
     }
-  });
-}
-setInterval(updateCountdowns, 1000);
-updateCountdowns();
 
-function bindJoinForms() {
-  document.querySelectorAll('.join-form').forEach(form => {
-    if (form.dataset.bound) return;
-    form.dataset.bound = "1";
+    const prevDisabled = safePage <= 1 ? "disabled" : "";
+    const nextDisabled = safePage >= totalPages ? "disabled" : "";
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+    pagination.innerHTML = `
+      <button type="button" onclick="loadParticipantPage(${index}, ${safePage - 1})" ${prevDisabled}>Previous</button>
+      <span>Page ${safePage} of ${totalPages}</span>
+      <button type="button" onclick="loadParticipantPage(${index}, ${safePage + 1})" ${nextDisabled}>Next</button>
+    `;
+  }
 
-      const msgId = form.dataset.msgid;
-      const hasBypass = form.dataset.hasBypass === "1";
-      const checkbox = document.getElementById(`confirm-${msgId}`);
-
-      if (hasBypass && checkbox && !checkbox.checked) {
-        alert("❗ Please confirm you’ve read the giveaway title.");
+  function updateCountdowns() {
+    document.querySelectorAll(".countdown").forEach((el) => {
+      const end = Number(el.dataset.end) * 1000;
+      if (!end) {
+        el.textContent = "Unknown";
         return;
       }
 
-      const formData = new FormData(form);
+      const diff = end - Date.now();
+      if (diff <= 0) {
+        el.textContent = "Ended";
+        return;
+      }
 
-      try {
+      const totalSeconds = Math.floor(diff / 1000);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (days > 0) {
+        el.textContent = `${days}d ${hours}h ${minutes}m`;
+      } else {
+        el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+      }
+    });
+  }
+
+  function bindJoinForms() {
+    document.querySelectorAll(".join-form").forEach((form) => {
+      if (form.dataset.bound) return;
+      form.dataset.bound = "1";
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
         const submitButton = form.querySelector("button[type=submit]");
+        const messageId = form.dataset.msgid;
+        const hasBypass = form.dataset.hasBypass === "1";
+        const checkbox = document.getElementById(`confirm-${messageId}`);
+
+        if (hasBypass && checkbox && !checkbox.checked) {
+          alert("Please confirm that you understand the extra giveaway requirements.");
+          return;
+        }
+
         submitButton.disabled = true;
         submitButton.textContent = "Joining...";
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-        const res = await fetch('/giveaway/join', {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            "X-CSRFToken": csrfToken 
-          }
-        });
 
-        submitButton.disabled = false;
-        submitButton.textContent = "🎉 Join Giveaway";
+        try {
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+          const res = await fetch("/giveaway/join", {
+            method: "POST",
+            body: new FormData(form),
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRFToken": csrfToken
+            }
+          });
 
-        if (res.ok) {
-          const data = await res.json();              // ✅ read {"entries": 1|2}
-          const gained = Number(data?.entries) || 1;  // fallback to 1
+          const data = await res.json().catch(() => ({}));
 
-          const entryCountSpan = document.querySelector(`.entry-count[data-msgid="${msgId}"]`);
-          if (entryCountSpan) {
-            const current = parseInt(entryCountSpan.textContent) || 0;
-            entryCountSpan.textContent = current + gained;   // ✅ add 2 for boosters
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to join giveaway");
           }
 
-          const wrapper = form.closest(".giveaway-action-wrapper");
-          wrapper.innerHTML = `
-            <div class="you-entered">You’ve joined! (${gained} entries)</div>
-            <form class="leave-form" style="margin-top: 10px;">
-              <input type="hidden" name="message_id" value="${msgId}">
-              <button type="submit" class="view-participants-btn" style="background-color: #d32f2f;">
-                ❌ Leave Giveaway
-              </button>
-            </form>
-          `;
-          bindLeaveForms();
-          } else {
-            form.innerHTML = `<div style="color:red;">❌ Failed to join. Try again.</div>`;
-
-            // ⏳ After 2 seconds, restore the join form
-            setTimeout(() => {
-              const msgId = form.dataset.msgid;
-              const hasBypass = form.dataset.hasBypass === "1";
-
-              form.innerHTML = `
-                <input type="hidden" name="message_id" value="${msgId}">
-                ${hasBypass ? `
-                  <label style="display:block; margin-top: 8px;">
-                    <input type="checkbox" id="confirm-${msgId}">
-                    I confirm I’ve read the giveaway title and understand all additional requirements.
-                  </label>` : ""}
-                <button type="submit" class="view-participants-btn" style="background-color: #4caf50;">
-                  🎉 Join Giveaway
-                </button>
-              `;
-
-              bindJoinForms(); // rebind the event listener
-            }, 1200);
-          }
-
-      } catch {
-        form.innerHTML = `<div style="color:red;">❌ Network error. Please retry.</div>`;
-      }
-    });
-  });
-}
-
-
-function bindLeaveForms() {
-  document.querySelectorAll('.leave-form').forEach(form => {
-    if (form.dataset.bound) return;
-    form.dataset.bound = "1";
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(form);
-      const msgId = formData.get("message_id");
-
-      try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-        const res = await fetch('/giveaway/leave', {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            "X-CSRFToken": csrfToken 
-          }
-        });
-
-        const data = await res.json(); // ✅ Parse response body
-
-        if (res.ok && data.success) {
-          const entryCountSpan = document.querySelector(`.entry-count[data-msgid="${msgId}"]`);
-          if (entryCountSpan) {
-            const current = parseInt(entryCountSpan.textContent) || 1;
-            entryCountSpan.textContent = Math.max(current - 1, 0);
+          const gainedEntries = Number(data.entries) || 1;
+          const countNode = document.querySelector(`.entry-count[data-msgid="${messageId}"]`);
+          if (countNode) {
+            const current = Number(countNode.textContent) || 0;
+            countNode.textContent = current + gainedEntries;
           }
 
           const wrapper = form.closest(".giveaway-action-wrapper");
-          const hasBypass = wrapper?.dataset.hasBypass === "1"; // ✅ Assign correctly
-
-          wrapper.innerHTML = `
-            <form class="join-form" data-msgid="${msgId}" data-has-bypass="${hasBypass ? '1' : '0'}" style="margin-top: 10px;">
-              <input type="hidden" name="message_id" value="${msgId}">
-              ${hasBypass ? `
-                <label style="display:block; margin-top: 8px;">
-                  <input type="checkbox" id="confirm-${msgId}">
-                  I confirm I’ve read the giveaway title and understand all additional requirements.
-                </label>` : ""}
-              <button type="submit" class="view-participants-btn" style="background-color: #4caf50;">
-                🎉 Join Giveaway
-              </button>
-            </form>
-          `;
-          bindJoinForms();
-        } else {
-          form.innerHTML = `<div style="color:red;">❌ Failed to leave. Try again.</div>`;
+          if (wrapper) {
+            wrapper.innerHTML = createLeaveFormMarkup(messageId, gainedEntries);
+            bindLeaveForms();
+          }
+        } catch (error) {
+          submitButton.disabled = false;
+          submitButton.textContent = "Join giveaway";
+          alert(error.message || "Could not join this giveaway.");
         }
-      } catch (err) {
-        console.error("Leave error:", err); // Optional: debug
-        form.innerHTML = `<div style="color:red;">❌ Network error. Please retry.</div>`;
-      }
+      });
     });
+  }
+
+  function bindLeaveForms() {
+    document.querySelectorAll(".leave-form").forEach((form) => {
+      if (form.dataset.bound) return;
+      form.dataset.bound = "1";
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const submitButton = form.querySelector("button[type=submit]");
+        const messageId = form.querySelector('input[name="message_id"]')?.value;
+        const userEntries = Number(form.dataset.userEntries) || 1;
+
+        submitButton.disabled = true;
+        submitButton.textContent = "Leaving...";
+
+        try {
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+          const res = await fetch("/giveaway/leave", {
+            method: "POST",
+            body: new FormData(form),
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRFToken": csrfToken
+            }
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || "Failed to leave giveaway");
+          }
+
+          const countNode = document.querySelector(`.entry-count[data-msgid="${messageId}"]`);
+          if (countNode) {
+            const current = Number(countNode.textContent) || 0;
+            countNode.textContent = Math.max(0, current - userEntries);
+          }
+
+          const wrapper = form.closest(".giveaway-action-wrapper");
+          if (wrapper) {
+            const hasBypass = wrapper.dataset.hasBypass === "1";
+            wrapper.innerHTML = createJoinFormMarkup(messageId, hasBypass);
+            bindJoinForms();
+          }
+        } catch (error) {
+          submitButton.disabled = false;
+          submitButton.textContent = "Leave giveaway";
+          alert(error.message || "Could not leave this giveaway.");
+        }
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    {% if discord_id %}
+    loadWonGiveaways();
+    {% endif %}
+
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
+
+    bindJoinForms();
+    bindLeaveForms();
   });
-}
-
-
-bindJoinForms();
-bindLeaveForms();
-
-
-  </script>
+</script>
 {% endblock %}
-

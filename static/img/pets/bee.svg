@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Cute bee</title>
+  <desc id="desc">A soft chibi-style bee with tiny wings and a smiling face.</desc>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe06b"/>
+      <stop offset="100%" stop-color="#ffbb46"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#5f4319" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <ellipse cx="111" cy="112" rx="34" ry="44" fill="#ebfbff" opacity=".78"/>
+    <ellipse cx="209" cy="112" rx="34" ry="44" fill="#ebfbff" opacity=".78"/>
+    <path d="M145 90c0-16 7-28 15-28s15 12 15 28" fill="none" stroke="#6a513d" stroke-linecap="round" stroke-width="7"/>
+    <circle cx="144" cy="60" r="7" fill="#6a513d"/>
+    <circle cx="176" cy="60" r="7" fill="#6a513d"/>
+    <rect x="82" y="98" width="156" height="146" rx="58" fill="url(#body)"/>
+    <rect x="98" y="134" width="124" height="16" rx="8" fill="#564551"/>
+    <rect x="93" y="170" width="134" height="18" rx="9" fill="#564551"/>
+    <rect x="101" y="208" width="118" height="14" rx="7" fill="#564551"/>
+    <ellipse cx="124" cy="146" rx="10" ry="15" fill="#554160"/>
+    <ellipse cx="196" cy="146" rx="10" ry="15" fill="#554160"/>
+    <circle cx="128" cy="141" r="3" fill="#fff"/>
+    <circle cx="200" cy="141" r="3" fill="#fff"/>
+    <ellipse cx="160" cy="169" rx="11" ry="8" fill="#ff789c"/>
+    <path d="M140 189c0 15 9 26 20 26 11 0 20-11 20-26" fill="none" stroke="#7d2962" stroke-linecap="round" stroke-width="10"/>
+    <circle cx="111" cy="183" r="8" fill="#ffd387" opacity=".54"/>
+    <circle cx="209" cy="183" r="8" fill="#ffd387" opacity=".54"/>
+  </g>
+</svg>

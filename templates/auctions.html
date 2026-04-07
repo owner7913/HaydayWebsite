@@ -1,563 +1,735 @@
 {% extends 'base.html' %}
-{% block title %}Auctions — HayDay 🍀{% endblock %}
+{% block title %}Auctions | HayDay{% endblock %}
 
 {% block head_extra %}
-
-  <style>
-.body {
-  font-family: 'Segoe UI', sans-serif;
-}
-.auction-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 30px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.auction-card {
-  background: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-body.dark .auction-card {
-  background: #1f1f1f;
-  color: #eee;
-}
-
-/* Buttons */
-button {
-  margin: 0 6px;
-  padding: 8px 12px;
-  font-weight: bold;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  background: #f0f0f0;
-  transition: background 0.2s;
-}
-
-button:hover {
-  background: #ddd;
-}
-
-body.dark button {
-  background: #2c2c2c;
-  color: #eee;
-}
-
-body.dark button:hover {
-  background: #3a3a3a;
-}
-
-.active-filter {
-  background: #c6f7d4;
-  border: 1px solid #b0e5c1;
-}
-
-body.dark .active-filter {
-  background: #3e5b47;
-  border: 1px solid #4f7d5c;
-}
-
-/* Bid form */
-.bid-form {
-  margin-top: 10px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.bid-form input {
-  flex: 1 1 60%;
-  padding: 6px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  min-width: 120px;
-}
-
-body.dark .bid-form input {
-  background: #2a2a2a;
-  color: #eee;
-  border: 1px solid #444;
-}
-
-.bid-form button {
-  flex: 1 1 35%;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  background: #90e190;
-  cursor: pointer;
-}
-
-body.dark .bid-form button {
-  background: #3f7d3f;
-  color: white;
-}
-
-/* Theme toggle button */
-.theme-toggle {
-  cursor: pointer;
-  padding: 6px 12px;
-  border: none;
-  background: #ddd;
-  border-radius: 6px;
-  font-weight: bold;
-}
-
-body.dark .theme-toggle {
-  background: #444;
-  color: #eee;
-}
-
-.verify-warning {
-  background: #fff3f3;
-  color: #a94442;
-  border: 1px solid #f5c6cb;
-  padding: 12px;
-  margin-top: 12px;
-  border-radius: 8px;
-  font-weight: 500;
-  font-size: 15px;
-}
-
-.verify-warning a {
-  color: #a94442;
-  text-decoration: underline;
-}
-
-body.dark .verify-warning {
-  background: #2c1f1f;
-  color: #f28a8a;
-  border-color: #a94442;
-}
-
-.refresh-btn {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 6px 12px;
-  background-color: #007bff;
-  color: white;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.refresh-btn:hover {
-  background-color: #0056b3;
-}
-
-body.dark .refresh-btn {
-  background-color: #3390ff;
-}
-
-body.dark .refresh-btn:hover {
-  background-color: #1a73e8;
-}
-
-/* Mobile Specific */
-@media (max-width: 600px) {
-  .auction-grid {
-    padding: 16px;
+<style>
+  :root {
+    --auction-bg-top:#f3f8f0;
+    --auction-bg-bottom:#e4efe0;
+    --auction-text:#162118;
+    --auction-muted:#627163;
+    --auction-line:rgba(20,34,24,.1);
+    --auction-panel:rgba(255,255,255,.84);
+    --auction-panel-strong:rgba(255,255,255,.92);
+    --auction-accent:#4caf50;
+    --auction-accent-deep:#2f8c42;
+    --auction-accent-soft:rgba(76,175,80,.12);
+    --auction-gold:rgba(240,184,77,.16);
+    --auction-danger:rgba(208,76,76,.13);
+    --auction-shadow:0 24px 48px rgba(28,58,35,.12);
   }
+
+  body.dark {
+    --auction-bg-top:#101711;
+    --auction-bg-bottom:#0a100c;
+    --auction-text:#f3fbf2;
+    --auction-muted:#b6c7b5;
+    --auction-line:rgba(255,255,255,.08);
+    --auction-panel:rgba(15,21,16,.88);
+    --auction-panel-strong:rgba(18,25,19,.94);
+    --auction-accent:#79d76d;
+    --auction-accent-deep:#4daf4e;
+    --auction-accent-soft:rgba(121,215,109,.14);
+    --auction-gold:rgba(255,213,116,.14);
+    --auction-danger:rgba(255,120,120,.14);
+    --auction-shadow:0 26px 58px rgba(0,0,0,.36);
+  }
+
+  .auction-page {
+    min-height:100vh;
+    padding:112px 20px 84px;
+    background:
+      radial-gradient(circle at top left, rgba(117,186,95,.15), transparent 24%),
+      radial-gradient(circle at top right, rgba(240,184,77,.12), transparent 20%),
+      linear-gradient(180deg, var(--auction-bg-top), var(--auction-bg-bottom));
+    color:var(--auction-text);
+  }
+
+  .auction-shell {
+    max-width:1280px;
+    margin:0 auto;
+    display:grid;
+    gap:24px;
+  }
+
+  .auction-hero,
+  .auction-panel,
+  .auction-card {
+    backdrop-filter:blur(14px);
+  }
+
+  .auction-hero,
+  .auction-panel {
+    border:1px solid var(--auction-line);
+    box-shadow:var(--auction-shadow);
+  }
+
+  .auction-hero {
+    border-radius:30px;
+    padding:34px;
+    background:
+      radial-gradient(circle at top right, rgba(240,184,77,.14), transparent 30%),
+      linear-gradient(145deg, var(--auction-panel-strong), var(--auction-panel));
+  }
+
+  .auction-hero-grid,
+  .auction-main-grid {
+    display:grid;
+    gap:24px;
+  }
+
+  .auction-hero-grid {
+    grid-template-columns:minmax(0,1.5fr) minmax(300px,.9fr);
+    align-items:stretch;
+  }
+
+  .auction-main-grid { grid-template-columns:1fr; align-items:start; }
+
+  .auction-badge,
+  .hero-pill,
+  .status-pill,
+  .auction-filter {
+    border-radius:999px;
+    font-weight:800;
+  }
+
+  .auction-badge {
+    display:inline-flex;
+    padding:9px 15px;
+    margin-bottom:14px;
+    background:var(--auction-accent-soft);
+    border:1px solid rgba(76,175,80,.16);
+    color:var(--auction-accent-deep);
+    font-size:.84rem;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+  }
+
+  body.dark .auction-badge { color:#d9ffd1; }
+  .auction-title { margin:0 0 12px; font-size:clamp(2.3rem,4.8vw,4rem); line-height:.98; letter-spacing:-.03em; }
+  .auction-subtitle,
+  .panel-sub,
+  .hero-note,
+  .empty-auctions { color:var(--auction-muted); line-height:1.7; }
+  .auction-subtitle { margin:0 0 18px; max-width:760px; font-size:1.02rem; }
+
+  .hero-pills,
+  .auction-filter-group {
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  .hero-pill {
+    padding:10px 14px;
+    background:rgba(255,255,255,.56);
+    border:1px solid var(--auction-line);
+    font-size:.92rem;
+  }
+
+  body.dark .hero-pill { background:rgba(255,255,255,.04); }
+
+  .hero-side {
+    border-radius:26px;
+    padding:22px;
+    border:1px solid var(--auction-line);
+    background:
+      radial-gradient(circle at top right, rgba(240,184,77,.14), transparent 36%),
+      linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,.5));
+  }
+
+  body.dark .hero-side {
+    background:
+      radial-gradient(circle at top right, rgba(255,213,116,.12), transparent 36%),
+      linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+  }
+
+  .hero-side-kicker,
+  .stat-label,
+  .meta-label,
+  .bidder-card strong,
+  .current-bid-label,
+  .live-feed-time {
+    color:var(--auction-muted);
+    font-size:.78rem;
+    font-weight:900;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+  }
+
+  .hero-side-title,
+  .panel-title,
+  .card-title { margin:0; font-weight:900; }
+  .hero-side-title { margin-bottom:16px; font-size:1.25rem; line-height:1.25; }
+  .panel-title { font-size:1.1rem; }
+  .panel-sub { margin:4px 0 0; font-size:.94rem; }
+
+  .stats-grid,
+  .auction-grid,
+  .meta-grid { display:grid; gap:12px; }
+  .stats-grid { grid-template-columns:repeat(2, minmax(0,1fr)); margin-bottom:16px; }
+
+  .stat-chip,
+  .meta-item,
+  .bidder-card,
+  .verify-warning,
+  .empty-auctions {
+    border:1px solid var(--auction-line);
+    border-radius:18px;
+    background:rgba(255,255,255,.56);
+  }
+
+  body.dark .stat-chip,
+  body.dark .meta-item,
+  body.dark .bidder-card,
+  body.dark .verify-warning,
+  body.dark .empty-auctions { background:rgba(255,255,255,.03); }
+
+  .stat-chip { padding:14px 16px; min-height:92px; }
+  .stat-value { display:block; font-size:1.38rem; font-weight:900; line-height:1.08; }
+  .stat-sub { display:block; margin-top:5px; font-size:.86rem; color:var(--auction-muted); line-height:1.45; }
+  .hero-note { margin:0; font-size:.94rem; }
+
+  .auction-panel {
+    border-radius:26px;
+    padding:22px;
+    background:var(--auction-panel);
+  }
+
+  .panel-head,
+  .card-top,
+  .identity {
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:flex-start;
+  }
+
+  .auction-filter {
+    appearance:none;
+    border:1px solid var(--auction-line);
+    background:rgba(255,255,255,.62);
+    color:var(--auction-text);
+    cursor:pointer;
+    padding:11px 14px;
+    font-size:.9rem;
+    transition:transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  }
+
+  body.dark .auction-filter { background:rgba(255,255,255,.04); }
+  .auction-filter:hover { transform:translateY(-1px); border-color:rgba(76,175,80,.28); }
+  .auction-filter.active-filter {
+    background:linear-gradient(180deg, var(--auction-accent), var(--auction-accent-deep));
+    color:#fff;
+    border-color:transparent;
+    box-shadow:0 14px 28px rgba(76,175,80,.24);
+  }
+
+  .auction-grid { grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:18px; }
+
+  .auction-card {
+    position:relative;
+    overflow:hidden;
+    display:grid;
+    gap:16px;
+    padding:22px;
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(76,175,80,.1), transparent 30%),
+      linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.74));
+    border:1px solid rgba(76,175,80,.14);
+    box-shadow:0 20px 36px rgba(26,44,29,.1);
+  }
+
+  body.dark .auction-card {
+    background:
+      radial-gradient(circle at top right, rgba(121,215,109,.08), transparent 30%),
+      linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+    border-color:rgba(255,255,255,.08);
+    box-shadow:0 20px 40px rgba(0,0,0,.3);
+  }
+
+  .auction-card::before {
+    content:"";
+    position:absolute;
+    inset:0 auto 0 0;
+    width:4px;
+    background:linear-gradient(180deg, var(--auction-accent), #f0b84d);
+  }
+
+  .card-title { font-size:1.22rem; line-height:1.2; }
+  .card-subtitle { margin:6px 0 0; color:var(--auction-muted); font-size:.92rem; }
+
+  .status-pill {
+    flex-shrink:0;
+    padding:9px 12px;
+    background:var(--auction-gold);
+    color:#7a5408;
+    font-size:.8rem;
+    text-transform:uppercase;
+  }
+
+  body.dark .status-pill { color:#ffe7b5; }
+  .status-pill.ending-soon { background:var(--auction-danger); color:#b34848; }
+  body.dark .status-pill.ending-soon { color:#ff9a9a; }
+
+  .current-bid-panel {
+    padding:16px 18px;
+    border-radius:20px;
+    background:linear-gradient(180deg, rgba(76,175,80,.12), rgba(76,175,80,.06));
+    border:1px solid rgba(76,175,80,.15);
+  }
+
+  .current-bid-value { font-size:2rem; line-height:1; font-weight:900; margin:8px 0; }
+  .current-bid-foot { color:var(--auction-muted); font-size:.92rem; line-height:1.5; }
+  .meta-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .meta-item { padding:14px 15px; }
+  .meta-value { display:block; font-weight:800; line-height:1.45; word-break:break-word; }
+
+  .identity {
+    min-width:0;
+    justify-content:flex-start;
+    align-items:center;
+    gap:8px;
+  }
+
+  .identity img,
+  .identity-avatar {
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    object-fit:cover;
+    flex-shrink:0;
+    border:1px solid rgba(76,175,80,.18);
+    background:rgba(76,175,80,.14);
+  }
+
+  .identity-avatar {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-size:.72rem;
+    font-weight:900;
+    color:var(--auction-accent-deep);
+  }
+
+  .identity-name {
+    min-width:0;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+  }
+
+  .bidder-card { padding:14px 16px; }
+  .bidder-card strong { display:block; margin-bottom:6px; }
+  .empty-state-text { color:var(--auction-muted); font-style:italic; }
+  .bid-form-wrap { display:grid; gap:10px; }
 
   .bid-form {
-    flex-direction: column;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:10px;
   }
 
-  .bid-form input,
-  .bid-form button {
-    width: 100%;
+  .bid-form input {
+    min-width:0;
+    padding:13px 14px;
+    border-radius:16px;
+    border:1px solid var(--auction-line);
+    background:rgba(255,255,255,.75);
+    color:var(--auction-text);
+    font-size:.96rem;
+    outline:none;
+    box-sizing:border-box;
   }
 
-  .bid-form button {
-    margin-top: 6px;
+  body.dark .bid-form input { background:rgba(255,255,255,.04); }
+  .bid-form input:focus {
+    border-color:rgba(76,175,80,.38);
+    box-shadow:0 0 0 3px rgba(76,175,80,.12);
   }
 
-  button {
-    font-size: 14px;
-    padding: 6px 10px;
+  .auction-btn,
+  .refresh-btn {
+    appearance:none;
+    border:none;
+    border-radius:16px;
+    font-weight:900;
+    cursor:pointer;
+    text-decoration:none;
+    transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
   }
+
+  .auction-btn:hover,
+  .refresh-btn:hover { transform:translateY(-1px); }
+  .auction-btn:disabled { opacity:.58; cursor:not-allowed; transform:none; }
+
+  .auction-btn.primary {
+    padding:13px 18px;
+    background:linear-gradient(180deg, var(--auction-accent), var(--auction-accent-deep));
+    color:#fff;
+    box-shadow:0 14px 28px rgba(76,175,80,.22);
+  }
+
+  .bid-feedback { min-height:18px; font-size:.9rem; font-weight:700; }
+  .verify-warning { padding:16px; display:grid; gap:10px; line-height:1.55; }
+  .verify-warning a { color:inherit; font-weight:800; }
 
   .refresh-btn {
-    display: block;
-    width: 100%;
-    text-align: center;
-    margin-top: 10px;
+    width:fit-content;
+    padding:11px 14px;
+    background:linear-gradient(180deg, #3d83f6, #2464cb);
+    color:#fff;
+    box-shadow:0 12px 24px rgba(36,100,203,.2);
   }
 
-  .verify-warning {
-    font-size: 14px;
+  .empty-auctions strong { display:block; margin-bottom:6px; color:var(--auction-text); }
+  .empty-auctions { padding:24px; }
+  .empty-auctions { text-align:center; }
+
+  @media (max-width:1100px) {
+    .auction-hero-grid,
+    .auction-main-grid { grid-template-columns:1fr; }
   }
 
-  .auction-card h3 {
-    font-size: 1.1rem;
+  @media (max-width:760px) {
+    .auction-page { padding:98px 14px 68px; }
+    .auction-hero,
+    .auction-panel { padding:18px; border-radius:24px; }
+    .panel-head,
+    .card-top { flex-direction:column; align-items:flex-start; }
+    .stats-grid,
+    .meta-grid,
+    .auction-grid,
+    .bid-form { grid-template-columns:1fr; }
+    .auction-filter { flex:1 1 calc(50% - 10px); text-align:center; }
   }
-}
 
-
-  </style>
-
+  @media (max-width:520px) {
+    .auction-title { font-size:2rem; }
+    .auction-filter { flex-basis:100%; }
+  }
+</style>
 {% endblock %}
-
-{% block content %}
-
-  <main style="margin-top: 100px;">
-    <h1 style="text-align:center;">📦 Live Auctions</h1>
-    <div style="text-align:center; margin-bottom: 20px;" id="filter-buttons">
-    <button onclick="sortAuctions('ending', this)">⏱️ Ending Soon</button>
-    <button onclick="sortAuctions('highest', this)">💰 Highest Bid</button>
-    <button onclick="sortAuctions('lowest', this)">🔻 Lowest Bid</button>
-    <button onclick="sortAuctions('alphabetical', this)">🔤 A–Z</button>
-    </div>
-    <div class="auction-grid">
-        {% for auction in auctions %}
-      <div class="auction-card"
-          data-endtime="{{ auction.end_time.isoformat() }}"
-          data-current-bid="{{ auction.current_bid }}"
-          data-owner-id="{{ auction.owner_id }}">
-            <h3>{{ auction.item }} × {{ auction.quantity }}</h3>
-
-          <div class="info"><strong>Starting Bid:</strong> {{ "{:,}".format(auction.starting_bid or 0) }} coins</div>
-          <div class="info"><strong>Min. Increment:</strong> {{ "{:,}".format(auction.min_increment or 1) }} coins</div>
-            <div class="info"><strong>Started by:</strong>
-            {% if auction.owner_avatar %}
-                <img src="{{ auction.owner_avatar }}" width="22" height="22" style="border-radius: 50%; vertical-align: middle; margin-right: 6px;" title="{{ auction.owner_display_name or auction.owner_tag }}">
-            {% endif %}
-            {{ auction.owner_display_name or auction.owner_tag or ("User " ~ auction.owner_id) }}
-            </div>
-
-
-        <div class="info"><strong>Current Bid:</strong> {{ "{:,}".format(auction.current_bid) }} coins</div>
-          <div class="time-left">Time Left: <span class="time-left-text"></span></div>
-
-        {% if auction.highest_bidder %}
-            <div class="info">
-            <strong>Highest Bidder:</strong>
-            {% if auction.avatar %}
-                <img src="{{ auction.avatar }}" width="22" height="22"
-                    style="border-radius: 50%; vertical-align: middle; margin-right: 6px;"
-                    title="{{ auction.display_name or auction.bidder_tag }}">
-            {% endif %}
-            {{ auction.display_name or auction.bidder_tag }}
-            </div>
-        {% else %}
-            <div class="info"><em>No bids yet</em></div>
-        {% endif %}
-
-      {% if discord_id %}
-          {% set user_roles = session.get('roles', []) %}
-            {% if '959238651999567893' in user_roles %}
-              <div class="verify-warning">
-                🔒 You must be <a href="https://discord.gg/haydayy" target="_blank">verified in our Discord</a> to bid.
-                <br>
-                <small>If you were just verified, please refresh your login:</small><br>
-                <a href="/logout?next=/login?next=/auctions" class="refresh-btn">↻ Refresh Login</a>
-              </div>
-            {% elif '959220051469279296' not in user_roles %}
-              <div class="verify-warning">
-                🔒 Please <a href="https://discord.gg/haydayy" target="_blank">join our Discord server</a> to participate in auctions.
-                <br>
-                <small>If you recently joined, please refresh your login:</small><br>
-                <a href="/logout?next=/login?next=/auctions" class="refresh-btn">↻ Refresh Login</a>
-              </div>
-          {% else %}
-              <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id or '' }}')">
-                <div class="bid-feedback" style="margin-top: 6px; font-size: 14px;"></div>
-                  <input type="text" name="amount" placeholder="Enter your bid" min="1" required>
-                  <button type="submit">Place Bid</button>
-              </form>
-          {% endif %}
-      {% endif %}
-
-        </div>
-
-      {% endfor %}
-    </div>
-
-{% endblock %}
-
 {% block scripts %}
 <script>
-async function fetchLiveAuctions() {
-  try {
-    const res = await fetch('/api/live-auctions');
-    if (!res.ok) throw new Error('Network error');
-    let auctions = await res.json();
-
-    // <-- Add filter here to keep only auctions with bids
-    auctions = auctions.filter(auc => auc.current_bid && auc.last_bid && auc.last_bid.timestamp);
-
-    // Now sort filtered auctions by latest bid timestamp descending
-    auctions.sort((a, b) => {
-      const aTime = new Date(a.last_bid.timestamp);
-      const bTime = new Date(b.last_bid.timestamp);
-      return bTime - aTime;
-    });
-
-    // Limit to 10 most recent auctions
-    auctions = auctions.slice(0, 10);
-
-    // Clear old live bids
-    const container = document.getElementById('live-bids-content');
-    container.innerHTML = '';
-
-    auctions.forEach(auc => {
-      const div = document.createElement('div');
-      div.style.marginBottom = '8px';
-      div.classList.add('bid-entry');
-
-      const item = auc.item || 'Unknown item';
-      const qty = auc.quantity || 1;
-      const bid = Number(auc.current_bid).toLocaleString();
-      const bidder = auc.display_name || auc.bidder_tag || 'A user';
-
-      div.textContent = `${bidder} placed a bid of ${bid} coins on ${item} ×${qty}`;
-      container.prepend(div);
-    });
-
-  } catch (err) {
-    console.error('Failed to fetch live auctions:', err);
-  }
-}
-
-
-// Fetch every 5 seconds
-setInterval(fetchLiveAuctions, 5000);
-
-// Fetch once on page load
-fetchLiveAuctions();
-
-
-// Your input formatting code is fine, no change needed there
-
-
-
-  // Format a number with commas as thousands separators
   function formatNumberWithCommas(x) {
     if (!x) return "";
-    // Remove all non-digit characters (e.g. commas) first
-    x = x.replace(/\D/g, '');
+    x = x.replace(/\D/g, "");
     return x.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
-  // Remove commas from the formatted string to get the raw number
   function unformatNumber(x) {
-    return x.replace(/,/g, '');
+    return x.replace(/,/g, "");
   }
 
-  // Add event listener to format input on every keystroke
-  document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll('.bid-form input[name="amount"]').forEach(input => {
-      input.addEventListener('input', e => {
-        let caretPos = input.selectionStart;
-        const originalLength = input.value.length;
+  async function submitBid(e, auctionId) {
+    e.preventDefault();
+    const form = e.target;
+    const card = form.closest(".auction-card");
+    const amount = parseInt(form.amount.value.replace(/,/g, ""), 10);
+    const ownerId = card.getAttribute("data-owner-id");
+    const currentUserId = "{{ discord_id }}";
+    const feedback = card.querySelector(".bid-feedback");
 
-        // Format the value with commas
-        input.value = formatNumberWithCommas(input.value);
-
-        // Adjust caret position after formatting
-        const newLength = input.value.length;
-        caretPos += newLength - originalLength;
-        input.setSelectionRange(caretPos, caretPos);
-      });
-
-      // On form submit, send raw number without commas
-      input.form.addEventListener('submit', e => {
-        input.value = unformatNumber(input.value);
-      });
-    });
-  });
-
-async function submitBid(e, auctionId) {
-  e.preventDefault();
-  const form = e.target;
-  const card = form.closest('.auction-card');
-  const amountStr = form.amount.value;
-  const amount = parseInt(amountStr.replace(/,/g, ''), 10);
-
-  const ownerId = card.getAttribute('data-owner-id');
-  const currentUserId = "{{ discord_id }}";
-  const feedback = card.querySelector('.bid-feedback');
-
-  // Prevent self-bidding (unchanged)
-  if (ownerId === currentUserId) {
-    if (feedback) {
-      feedback.textContent = "❌ You cannot bid on your own auction.";
-      feedback.style.color = "red";
-    } else {
-      alert("❌ You cannot bid on your own auction.");
-    }
-    return;
-  }
-
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-
-  let res, data;
-  try {
-    res = await fetch("/api/bid", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrfToken
-      },
-      body: JSON.stringify({ auction_id: auctionId, amount })
-    });
-
-    // Handle 409 race conflict explicitly
-    if (res.status === 409) {
-      data = await res.json().catch(() => ({ message: "Another bid just beat you. Please refresh and try again." }));
+    if (ownerId === currentUserId) {
       if (feedback) {
-        feedback.textContent = "❌ " + (data.message || "Another bid landed first. Refresh to see the latest price.");
-        feedback.style.color = "red";
-      } else {
-        alert("❌ " + (data.message || "Another bid landed first. Refresh to see the latest price."));
-      }
-      return; // do not update UI optimistically
-    }
-
-    // For other non-OK statuses, show server message if any
-    if (!res.ok) {
-      data = await res.json().catch(() => ({}));
-      const msg = data.message || "Failed to submit bid.";
-      if (feedback) {
-        feedback.textContent = "❌ " + msg;
-        feedback.style.color = "red";
-      } else {
-        alert("❌ " + msg);
+        feedback.textContent = "You cannot bid on your own auction.";
+        feedback.style.color = "#d04c4c";
       }
       return;
     }
 
-    // OK: parse JSON
-    data = await res.json();
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    let res;
+    let data;
+    try {
+      res = await fetch("/api/bid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+        body: JSON.stringify({ auction_id: auctionId, amount })
+      });
 
-  } catch (err) {
-    if (feedback) {
-      feedback.textContent = "❌ Network error while submitting bid.";
-      feedback.style.color = "red";
-    } else {
-      alert("❌ Network error while submitting bid.");
+      if (res.status === 409) {
+        data = await res.json().catch(() => ({ message: "Another bid just beat you. Refresh and try again." }));
+        if (feedback) {
+          feedback.textContent = data.message || "Another bid landed first. Refresh to see the latest price.";
+          feedback.style.color = "#d04c4c";
+        }
+        return;
+      }
+
+      if (!res.ok) {
+        data = await res.json().catch(() => ({}));
+        if (feedback) {
+          feedback.textContent = data.message || "Failed to submit bid.";
+          feedback.style.color = "#d04c4c";
+        }
+        return;
+      }
+
+      data = await res.json();
+    } catch (err) {
+      if (feedback) {
+        feedback.textContent = "Network error while submitting bid.";
+        feedback.style.color = "#d04c4c";
+      }
+      return;
     }
-    return;
+
+    if (data && data.success) {
+      card.dataset.currentBid = amount;
+      const bidDisplay = card.querySelector(".current-bid-value");
+      if (bidDisplay) bidDisplay.textContent = `${amount.toLocaleString()} coins`;
+      const bidderEl = card.querySelector(".highest-bidder-name");
+      if (bidderEl) {
+        bidderEl.textContent = "You";
+        bidderEl.classList.remove("empty-state-text");
+      }
+      if (feedback) {
+        feedback.textContent = "Bid placed successfully.";
+        feedback.style.color = "#2f8c42";
+        setTimeout(() => { feedback.textContent = ""; }, 4000);
+      }
+    } else if (feedback) {
+      feedback.textContent = (data && data.message) ? data.message : "Failed to submit bid.";
+      feedback.style.color = "#d04c4c";
+    }
   }
 
-  // Success branch (unchanged, but uses parsed amount)
-  if (data && data.success) {
-    card.dataset.currentBid = amount;
+  function sortAuctions(mode, btn) {
+    const grid = document.querySelector(".auction-grid");
+    if (!grid) return;
+    const cards = Array.from(grid.querySelectorAll(".auction-card"));
+    document.querySelectorAll("#filter-buttons .auction-filter").forEach((button) => button.classList.remove("active-filter"));
+    if (btn) btn.classList.add("active-filter");
 
-    // Update "Current Bid"
-    const bidDisplay = Array.from(card.querySelectorAll(".info")).find(div =>
-      div.textContent.includes("Current Bid")
-    );
-    if (bidDisplay) {
-      bidDisplay.innerHTML = `<strong>Current Bid:</strong> ${amount.toLocaleString()} coins`;
-    }
+    cards.sort((a, b) => {
+      if (mode === "ending") return new Date(a.dataset.endtime) - new Date(b.dataset.endtime);
+      if (mode === "highest") return (parseInt(b.dataset.currentBid, 10) || 0) - (parseInt(a.dataset.currentBid, 10) || 0);
+      if (mode === "lowest") return (parseInt(a.dataset.currentBid, 10) || 0) - (parseInt(b.dataset.currentBid, 10) || 0);
+      if (mode === "alphabetical") return (a.dataset.itemName || "").localeCompare(b.dataset.itemName || "");
+      return 0;
+    });
 
-    // Update "Highest Bidder"
-    const bidderEl = Array.from(card.querySelectorAll(".info")).find(div =>
-      div.textContent.includes("Highest Bidder")
-    );
-    if (bidderEl) {
-      bidderEl.innerHTML = `<strong>Highest Bidder:</strong> You`;
-    }
-
-    if (feedback) {
-      feedback.textContent = "✅ Bid placed!";
-      feedback.style.color = "green";
-      setTimeout(() => (feedback.textContent = ""), 4000);
-    }
-  } else {
-    // Fallback error handling
-    const msg = (data && data.message) ? data.message : "Failed to submit bid.";
-    if (feedback) {
-      feedback.textContent = "❌ " + msg;
-      feedback.style.color = "red";
-    } else {
-      alert("❌ " + msg);
-    }
+    cards.forEach((card) => grid.appendChild(card));
   }
-}
 
+  function updateCountdowns() {
+    const now = new Date();
+    document.querySelectorAll(".auction-card").forEach((card) => {
+      const endTime = new Date(card.dataset.endtime);
+      let diffSeconds = Math.floor((endTime - now) / 1000);
+      if (diffSeconds < 0) diffSeconds = 0;
+      const hours = Math.floor(diffSeconds / 3600);
+      const minutes = Math.floor((diffSeconds % 3600) / 60);
+      const seconds = diffSeconds % 60;
+      const formatted = diffSeconds <= 0 ? "Expired" : `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+      const timeLeftElem = card.querySelector(".time-left-text");
+      if (timeLeftElem) timeLeftElem.textContent = formatted;
+      const statusPill = card.querySelector(".status-pill");
+      if (statusPill) {
+        if (diffSeconds <= 1800) {
+          statusPill.textContent = "Ending soon";
+          statusPill.classList.add("ending-soon");
+        } else {
+          statusPill.textContent = "Live auction";
+          statusPill.classList.remove("ending-soon");
+        }
+      }
+    });
+  }
 
-</script>
-<script>
-function sortAuctions(mode, btn) {
-  const grid = document.querySelector(".auction-grid");
-  const cards = Array.from(grid.children);
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('.bid-form input[name="amount"]').forEach((input) => {
+      input.addEventListener("input", () => {
+        const caretPos = input.selectionStart;
+        const originalLength = input.value.length;
+        input.value = formatNumberWithCommas(input.value);
+        const newLength = input.value.length;
+        const newCaret = Math.max(0, (caretPos || 0) + newLength - originalLength);
+        input.setSelectionRange(newCaret, newCaret);
+      });
 
-  // Remove previous active button highlight
-  document.querySelectorAll("#filter-buttons button").forEach(b => b.classList.remove("active-filter"));
-  btn.classList.add("active-filter");
+      input.form?.addEventListener("submit", () => {
+        input.value = unformatNumber(input.value);
+      });
+    });
 
-  const parseISOTime = (isoString) => {
-    if (!isoString) return 0;
-    return new Date(isoString).getTime();
-  };
-
-  cards.sort((a, b) => {
-    if (mode === "ending") {
-      // Use the data attribute for sorting by end time
-      const timeA = parseISOTime(a.dataset.endtime);
-      const timeB = parseISOTime(b.dataset.endtime);
-      return timeA - timeB;  // earlier ending first
-    } else if (mode === "highest") {
-      const bidA = parseInt(a.dataset.currentBid) || 0;
-      const bidB = parseInt(b.dataset.currentBid) || 0;
-      return bidB - bidA;
-    } else if (mode === "lowest") {
-      const bidA = parseInt(a.dataset.currentBid) || 0;
-      const bidB = parseInt(b.dataset.currentBid) || 0;
-      return bidA - bidB;
-    } else if (mode === "alphabetical") {
-      const nameA = a.querySelector("h3").textContent.trim();
-      const nameB = b.querySelector("h3").textContent.trim();
-      return nameA.localeCompare(nameB);
-    }
+    sortAuctions("ending", document.querySelector("#filter-buttons .auction-filter"));
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
   });
-
-  // Re-append sorted cards
-  grid.innerHTML = "";
-  cards.forEach(card => grid.appendChild(card));
-}
-
-function formatTimeLeft(seconds) {
-  if (seconds <= 0) return "Expired";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-}
-
-function updateCountdowns() {
-  const now = new Date();
-  document.querySelectorAll(".auction-card").forEach(card => {
-    const endTimeStr = card.dataset.endtime;
-    if (!endTimeStr) return;
-
-    const endTime = new Date(endTimeStr);
-    let diffSeconds = Math.floor((endTime - now) / 1000);
-    if (diffSeconds < 0) diffSeconds = 0;
-
-    const h = Math.floor(diffSeconds / 3600);
-    const m = Math.floor((diffSeconds % 3600) / 60);
-    const s = diffSeconds % 60;
-
-    const formatted = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    const timeLeftElem = card.querySelector(".time-left-text");
-    if (timeLeftElem) timeLeftElem.textContent = formatted;
-  });
-}
-
-setInterval(updateCountdowns, 1000);
-updateCountdowns();
-// Initial update on page load
-updateCountdowns();
-
 </script>
+{% endblock %}
+{% block content %}
+{% set stats = namespace(total=auctions|length, total_bid_value=0, leading=none, ending=none) %}
+{% for auction in auctions %}
+  {% set stats.total_bid_value = stats.total_bid_value + (auction.current_bid or 0) %}
+  {% if stats.leading is none or (auction.current_bid or 0) > (stats.leading.current_bid or 0) %}
+    {% set stats.leading = auction %}
+  {% endif %}
+  {% if stats.ending is none or auction.end_time < stats.ending.end_time %}
+    {% set stats.ending = auction %}
+  {% endif %}
+{% endfor %}
+
+<div class="auction-page">
+  <div class="auction-shell">
+    <section class="auction-hero">
+      <div class="auction-hero-grid">
+        <div>
+          <div class="auction-badge">Marketplace hub</div>
+          <h1 class="auction-title">Live Auctions</h1>
+          <p class="auction-subtitle">
+            Browse active listings, track competitive bids, and place offers in a cleaner marketplace view that matches the rest of the site.
+          </p>
+          <div class="hero-pills">
+            <div class="hero-pill">{{ stats.total }} active listing{{ '' if stats.total == 1 else 's' }}</div>
+            <div class="hero-pill">Real-time countdowns</div>
+            <div class="hero-pill">Live bid activity</div>
+            <div class="hero-pill">Discord-backed bidding</div>
+          </div>
+        </div>
+
+        <aside class="hero-side">
+          <div class="hero-side-kicker">Market snapshot</div>
+          <h2 class="hero-side-title">A faster view of what is moving right now</h2>
+          <div class="stats-grid">
+            <div class="stat-chip">
+              <span class="stat-label">Total listings</span>
+              <span class="stat-value">{{ stats.total }}</span>
+              <span class="stat-sub">Auctions currently open to bids.</span>
+            </div>
+            <div class="stat-chip">
+              <span class="stat-label">Total live value</span>
+              <span class="stat-value">{{ "{:,}".format(stats.total_bid_value) }}</span>
+              <span class="stat-sub">Combined value of current top bids.</span>
+            </div>
+            <div class="stat-chip">
+              <span class="stat-label">Top auction</span>
+              <span class="stat-value">{% if stats.leading %}{{ "{:,}".format(stats.leading.current_bid or 0) }}{% else %}0{% endif %}</span>
+              <span class="stat-sub">{% if stats.leading %}{{ stats.leading.item }} x{{ stats.leading.quantity }}{% else %}Waiting for the next listing.{% endif %}</span>
+            </div>
+            <div class="stat-chip">
+              <span class="stat-label">Ending first</span>
+              <span class="stat-value">{% if stats.ending %}{{ stats.ending.item }}{% else %}None{% endif %}</span>
+              <span class="stat-sub">{% if stats.ending %}Quantity {{ stats.ending.quantity }}{% else %}No active auction yet.{% endif %}</span>
+            </div>
+          </div>
+          <p class="hero-note">Listings update automatically, and bids still use the same backend flow you already have.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="auction-main-grid">
+      <div class="auction-panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Active marketplace</h2>
+            <p class="panel-sub">Sort listings by urgency, price, or item name.</p>
+          </div>
+          <div class="auction-filter-group" id="filter-buttons">
+            <button class="auction-filter active-filter" type="button" onclick="sortAuctions('ending', this)">Ending soon</button>
+            <button class="auction-filter" type="button" onclick="sortAuctions('highest', this)">Highest bid</button>
+            <button class="auction-filter" type="button" onclick="sortAuctions('lowest', this)">Lowest bid</button>
+            <button class="auction-filter" type="button" onclick="sortAuctions('alphabetical', this)">A-Z</button>
+          </div>
+        </div>
+
+        <div class="auction-grid">
+          {% for auction in auctions %}
+            <article class="auction-card" data-endtime="{{ auction.end_time.isoformat() }}" data-current-bid="{{ auction.current_bid }}" data-owner-id="{{ auction.owner_id }}" data-item-name="{{ auction.item }}" data-quantity="{{ auction.quantity }}">
+              <div class="card-top">
+                <div>
+                  <h3 class="card-title">{{ auction.item }} x{{ auction.quantity }}</h3>
+                  <p class="card-subtitle">Live listing ready for competitive bids</p>
+                </div>
+                <div class="status-pill">Live auction</div>
+              </div>
+
+              <div class="current-bid-panel">
+                <span class="current-bid-label">Current bid</span>
+                <div class="current-bid-value">{{ "{:,}".format(auction.current_bid or 0) }} coins</div>
+                <div class="current-bid-foot">Starts at {{ "{:,}".format(auction.starting_bid or 0) }} coins with a minimum raise of {{ "{:,}".format(auction.min_increment or 1) }}.</div>
+              </div>
+
+              <div class="meta-grid">
+                <div class="meta-item">
+                  <span class="meta-label">Started by</span>
+                  <span class="meta-value">
+                    <span class="identity">
+                      {% if auction.owner_avatar %}
+                        <img src="{{ auction.owner_avatar }}" alt="{{ auction.owner_display_name or auction.owner_tag }}">
+                      {% else %}
+                        <span class="identity-avatar">HD</span>
+                      {% endif %}
+                      <span class="identity-name">{{ auction.owner_display_name or auction.owner_tag or ("User " ~ auction.owner_id) }}</span>
+                    </span>
+                  </span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Time left</span>
+                  <span class="meta-value">Ends in <span class="time-left-text">Calculating...</span></span>
+                </div>
+              </div>
+
+              <div class="bidder-card">
+                <strong>Highest bidder</strong>
+                {% if auction.highest_bidder %}
+                  <span class="identity">
+                    {% if auction.avatar %}
+                      <img src="{{ auction.avatar }}" alt="{{ auction.display_name or auction.bidder_tag }}">
+                    {% else %}
+                      <span class="identity-avatar">BID</span>
+                    {% endif %}
+                    <span class="identity-name highest-bidder-name">{{ auction.display_name or auction.bidder_tag }}</span>
+                  </span>
+                {% else %}
+                  <span class="empty-state-text highest-bidder-name">No bids yet</span>
+                {% endif %}
+              </div>
+
+              {% if discord_id %}
+                {% set user_roles = session.get('roles', []) %}
+                {% if '959238651999567893' in user_roles %}
+                  <div class="verify-warning">
+                    <div><strong>Verification required.</strong> You need to be verified in the Discord before placing bids.</div>
+                    <div><a href="https://discord.gg/haydayy" target="_blank" rel="noopener noreferrer">Open Discord</a></div>
+                    <a href="/logout?next=/login?next=/auctions" class="refresh-btn">Refresh login</a>
+                  </div>
+                {% elif '959220051469279296' not in user_roles %}
+                  <div class="verify-warning">
+                    <div><strong>Join the server first.</strong> Auction bidding is only available to Discord server members.</div>
+                    <div><a href="https://discord.gg/haydayy" target="_blank" rel="noopener noreferrer">Join Discord</a></div>
+                    <a href="/logout?next=/login?next=/auctions" class="refresh-btn">Refresh login</a>
+                  </div>
+                {% else %}
+                  <div class="bid-form-wrap">
+                    <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id or '' }}')">
+                      <input type="text" name="amount" placeholder="Enter your bid" inputmode="numeric" min="1" required>
+                      <button class="auction-btn primary" type="submit">Place bid</button>
+                    </form>
+                    <div class="bid-feedback"></div>
+                  </div>
+                {% endif %}
+              {% else %}
+                <div class="verify-warning">
+                  <div><strong>Login required.</strong> You can browse every auction, but you need to sign in with Discord before you can place a bid.</div>
+                  <a href="/login?next=/auctions" class="refresh-btn">Login with Discord</a>
+                </div>
+              {% endif %}
+            </article>
+          {% else %}
+            <div class="empty-auctions">
+              <strong>No live auctions right now</strong>
+              New listings will appear here as soon as they go live.
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </section>
+  </div>
+</div>
 {% endblock %}
