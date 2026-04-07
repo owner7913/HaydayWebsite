@@ -252,7 +252,7 @@ main.submit-page > section {
       {% if submit_status == 'not_logged_in' %}
         <a class="btn btn-primary" href="{{ url_for('login') }}">🔒 Login to submit</a>
       {% elif submit_status == 'not_in_guild' %}
-        <a class="btn btn-primary" href="https://discord.gg/YOUR_INVITE_CODE">📩 Join server</a>
+        <a class="btn btn-primary" href="https://discord.gg/haydayy">📩 Join server</a>
       {% elif submit_status == 'not_verified' %}
         <a class="btn btn-primary" href="https://discord.com/channels/{{ GUILD_ID }}">🔑 Get verified</a>
       {% endif %}

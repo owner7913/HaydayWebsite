@@ -1341,11 +1341,11 @@ function renderModalStats(item){
       </div>
       <div class="stat-box">
         <div class="stat-label">Quantity</div>
-        <div class="stat-value">${fmt(item.total_qty)}</div>
+        <div class="stat-value" title="${fmt(item.total_qty)}">${fmtCompact(item.total_qty)}</div>
       </div>
       <div class="stat-box">
         <div class="stat-label">Total Value</div>
-        <div class="stat-value">${fmt(item.total_value)}</div>
+        <div class="stat-value" title="${fmt(item.total_value)}">${fmtCompact(item.total_value)}</div>
       </div>
       <div class="stat-box">
         <div class="stat-label">Posts</div>
@@ -1625,6 +1625,21 @@ function fmtMoney(n){
   return v.toLocaleString("en-US");
 }
 
+function fmtCompact(n){
+  if(n === null || n === undefined) return "-";
+  const v = Number(n);
+  if(!isFinite(v)) return "-";
+
+  const abs = Math.abs(v);
+
+  if(abs >= 1_000_000_000_000) return (v / 1_000_000_000_000).toFixed(1).replace(/\.0$/, "") + "T";
+  if(abs >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1).replace(/\.0$/, "") + "B";
+  if(abs >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if(abs >= 1_000) return (v / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+
+  return Math.round(v).toLocaleString("en-US");
+}
+
 function fmt(n){
   if(n === null || n === undefined) return "-";
   try {
@@ -1710,11 +1725,11 @@ async function loadTrading(page = 1){
         </div>
         <div class="stat-box">
           <div class="stat-label">Quantity</div>
-          <div class="stat-value" id="v-${item.item_key}-qty">${fmt(item.total_qty)}</div>
+          <div class="stat-value" id="v-${item.item_key}-qty" title="${fmt(item.total_qty)}">${fmtCompact(item.total_qty)}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Total Value</div>
-          <div class="stat-value" id="v-${item.item_key}-value">${fmt(item.total_value)}</div>
+          <div class="stat-value" id="v-${item.item_key}-value" title="${fmt(item.total_value)}">${fmtCompact(item.total_value)}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Posts</div>
@@ -1878,8 +1893,8 @@ async function checkForUpdates(){
       const updates = {
         avg_sell: fmtMoney(it.avg_sell),
         avg_buy: fmtMoney(it.avg_buy),
-        qty: fmt(it.total_qty),
-        value: fmt(it.total_value),
+        qty: fmtCompact(it.total_qty),
+        value: fmtCompact(it.total_value),
         posts: fmt(it.total_posts),
         xmp: (() => {
           const a = fmtXmp(it.xmp_min);
@@ -1900,7 +1915,9 @@ async function checkForUpdates(){
         if(el.textContent !== newText){
           el.textContent = newText;
 
-          // flash just this number
+          if(field === "qty") el.title = fmt(it.total_qty);
+          if(field === "value") el.title = fmt(it.total_value);
+
           el.classList.remove("num-flash");
           void el.offsetWidth;
           el.classList.add("num-flash");

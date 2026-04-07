@@ -223,8 +223,8 @@ body.dark .refresh-btn:hover {
           data-owner-id="{{ auction.owner_id }}">
             <h3>{{ auction.item }} × {{ auction.quantity }}</h3>
 
-        <div class="info"><strong>Starting Bid:</strong> {{ "{:,}".format(auction.starting_bid) }} coins</div>
-        <div class="info"><strong>Min. Increment:</strong> {{ "{:,}".format(auction.min_increment or 1) }} coins</div>
+          <div class="info"><strong>Starting Bid:</strong> {{ "{:,}".format(auction.starting_bid or 0) }} coins</div>
+          <div class="info"><strong>Min. Increment:</strong> {{ "{:,}".format(auction.min_increment or 1) }} coins</div>
             <div class="info"><strong>Started by:</strong>
             {% if auction.owner_avatar %}
                 <img src="{{ auction.owner_avatar }}" width="22" height="22" style="border-radius: 50%; vertical-align: middle; margin-right: 6px;" title="{{ auction.owner_display_name or auction.owner_tag }}">
@@ -267,7 +267,7 @@ body.dark .refresh-btn:hover {
                 <a href="/logout?next=/login?next=/auctions" class="refresh-btn">↻ Refresh Login</a>
               </div>
           {% else %}
-              <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id }}')">
+              <form class="bid-form" onsubmit="submitBid(event, '{{ auction.message_id or '' }}')">
                 <div class="bid-feedback" style="margin-top: 6px; font-size: 14px;"></div>
                   <input type="text" name="amount" placeholder="Enter your bid" min="1" required>
                   <button type="submit">Place Bid</button>

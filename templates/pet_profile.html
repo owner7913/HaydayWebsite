@@ -1,0 +1,882 @@
+{% extends 'base.html' %}
+
+{% block title %}Pet Profile - HayDay 🍀{% endblock %}
+
+{% block head_extra %}
+<style>
+  .pet-page {
+    max-width: 1200px;
+    margin: 110px auto 60px;
+    padding: 0 18px;
+  }
+
+  .pet-shell {
+    display: grid;
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .pet-panel,
+  .pet-card,
+  .pet-shop-card {
+    background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(249,244,231,.88));
+    border: 1px solid rgba(112, 85, 47, 0.14);
+    border-radius: 24px;
+    box-shadow: 0 18px 44px rgba(92, 72, 37, 0.12);
+  }
+
+  body.dark .pet-panel,
+  body.dark .pet-card,
+  body.dark .pet-shop-card {
+    background: linear-gradient(180deg, rgba(35,33,29,.96), rgba(24,23,20,.94));
+    border-color: rgba(255,255,255,.08);
+    box-shadow: 0 18px 40px rgba(0,0,0,.3);
+  }
+
+  .pet-panel {
+    padding: 22px;
+    position: sticky;
+    top: 102px;
+    overflow: hidden;
+  }
+
+  .pet-panel::before {
+    content: "";
+    position: absolute;
+    inset: -20% -10% auto;
+    height: 58%;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255,255,255,.8), transparent 40%),
+      radial-gradient(circle at 70% 20%, rgba(255,213,133,.38), transparent 34%);
+    pointer-events: none;
+  }
+
+  .pet-panel-header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .pet-owner-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    object-fit: cover;
+    border: 3px solid rgba(255,255,255,.6);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  }
+
+  .pet-kicker {
+    margin: 0 0 4px;
+    font-size: 12px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: #9b7137;
+  }
+
+  body.dark .pet-kicker {
+    color: #f3c983;
+  }
+
+  .pet-title {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.05;
+  }
+
+  .pet-subtitle {
+    margin: 4px 0 0;
+    color: #715736;
+    font-size: 14px;
+  }
+
+  body.dark .pet-subtitle {
+    color: #d7c5ad;
+  }
+
+  .pet-stage {
+    --accent: #ff7fa5;
+    position: relative;
+    min-height: 320px;
+    border-radius: 28px;
+    margin: 18px 0;
+    padding: 26px 18px 22px;
+    background:
+      radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--accent) 34%, white 66%), transparent 38%),
+      linear-gradient(180deg, #cceeff 0%, #eef8ff 46%, #a6d67f 47%, #7fbb58 100%);
+    overflow: hidden;
+  }
+
+  body.dark .pet-stage {
+    background:
+      radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--accent) 38%, white 62%), transparent 34%),
+      linear-gradient(180deg, #1b2b46 0%, #29466b 40%, #3f6730 41%, #27451c 100%);
+  }
+
+  .pet-stage::before {
+    content: "";
+    position: absolute;
+    inset: auto -8% 58px;
+    height: 86px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.25);
+    filter: blur(12px);
+  }
+
+  .pet-stage::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 16px;
+    height: 64px;
+    border-radius: 999px 999px 20px 20px;
+    background:
+      linear-gradient(180deg, rgba(112,76,36,.18), rgba(112,76,36,.34)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 12px, rgba(0,0,0,.04) 12px 24px);
+  }
+
+  .pet-avatar {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    min-height: 210px;
+  }
+
+  .pet-emoji {
+    position: relative;
+    font-size: clamp(92px, 14vw, 146px);
+    filter: drop-shadow(0 18px 20px rgba(0,0,0,.18));
+    animation: pet-bob 3.8s ease-in-out infinite;
+  }
+
+  .pet-shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 44px;
+    width: 160px;
+    height: 28px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(0,0,0,.18);
+    filter: blur(10px);
+  }
+
+  .pet-accessory {
+    position: absolute;
+    font-size: 34px;
+    line-height: 1;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.16));
+  }
+
+  .accessory-head { top: 18px; left: 50%; transform: translateX(-50%); }
+  .accessory-face { top: 102px; left: 50%; transform: translateX(-50%); }
+  .accessory-neck { top: 148px; left: 50%; transform: translateX(-50%); }
+  .accessory-back { top: 92px; left: calc(50% + 56px); transform: translateX(-50%); }
+  .accessory-aura { bottom: 26px; left: 50%; transform: translateX(-50%); font-size: 56px; }
+
+  .pet-nameplate {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,.62);
+    backdrop-filter: blur(8px);
+  }
+
+  body.dark .pet-nameplate {
+    background: rgba(0,0,0,.24);
+  }
+
+  .pet-name {
+    margin: 0;
+    font-size: 24px;
+  }
+
+  .pet-meta {
+    margin: 4px 0 0;
+    font-size: 14px;
+    color: #6b5639;
+  }
+
+  body.dark .pet-meta {
+    color: #d4c2a7;
+  }
+
+  .pet-mood-pill {
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13px;
+    background: rgba(255,255,255,.72);
+  }
+
+  body.dark .pet-mood-pill {
+    background: rgba(255,255,255,.1);
+  }
+
+  .pet-bars {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .pet-bar-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .pet-bar-track {
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(53, 41, 29, 0.12);
+    overflow: hidden;
+  }
+
+  body.dark .pet-bar-track {
+    background: rgba(255,255,255,.08);
+  }
+
+  .pet-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--fill-a), var(--fill-b));
+  }
+
+  .pet-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .pet-badge {
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.52);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  body.dark .pet-badge {
+    background: rgba(255,255,255,.07);
+  }
+
+  .pet-main {
+    display: grid;
+    gap: 18px;
+  }
+
+  .pet-card {
+    padding: 20px;
+  }
+
+  .pet-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 16px;
+  }
+
+  .pet-card-title {
+    margin: 0;
+    font-size: 22px;
+  }
+
+  .pet-card-subtitle {
+    margin: 6px 0 0;
+    color: #7e6543;
+    font-size: 14px;
+  }
+
+  body.dark .pet-card-subtitle {
+    color: #cdb79a;
+  }
+
+  .pet-actions,
+  .pet-adopt-grid,
+  .pet-style-grid,
+  .pet-inventory-grid,
+  .pet-shop-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .pet-actions {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .pet-adopt-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .pet-style-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+
+  .pet-inventory-grid,
+  .pet-shop-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .pet-action-card,
+  .pet-adopt-card,
+  .pet-style-card,
+  .pet-item-card,
+  .pet-shop-card {
+    border-radius: 18px;
+    padding: 16px;
+    border: 1px solid rgba(112,85,47,.14);
+    background: rgba(255,255,255,.55);
+  }
+
+  body.dark .pet-action-card,
+  body.dark .pet-adopt-card,
+  body.dark .pet-style-card,
+  body.dark .pet-item-card,
+  body.dark .pet-shop-card {
+    background: rgba(255,255,255,.03);
+    border-color: rgba(255,255,255,.08);
+  }
+
+  .pet-item-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .pet-item-icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background: rgba(255,255,255,.72);
+    font-size: 24px;
+  }
+
+  body.dark .pet-item-icon {
+    background: rgba(255,255,255,.08);
+  }
+
+  .pet-item-name {
+    margin: 0;
+    font-size: 17px;
+  }
+
+  .pet-item-meta,
+  .pet-item-desc {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #7a6445;
+  }
+
+  body.dark .pet-item-meta,
+  body.dark .pet-item-desc {
+    color: #ccb79a;
+  }
+
+  .pet-form,
+  .pet-inline-form {
+    display: contents;
+  }
+
+  .pet-button,
+  .pet-input,
+  .pet-select {
+    width: 100%;
+    border-radius: 14px;
+    font: inherit;
+  }
+
+  .pet-input,
+  .pet-select {
+    box-sizing: border-box;
+    border: 1px solid rgba(112,85,47,.18);
+    padding: 12px 14px;
+    background: rgba(255,255,255,.86);
+    color: #1c1710;
+  }
+
+  body.dark .pet-input,
+  body.dark .pet-select {
+    background: rgba(255,255,255,.06);
+    color: #f0e6d6;
+    border-color: rgba(255,255,255,.08);
+  }
+
+  .pet-button {
+    border: none;
+    cursor: pointer;
+    padding: 12px 14px;
+    font-weight: 800;
+    color: #231709;
+    background: linear-gradient(135deg, #ffd78a, #ffb85b);
+    box-shadow: 0 10px 24px rgba(255, 184, 91, 0.25);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+
+  .pet-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(255, 184, 91, 0.3);
+  }
+
+  .pet-button.secondary {
+    color: #fff;
+    background: linear-gradient(135deg, #70c36d, #4f9e58);
+    box-shadow: 0 10px 24px rgba(79, 158, 88, 0.22);
+  }
+
+  .pet-button.soft {
+    color: #2d261c;
+    background: linear-gradient(135deg, #f5e7cf, #ead8b9);
+    box-shadow: none;
+  }
+
+  body.dark .pet-button.soft {
+    color: #f4ead7;
+    background: linear-gradient(135deg, #4b3f31, #3c3328);
+  }
+
+  .pet-button.ghost {
+    color: inherit;
+    background: transparent;
+    border: 1px solid rgba(112,85,47,.18);
+    box-shadow: none;
+  }
+
+  body.dark .pet-button.ghost {
+    border-color: rgba(255,255,255,.08);
+  }
+
+  .pet-adopt-card .pet-button,
+  .pet-style-card .pet-button,
+  .pet-item-card .pet-button,
+  .pet-shop-card .pet-button {
+    margin-top: 10px;
+  }
+
+  .pet-inline-stack {
+    display: grid;
+    gap: 10px;
+  }
+
+  .pet-empty {
+    text-align: center;
+    padding: 22px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.45);
+    color: #6d5a3f;
+  }
+
+  body.dark .pet-empty {
+    background: rgba(255,255,255,.04);
+    color: #cdb89a;
+  }
+
+  .pet-shop-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .pet-tab {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.58);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  body.dark .pet-tab {
+    background: rgba(255,255,255,.06);
+  }
+
+  @keyframes pet-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+  }
+
+  @media (max-width: 980px) {
+    .pet-shell {
+      grid-template-columns: 1fr;
+    }
+
+    .pet-panel {
+      position: relative;
+      top: auto;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pet-page">
+  <div class="pet-shell">
+    <section class="pet-panel">
+      <div class="pet-panel-header">
+        <img class="pet-owner-avatar" src="{{ avatar_url }}" alt="{{ display_name }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+        <div>
+          <p class="pet-kicker">{{ display_name }}'s Farm Friend</p>
+          <h1 class="pet-title">{% if pet %}Pet Studio{% else %}Adopt a Pet{% endif %}</h1>
+          <p class="pet-subtitle">
+            {% if pet %}
+              Cute, customizable, and synced with your pet data.
+            {% else %}
+              Choose your starter and bring a little farm buddy to your profile.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      {% if pet %}
+        {% set accent_key = pet.web_style.accent_color if pet.web_style and pet.web_style.accent_color else 'strawberry' %}
+        {% set accent_color = '#ff7fa5' %}
+        {% for swatch in style_swatches %}
+          {% if swatch.key == accent_key %}
+            {% set accent_color = swatch.color %}
+          {% endif %}
+        {% endfor %}
+        <div class="pet-stage" style="--accent: {{ accent_color }};">
+          <div class="pet-avatar pet-{{ pet.type }}">
+            <div class="pet-shadow"></div>
+            <div class="pet-emoji">{{ pet.emoji }}</div>
+            {% for item in equipped_cosmetic_items %}
+              <span class="pet-accessory accessory-{{ item.slot }}">{{ item.emoji }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="pet-nameplate">
+          <div>
+            <h2 class="pet-name">{{ pet.name }}</h2>
+            <p class="pet-meta">{{ pet.type|title }} · Level {{ pet.level }} · {{ pet.xp }}/{{ pet_xp_needed if pet_xp_needed else '?' }} XP</p>
+          </div>
+          <div class="pet-mood-pill">{{ mood }}</div>
+        </div>
+
+        <div class="pet-bars">
+          <div>
+            <div class="pet-bar-label"><span>Hunger</span><span>{{ visible_hunger }}%</span></div>
+            <div class="pet-bar-track"><div class="pet-bar-fill" style="width: {{ visible_hunger }}%; --fill-a: #f9c35a; --fill-b: #ff8f4f;"></div></div>
+          </div>
+          <div>
+            <div class="pet-bar-label"><span>Happiness</span><span>{{ visible_happiness }}%</span></div>
+            <div class="pet-bar-track"><div class="pet-bar-fill" style="width: {{ visible_happiness }}%; --fill-a: #ff8cc6; --fill-b: #ff6678;"></div></div>
+          </div>
+          <div>
+            <div class="pet-bar-label"><span>Cleanliness</span><span>{{ visible_cleanliness }}%</span></div>
+            <div class="pet-bar-track"><div class="pet-bar-fill" style="width: {{ visible_cleanliness }}%; --fill-a: #7ed3ff; --fill-b: #5b9bff;"></div></div>
+          </div>
+        </div>
+
+        <div class="pet-badges">
+          <div class="pet-badge">🪙 {{ coins | format }} coins</div>
+          <div class="pet-badge">🎒 {{ pet.owned_cosmetics|length }} cosmetics</div>
+          <div class="pet-badge">✨ {{ pet.owned_boosts|length }} boosts</div>
+          <div class="pet-badge">🧺 {{ pet.owned_consumables|length }} consumables</div>
+        </div>
+      {% else %}
+        <div class="pet-empty">
+          <p style="font-size: 56px; margin: 0 0 10px;">🐣</p>
+          <p style="margin: 0;">No pet yet. Adopt one below and the care, shop, and customization tools will unlock.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="pet-main">
+      {% if not pet %}
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Choose Your Starter</h2>
+              <p class="pet-card-subtitle">The web page will use the same underlying pet data as your bot.</p>
+            </div>
+          </div>
+          <div class="pet-adopt-grid">
+            {% for key, starter in pet_starters.items() %}
+              <form class="pet-inline-stack" method="POST" action="{{ url_for('pet_adopt') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="pet_type" value="{{ key }}">
+                <div class="pet-adopt-card">
+                  <div class="pet-item-top">
+                    <div class="pet-item-icon">{{ starter.emoji }}</div>
+                    <div>
+                      <h3 class="pet-item-name">{{ starter.name }}</h3>
+                      <p class="pet-item-meta">{{ starter.subtitle }}</p>
+                    </div>
+                  </div>
+                  <input class="pet-input" type="text" name="pet_name" maxlength="24" placeholder="Optional custom name">
+                  <button class="pet-button" type="submit">Adopt {{ starter.name }}</button>
+                </div>
+              </form>
+            {% endfor %}
+          </div>
+        </article>
+      {% else %}
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Care Actions</h2>
+              <p class="pet-card-subtitle">These follow the bot cooldowns and stat gains you shared.</p>
+            </div>
+          </div>
+          <div class="pet-actions">
+            <form method="POST" action="{{ url_for('pet_care') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="feed">
+              <div class="pet-action-card">
+                <div class="pet-item-top">
+                  <div class="pet-item-icon">🥕</div>
+                  <div>
+                    <h3 class="pet-item-name">Feed</h3>
+                    <p class="pet-item-meta">Every 4 hours</p>
+                  </div>
+                </div>
+                <button class="pet-button secondary" type="submit">Feed {{ pet.name }}</button>
+              </div>
+            </form>
+
+            <form method="POST" action="{{ url_for('pet_care') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="play">
+              <div class="pet-action-card">
+                <div class="pet-item-top">
+                  <div class="pet-item-icon">🎾</div>
+                  <div>
+                    <h3 class="pet-item-name">Play</h3>
+                    <p class="pet-item-meta">Every 3 hours</p>
+                  </div>
+                </div>
+                <button class="pet-button secondary" type="submit">Play With {{ pet.name }}</button>
+              </div>
+            </form>
+
+            <form method="POST" action="{{ url_for('pet_care') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="clean">
+              <div class="pet-action-card">
+                <div class="pet-item-top">
+                  <div class="pet-item-icon">🫧</div>
+                  <div>
+                    <h3 class="pet-item-name">Clean</h3>
+                    <p class="pet-item-meta">Every 6 hours</p>
+                  </div>
+                </div>
+                <button class="pet-button secondary" type="submit">Clean {{ pet.name }}</button>
+              </div>
+            </form>
+          </div>
+        </article>
+
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Customize</h2>
+              <p class="pet-card-subtitle">Rename your pet, change its page accent, and equip owned cosmetics.</p>
+            </div>
+          </div>
+
+          <div class="pet-actions" style="margin-bottom: 16px;">
+            <form class="pet-inline-stack" method="POST" action="{{ url_for('pet_rename') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="pet-action-card">
+                <div class="pet-item-top">
+                  <div class="pet-item-icon">✏️</div>
+                  <div>
+                    <h3 class="pet-item-name">Rename</h3>
+                    <p class="pet-item-meta">Up to 24 characters</p>
+                  </div>
+                </div>
+                <input class="pet-input" type="text" name="pet_name" maxlength="24" value="{{ pet.name }}">
+                <button class="pet-button soft" type="submit">Save Name</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="pet-style-grid">
+            {% set accent_key = pet.web_style.accent_color if pet.web_style and pet.web_style.accent_color else 'strawberry' %}
+            {% for swatch in style_swatches %}
+              <form method="POST" action="{{ url_for('pet_style') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="accent_color" value="{{ swatch.key }}">
+                <div class="pet-style-card">
+                  <div style="width: 100%; height: 52px; border-radius: 14px; background: {{ swatch.color }};"></div>
+                  <h3 class="pet-item-name" style="margin-top: 10px;">{{ swatch.label }}</h3>
+                  <p class="pet-item-meta">{% if swatch.key == accent_key %}Current theme{% else %}Switch stage glow{% endif %}</p>
+                  <button class="pet-button {% if swatch.key == accent_key %}ghost{% else %}soft{% endif %}" type="submit">
+                    {% if swatch.key == accent_key %}Selected{% else %}Use {{ swatch.label }}{% endif %}
+                  </button>
+                </div>
+              </form>
+            {% endfor %}
+          </div>
+
+          <div style="margin-top: 18px;">
+            <h3 style="margin: 0 0 12px;">Owned Cosmetics</h3>
+            {% if owned_cosmetic_items %}
+              <div class="pet-inventory-grid">
+                {% for item in owned_cosmetic_items %}
+                  <form method="POST" action="{{ url_for('pet_toggle_cosmetic') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="item_key" value="{{ item.key }}">
+                    <div class="pet-item-card">
+                      <div class="pet-item-top">
+                        <div class="pet-item-icon">{{ item.emoji or '🎀' }}</div>
+                        <div>
+                          <h3 class="pet-item-name">{{ item.name }}</h3>
+                          <p class="pet-item-meta">{{ item.slot|title if item.slot else 'Accessory' }}</p>
+                        </div>
+                      </div>
+                      <p class="pet-item-desc">{{ item.description }}</p>
+                      <button class="pet-button {% if item.equipped %}ghost{% else %}soft{% endif %}" type="submit">
+                        {% if item.equipped %}Unequip{% else %}Equip{% endif %}
+                      </button>
+                    </div>
+                  </form>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="pet-empty">No cosmetics owned yet. Visit the pet shop below to start styling.</div>
+            {% endif %}
+          </div>
+        </article>
+
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Inventory</h2>
+              <p class="pet-card-subtitle">Use consumables and manage your boosts here.</p>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 18px;">
+            <h3 style="margin: 0 0 12px;">Consumables</h3>
+            {% if owned_consumable_items %}
+              <div class="pet-inventory-grid">
+                {% for item in owned_consumable_items %}
+                  <form method="POST" action="{{ url_for('pet_use_item') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="item_key" value="{{ item.key }}">
+                    <div class="pet-item-card">
+                      <div class="pet-item-top">
+                        <div class="pet-item-icon">
+                          {% if item.key == 'pet_snack' %}🥕{% elif item.key == 'toy_ball' %}🎾{% elif item.key == 'bubble_bath' %}🫧{% else %}✨{% endif %}
+                        </div>
+                        <div>
+                          <h3 class="pet-item-name">{{ item.name }}</h3>
+                          <p class="pet-item-meta">Owned x{{ item.count }}</p>
+                        </div>
+                      </div>
+                      <p class="pet-item-desc">{{ item.description }}</p>
+                      <button class="pet-button soft" type="submit">Use Item</button>
+                    </div>
+                  </form>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="pet-empty">No consumables owned right now.</div>
+            {% endif %}
+          </div>
+
+          <div>
+            <h3 style="margin: 0 0 12px;">Boosts</h3>
+            {% if owned_boost_items %}
+              <div class="pet-inventory-grid">
+                {% for item in owned_boost_items %}
+                  <form method="POST" action="{{ url_for('pet_boost') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="item_key" value="{{ item.key }}">
+                    <div class="pet-item-card">
+                      <div class="pet-item-top">
+                        <div class="pet-item-icon">✨</div>
+                        <div>
+                          <h3 class="pet-item-name">{{ item.name }}</h3>
+                          <p class="pet-item-meta">{{ item.label }}</p>
+                        </div>
+                      </div>
+                      <p class="pet-item-desc">{{ item.description }}</p>
+                      <button class="pet-button {% if item.active %}ghost{% else %}soft{% endif %}" type="submit" name="action" value="equip">
+                        {% if item.active %}Equipped{% else %}Equip Boost{% endif %}
+                      </button>
+                    </div>
+                  </form>
+                {% endfor %}
+              </div>
+
+              {% if active_boost_name %}
+                <form method="POST" action="{{ url_for('pet_boost') }}" style="margin-top: 12px;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="pet-button ghost" type="submit" name="action" value="unequip">Unequip {{ active_boost_name }}</button>
+                </form>
+              {% endif %}
+            {% else %}
+              <div class="pet-empty">No boosts owned yet.</div>
+            {% endif %}
+          </div>
+        </article>
+
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Pet Shop</h2>
+              <p class="pet-card-subtitle">Same item lineup as the bot, with web customization on top.</p>
+            </div>
+            <div class="pet-mood-pill">🪙 {{ coins | format }} coins</div>
+          </div>
+
+          <div class="pet-shop-tabs">
+            <div class="pet-tab">Boost Chips</div>
+            <div class="pet-tab">Consumables</div>
+            <div class="pet-tab">Cosmetics</div>
+          </div>
+
+          <div class="pet-shop-grid">
+            {% for category in shop_categories %}
+              {% for key, item in pet_items.items() %}
+                {% if item.type == category %}
+                  <form method="POST" action="{{ url_for('pet_shop_buy') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="item_key" value="{{ key }}">
+                    <div class="pet-shop-card">
+                      <div class="pet-item-top">
+                        <div class="pet-item-icon">
+                          {% if category == 'boost' %}✨{% elif category == 'consumable' %}🧺{% else %}🎀{% endif %}
+                        </div>
+                        <div>
+                          <h3 class="pet-item-name">{{ item.name }}</h3>
+                          <p class="pet-item-meta">{{ category|title }}</p>
+                        </div>
+                      </div>
+                      <p class="pet-item-desc">{{ item.description }}</p>
+                      <p class="pet-item-meta" style="margin-top: 10px;">{{ item.price | format }} coins</p>
+                      <button class="pet-button" type="submit">Buy</button>
+                    </div>
+                  </form>
+                {% endif %}
+              {% endfor %}
+            {% endfor %}
+          </div>
+        </article>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

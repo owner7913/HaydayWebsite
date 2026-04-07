@@ -1182,10 +1182,11 @@
   }
 
   .live-feed-item{
+    position:relative;
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     gap:12px;
-    padding:12px 14px;
+    padding:12px 14px 30px;
     border-radius:16px;
     background:rgba(255,255,255,.05);
     border:1px solid rgba(255,255,255,.08);
@@ -1218,6 +1219,17 @@
     font-size:.95rem;
   }
 
+  .live-feed-time{
+    position:absolute;
+    right:12px;
+    bottom:8px;
+    font-size:.78rem;
+    font-weight:700;
+    color:#b8c6b4;
+    opacity:.9;
+    white-space:nowrap;
+  }
+
   .live-feed-text strong{
     color:#fff3b0;
   }
@@ -1227,15 +1239,27 @@
     text-align:center;
     padding:18px;
   }
+
 .live-feed-list{
   display:flex;
   flex-direction:column;
   gap:10px;
   max-height:260px;
-  overflow:hidden;
-  position:relative;
+  overflow-y:auto;   /* ✅ scroll enabled */
+  padding-right:6px;
+}
+.live-feed-list::-webkit-scrollbar{
+  width:6px;
 }
 
+.live-feed-list::-webkit-scrollbar-thumb{
+  background:rgba(255,220,120,.35);
+  border-radius:10px;
+}
+
+.live-feed-list::-webkit-scrollbar-track{
+  background:transparent;
+}
 .live-feed-item{
   animation:fadeSlide .4s ease;
 }
@@ -1365,19 +1389,25 @@
                 <div class="live-feed-sub">Latest cracks happening right now</div>
               </div>
 
-              <div id="easterLiveFeed" class="live-feed-list">
-                {% for item in live_feed %}
-                  <div class="live-feed-item {{ item.rarity }}">
-                    <div class="live-feed-icon">
-                      {% if item.rarity == "winner" %}🏆{% else %}🥚{% endif %}
-                    </div>
-                    <div class="live-feed-text">
-                      <strong>{{ item.display_name }}</strong>
-                      cracked <strong>Egg {{ item.egg_id }}</strong>
-                      and got <strong>{{ item.reward }}</strong>
-                    </div>
-                  </div>
-                {% else %}
+                  <div id="easterLiveFeed" class="live-feed-list">
+                    {% for item in live_feed %}
+                      <div class="live-feed-item {{ item.rarity }}">
+                        <div class="live-feed-icon">
+                          {% if item.rarity == "winner" %}🏆{% else %}🥚{% endif %}
+                        </div>
+                        <div class="live-feed-text">
+                          <strong>{{ item.display_name }}</strong>
+                          cracked <strong>Egg {{ item.egg_id }}</strong>
+                          and got <strong>{{ item.reward }}</strong>
+                        </div>
+                        <div
+                          class="live-feed-time"
+                          data-opened-at="{{ item.opened_at.strftime('%Y-%m-%dT%H:%M:%SZ') if item.opened_at else '' }}"
+                        >
+                          just now
+                        </div>
+                      </div>
+                    {% else %}
                   <div class="live-feed-empty">No egg activity yet.</div>
                 {% endfor %}
               </div>
@@ -1561,6 +1591,48 @@
 
 <script>
 const EASTER_OPEN_URL = "/easter/open";
+let lastFeedSignature = "";
+
+function timeAgoFromIso(isoString) {
+  if (!isoString) return "";
+
+  const then = new Date(normalizeUtcIso(isoString));
+  if (Number.isNaN(then.getTime())) return "";
+
+  const seconds = Math.max(0, Math.floor((Date.now() - then.getTime()) / 1000));
+
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds} sec ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function normalizeUtcIso(value) {
+  if (!value) return "";
+
+  const s = String(value).trim();
+
+  // Already has timezone info
+  if (s.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(s)) {
+    return s;
+  }
+
+  // Naive timestamp from backend/Mongo -> treat as UTC
+  return s + "Z";
+}
+
+function updateLiveFeedTimes() {
+  document.querySelectorAll(".live-feed-time[data-opened-at]").forEach(el => {
+    el.textContent = timeAgoFromIso(el.dataset.openedAt);
+  });
+}
 
 async function openEgg(eggId, button){
   trackEaster("egg_click", eggId);
@@ -1800,18 +1872,6 @@ function trackEaster(action, eggId = null, meta = "") {
   }).catch(() => {});
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  trackEaster("page_view");
-  trackEaster("banner_view");
-
-  document.querySelectorAll(".egg-card[data-egg-id]").forEach(card => {
-    const eggId = card.dataset.eggId;
-    if (eggId) {
-      trackEaster("egg_view", eggId);
-    }
-  });
-});
-
 </script>
 <script>
   function escapeHtml(value) {
@@ -1842,8 +1902,13 @@ document.addEventListener("DOMContentLoaded", () => {
           cracked <strong>Egg ${escapeHtml(item.egg_id)}</strong>
           and got <strong>${escapeHtml(item.reward || "Unknown reward")}</strong>
         </div>
+        <div class="live-feed-time" data-opened-at="${escapeHtml(normalizeUtcIso(item.opened_at || ""))}">
+          ${timeAgoFromIso(item.opened_at)}
+        </div>
       </div>
     `).join("");
+
+    updateLiveFeedTimes();
   }
 
   async function refreshEasterFeed() {
@@ -1860,10 +1925,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    refreshEasterFeed();
-    setInterval(refreshEasterFeed, 8000);
-  });
+    document.addEventListener("DOMContentLoaded", () => {
+      refreshEasterFeed();
+      updateLiveFeedTimes();
+
+      setInterval(refreshEasterFeed, 60000);
+      setInterval(updateLiveFeedTimes, 5000);
+    });
 </script>
 {% else %}
 <div class="event-wrap">
@@ -1877,21 +1945,21 @@ document.addEventListener("DOMContentLoaded", () => {
         class="teaser-img"
       >
 
-      <h1 class="teaser-title">Okay… now there’s more.</h1>
+    <h1 class="teaser-title">They’re starting to crack…</h1>
 
-      <p class="teaser-text">
-        We checked again today, and they’ve multiplied. 🥚🥚🥚
-      </p>
-      <p class="teaser-text">
-        Different colors. Different shapes.
-      </p>
-      <p class="teaser-text">
-        And… they’re warm.
-      </p>
+    <p class="teaser-text">
+      One of the eggs split open today — and something flashed inside.
+    </p>
+    <p class="teaser-text">
+      Not all of them are the same.
+    </p>
+    <p class="teaser-text">
+      Some may hold nothing… others may hold something much bigger.
+    </p>
 
-      <div class="teaser-eyes">👀</div>
+    <div class="teaser-eyes">👀</div>
 
-      <p class="teaser-sub">⚠️ Something is definitely happening. ⚠️</p>
+    <p class="teaser-sub">The event begins tomorrow. Be ready.</p>
     </div>
   </div>
 </div>

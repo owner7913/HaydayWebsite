@@ -26,7 +26,6 @@ from livereload import Server
 import logging
 import redis
 from limits.storage import RedisStorage
-import logging
 from collections import defaultdict
 load_dotenv()
 import flask_limiter
@@ -38,18 +37,17 @@ from pathlib import Path
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from flask import send_from_directory
-import json, time, re, unicodedata, requests
+import json, re, unicodedata
 from bs4 import BeautifulSoup 
-from concurrent.futures import ThreadPoolExecutor
 import email.utils as eut
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import hashlib, mimetypes, os
+import hashlib, mimetypes
 from werkzeug.utils import secure_filename
 from PIL import Image
 import boto3
 from botocore.client import Config
 import io
-import certifi, os
+import certifi
 from botocore.config import Config
 import socket as _socket
 from calendar import monthrange
@@ -57,15 +55,20 @@ from zoneinfo import ZoneInfo
 from pymongo.errors import DuplicateKeyError
 from math import ceil
 import random
-from flask import jsonify
-from datetime import datetime, timezone
 from bson.errors import InvalidId
 import math
+from urllib.parse import urlparse
+from flask_session import Session
 print("[DEBUG] Flask-Limiter version:", flask_limiter.__version__)
 
 R2_PUBLIC_HOST = os.getenv("R2_PUBLIC_HOST", "")  # e.g. img.hayday.info
 WORKER_UPLOAD_URL = os.getenv("WORKER_UPLOAD_URL")
 WORKER_UPLOAD_SECRET = os.getenv("WORKER_UPLOAD_SECRET")
+
+BANNED_IPS_LOADED_AT = 0
+BANNED_IPS_REFRESH_SECONDS = 300
+PAGEVIEW_BUFFER = defaultdict(int)
+PAGEVIEW_LOCK = threading.Lock()
 
 if os.getenv("FORCE_IPV4", "0") == "1":
     import socket
@@ -79,6 +82,44 @@ if os.getenv("FORCE_IPV4", "0") == "1":
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
+app.config["SESSION_TYPE"] = "redis"
+app.config["SESSION_REDIS"] = redis.from_url(os.environ["REDIS_URL"])
+app.config["SESSION_PERMANENT"] = True
+app.config["SESSION_USE_SIGNER"] = True
+app.config["SESSION_KEY_PREFIX"] = "hayday_session:"
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_DOMAIN"] = ".hayday.info"
+app.config["SESSION_COOKIE_NAME"] = "hayday_session"
+Session(app)
+
+
+MONGO_URI = os.getenv("MONGO_URI")
+LIVE_GIVEAWAYS_CACHE = {
+    "expires": 0,
+    "payload": None,
+}
+PRODUCTION_DATA_CACHE = {
+    "expires": 0,
+    "payload": None,
+}
+COMP_RESULTS_CACHE = {}
+COMP_RESULTS_CACHE_TTL = 60  # seconds
+
+mongo_client = MongoClient(
+    MONGO_URI,
+    maxPoolSize=100,
+    minPoolSize=5,
+    serverSelectionTimeoutMS=5000,
+    connectTimeoutMS=5000,
+    socketTimeoutMS=10000,
+)
+
+def get_db(db_name=None):
+    if db_name:
+        return mongo_client[db_name]
+    return mongo_client
 
 # VERY TEMP storage just to see things working locally
 COMP_ENTRIES = {}  # comp_id -> list of {image_url, username, caption, created_at}
@@ -117,6 +158,12 @@ INDEX_ITEMS = [d for d in _INDEX if d.get("category") == "item" and d.get("key")
 
 DISPLAY_MAP = {d["key"]: d["name"] for d in INDEX_ITEMS}
 
+ALLOWED_IMAGE_HOSTS = {
+    "static.wikia.nocookie.net",
+    "vignette.wikia.nocookie.net",
+    "hayday.fandom.com",
+}
+
 # Search / alias mapping (you can expand this later)
 ALIAS_TO_KEY = {}
 for d in INDEX_ITEMS:
@@ -139,40 +186,40 @@ def _trading_maps_with_overrides():
 
 
     try:
-        with MongoClient(os.getenv("MONGO_URI")) as c:
-            col = c["Website"]["trading_item_overrides"]
-            for doc in col.find({}):
-                k = (doc.get("_id") or "").strip().lower()
-                if not k:
-                    continue
+        c = get_db()
+        col = c["Website"]["trading_item_overrides"]
+        for doc in col.find({}):
+            k = (doc.get("_id") or "").strip().lower()
+            if not k:
+                continue
 
-                name = (doc.get("name") or "").strip()
-                if name:
-                    display_map[k] = name
-                    alias_to_key[_norm(name)] = k
+            name = (doc.get("name") or "").strip()
+            if name:
+                display_map[k] = name
+                alias_to_key[_norm(name)] = k
 
-                # always allow searching by key too
-                alias_to_key[_norm(k.replace("_", " "))] = k
+            # always allow searching by key too
+            alias_to_key[_norm(k.replace("_", " "))] = k
 
-                img = (doc.get("image_file") or "").strip()
-                if img:
-                    key_to_filename[k] = img
+            img = (doc.get("image_file") or "").strip()
+            if img:
+                key_to_filename[k] = img
 
-                src = (doc.get("source_url") or "").strip()
-                if src:
-                    key_to_source_url[k] = src
+            src = (doc.get("source_url") or "").strip()
+            if src:
+                key_to_source_url[k] = src
 
-                img_url = (doc.get("image_url") or "").strip()
-                if img_url:
-                    key_to_image_url[k] = img_url
+            img_url = (doc.get("image_url") or "").strip()
+            if img_url:
+                key_to_image_url[k] = img_url
 
-                aliases = doc.get("aliases") or []
-                if isinstance(aliases, str):
-                    aliases = [aliases]
-                for a in aliases:
-                    a = (a or "").strip()
-                    if a:
-                        alias_to_key[_norm(a)] = k
+            aliases = doc.get("aliases") or []
+            if isinstance(aliases, str):
+                aliases = [aliases]
+            for a in aliases:
+                a = (a or "").strip()
+                if a:
+                    alias_to_key[_norm(a)] = k
     except Exception:
         # Never break trading pages if overrides DB has issues
         pass
@@ -188,13 +235,33 @@ def _theme_for(comp_id: str):
         month = datetime.now(timezone.utc).month
     return THEMES.get(month, {"title": "Farm Design", "desc": ""})
 
+def flush_pageview_buffer():
+    while True:
+        time.sleep(10)
+
+        with PAGEVIEW_LOCK:
+            if not PAGEVIEW_BUFFER:
+                continue
+            snapshot = dict(PAGEVIEW_BUFFER)
+            PAGEVIEW_BUFFER.clear()
+
+        try:
+            col = get_db("Website")["PageViews"]
+            for path, count in snapshot.items():
+                col.update_one(
+                    {"_id": path},
+                    {"$inc": {"count": count}},
+                    upsert=True
+                )
+        except Exception as e:
+            print("[pageviews] flush failed:", e)
 
 def page_meta(title=None, description=None, image=None, url=None):
     return {
         "title": title or "HayDay 🍀 — Community Tools & Competitions",
         "description": description or "Join events, verify accounts, and explore community tools for Hay Day.",
         "image": image or url_for("static", filename="img/share.jpg", _external=True),
-        "url": url or "https://www.hayday.info/",
+        "url": url or "https://hayday.info/",
     }
 
 def _phase_today():
@@ -249,11 +316,7 @@ def _allowed(filename: str) -> bool:
 # Session & cookie hardening
 app.config["RATELIMIT_STORAGE_URL"] = os.environ["REDIS_URL"]
 app.config["RATELIMIT_DEFAULTS"] = ["50 per minute"]
-app.config.update(
-    SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-)
+
 
 # Rate limiting
 limiter = Limiter(
@@ -520,55 +583,6 @@ def _space(s: str) -> str:
 def _snake(s: str) -> str:
     return _space(s).replace(" ", "_")
 
-def fetch_goods_titles(force: bool = False) -> list[str]:
-    # use cached file unless forcing or stale
-    if GOODS_TITLES_PATH.exists() and not force:
-        try:
-            if time.time() - GOODS_TITLES_PATH.stat().st_mtime < GOODS_TITLES_TTL:
-                return json.loads(GOODS_TITLES_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-
-    # Ask Fandom for rendered HTML of the page
-    params = {"action": "parse", "format": "json", "prop": "text", "page": "Goods_List"}
-    r = requests.get("https://hayday.fandom.com/api.php", params=params, timeout=15)
-    r.raise_for_status()
-    data = r.json()
-    html = data.get("parse", {}).get("text", {}).get("*", "")
-    if not html:
-        return []
-
-    soup = BeautifulSoup(html, "html.parser")
-    titles = set()
-
-    # Find the big goods table(s). They’re usually 'wikitable' or 'article-table'.
-    for tbl in soup.select("table.wikitable, table.article-table"):
-        # Expect header includes 'Name'
-        headers = [th.get_text(strip=True).lower() for th in tbl.select("thead th, tr th")]
-        if headers and "name" not in headers[0].lower():
-            # if first col isn't Name, skip
-            pass
-        for row in tbl.select("tr"):
-            cells = row.find_all(["td"])
-            if not cells:
-                continue
-            first = cells[0]
-            a = first.find("a", href=True)
-            if not a:
-                continue
-            # Prefer link title (page title) or text
-            title = a.get("title") or a.get_text(" ", strip=True)
-            title = _space(title)
-            # Filter out non-article links (like 'Image')
-            if not title or title.lower() in {"image"}:
-                continue
-            titles.add(title)
-
-    # Persist
-    out = sorted(titles)
-    GOODS_TITLES_PATH.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
-    return out
-
 
 def fetch_goods_titles(force: bool = False) -> list[str]:
     # use cached file unless forcing or stale
@@ -664,10 +678,10 @@ def _snake(title: str) -> str:
 
 def _all_titles_from_db() -> list[str]:
     try:
-        with MongoClient(os.getenv("MONGO_URI")) as c:
-            col = c["hayday"]["ProductionGuide"]
-            rows = col.find({}, {"product": 1})
-            return sorted({_space(r.get("product", "")) for r in rows if r.get("product")})
+        c = get_db()
+        col = c["hayday"]["ProductionGuide"]
+        rows = col.find({}, {"product": 1})
+        return sorted({_space(r.get("product", "")) for r in rows if r.get("product")})
     except Exception as e:
         print("[thumbs] mongo read failed:", e)
         return []
@@ -752,12 +766,6 @@ app.jinja_env.globals['is_staff'] = is_staff
 def is_admin():
     return session.get("staff_role") in ["Owner", "Co-Owner", "Head Admin"]
 
-def normalize(text):
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    text = re.sub(r"[^\w\s]", "", text)
-    return text.lower().strip()
-
 def normalize(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", "", s.lower())
@@ -808,14 +816,14 @@ def contains_identifying_text(text: str, display_name: str | None, username_tag:
     return False
 
 # ---- Easter event config ----
-EASTER_LIVE = False 
+EASTER_LIVE = True
 
 EASTER_EVENT = {
     "title": "Hay Day Easter Egg Hunt",
     "subtitle": "A cozy spring giveaway with surprise rewards hidden inside 4 eggs.",
     "starts_at": datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc),
     "ends_at": datetime(2026, 4, 12, 23, 59, 59, tzinfo=timezone.utc),
-    "target_total_opens": 500,
+    "target_total_opens": 250,
     "egg_scale_factor": 3,
     "eggs": [
         {
@@ -958,6 +966,8 @@ EASTER_TESTING = {
     "force_result": None,
 }
 
+
+
 # add near your easter config
 EASTER_PREVIEW_EVENT_ID = "2026_easter_preview"
 
@@ -968,108 +978,85 @@ def _preview_open_state(discord_id: str | None = None):
     if not discord_id:
         return {}
 
-    client = get_mongo_client()
-    col = client["Website"]["easter_user_opens"]
-    try:
-        doc = col.find_one({"_id": f"{EASTER_PREVIEW_EVENT_ID}:{discord_id}"})
-        return (doc or {}).get("opened", {})
-    finally:
-        client.close()
+    col = get_db("Website")["easter_user_opens"]
+    doc = col.find_one({"_id": f"{EASTER_PREVIEW_EVENT_ID}:{discord_id}"})
+    return (doc or {}).get("opened", {})
 
 def _save_preview_opened_egg(discord_id: str, egg_id: int, reward: str, rarity: str):
-    client = get_mongo_client()
-    col = client["Website"]["easter_user_opens"]
-    try:
-        now = datetime.now(timezone.utc)
-        col.update_one(
-            {"_id": f"{EASTER_PREVIEW_EVENT_ID}:{discord_id}"},
-            {
-                "$set": {
-                    "event_id": EASTER_PREVIEW_EVENT_ID,
-                    "discord_id": str(discord_id),
-                    f"opened.{egg_id}": {
-                        "reward": reward,
-                        "rarity": rarity,
-                        "opened_at": now.isoformat(),
-                    },
-                    "updated_at": now,
+    col = get_db("Website")["easter_user_opens"]
+    now = datetime.now(timezone.utc)
+    col.update_one(
+        {"_id": f"{EASTER_PREVIEW_EVENT_ID}:{discord_id}"},
+        {
+            "$set": {
+                "event_id": EASTER_PREVIEW_EVENT_ID,
+                "discord_id": str(discord_id),
+                f"opened.{egg_id}": {
+                    "reward": reward,
+                    "rarity": rarity,
+                    "opened_at": now.isoformat(),
                 },
-                "$setOnInsert": {"created_at": now},
+                "updated_at": now,
             },
-            upsert=True
-        )
-    finally:
-        client.close()
+            "$setOnInsert": {"created_at": now},
+        },
+        upsert=True
+    )
 
-
-def _easter_user_opened_col():
-    client = get_mongo_client()
-    return client, client["Website"]["easter_user_opens"]
 
 def _event_open_state(discord_id: str | None = None):
     if not discord_id:
         return {}
 
-    client, col = _easter_user_opened_col()
-    try:
-        doc = col.find_one({
-            "_id": f"{EASTER_EVENT_ID}:{discord_id}"
-        })
-        return (doc or {}).get("opened", {})
-    finally:
-        client.close()
+    col = get_db("Website")["easter_user_opens"]
+    doc = col.find_one({"_id": f"{EASTER_EVENT_ID}:{discord_id}"})
+    return (doc or {}).get("opened", {})
+
 
 def _release_pending_easter_egg(discord_id: str, egg_id: int):
-    client = get_mongo_client()
-    col = client["Website"]["easter_user_opens"]
-    try:
-        col.update_one(
-            {"_id": f"{EASTER_EVENT_ID}:{discord_id}"},
-            {"$unset": {f"opened.{egg_id}": ""}}
-        )
-    finally:
-        client.close()
+    col = get_db("Website")["easter_user_opens"]
+    col.update_one(
+        {"_id": f"{EASTER_EVENT_ID}:{discord_id}"},
+        {"$unset": {f"opened.{egg_id}": ""}}
+    )
 
 def _save_opened_egg(discord_id: str, egg_id: int, reward: str, rarity: str):
-    client = get_mongo_client()
-    col = client["Website"]["easter_user_opens"]
-    try:
-        now = datetime.now(timezone.utc)
-        col.update_one(
-            {"_id": f"{EASTER_EVENT_ID}:{discord_id}"},
-            {
-                "$set": {
-                    "event_id": EASTER_EVENT_ID,
-                    "discord_id": str(discord_id),
-                    f"opened.{egg_id}": {
-                        "reward": reward,
-                        "rarity": rarity,
-                        "opened_at": now.isoformat(),
-                    },
-                    "updated_at": now,
+    col = get_db("Website")["easter_user_opens"]
+    now = datetime.now(timezone.utc)
+    col.update_one(
+        {"_id": f"{EASTER_EVENT_ID}:{discord_id}"},
+        {
+            "$set": {
+                "event_id": EASTER_EVENT_ID,
+                "discord_id": str(discord_id),
+                f"opened.{egg_id}": {
+                    "reward": reward,
+                    "rarity": rarity,
+                    "opened_at": now.isoformat(),
                 },
-                "$setOnInsert": {
-                    "created_at": now,
-                }
+                "updated_at": now,
             },
-            upsert=True
-        )
-    finally:
-        client.close()
+            "$setOnInsert": {
+                "created_at": now,
+            }
+        },
+        upsert=True
+    )
 
 EASTER_EVENT_ID = "2026_easter"
 
 def _easter_collections():
-    client = get_mongo_client()
-    db = client["Website"]
-    return (
-        client,
-        db["easter_events"],
-        db["easter_contributions"],
-        db["easter_wins"],
-        db["event_analytics"],
-        db["event_analytics_log"],
-    )
+    db = get_db("Website")
+    return {
+        "events": db["easter_events"],
+        "contributions": db["easter_contributions"],
+        "wins": db["easter_wins"],
+        "analytics": db["event_analytics"],
+        "analytics_log": db["event_analytics_log"],
+        "feed": db["easter_feed"],
+        "user_opens": db["easter_user_opens"],
+        "usernames": db["usernames"],
+    }
 
 def _analytics_doc_id(event_id: str) -> str:
     return f"analytics:{event_id}"
@@ -1095,114 +1082,104 @@ def _client_session_key() -> str:
     return session["analytics_sid"]
 
 def _ensure_event_analytics(event_id: str = EASTER_EVENT_ID):
-    client, _, _, _, analytics_col, _ = _easter_collections()
-    try:
-        doc = analytics_col.find_one({"_id": _analytics_doc_id(event_id)})
-        if doc:
-            return doc
+    cols = _easter_collections()
+    analytics_col = cols["analytics"]
 
-        egg_defaults = {
-            str(egg["id"]): {
-                "views": 0,
-                "clicks": 0,
-                "open_attempts": 0,
-                "successful_opens": 0,
-                "wins": 0,
-                "losses": 0,
-                "already_opened_attempts": 0,
-                "locked_attempts": 0,
-                "invalid_attempts": 0,
-            }
-            for egg in EASTER_EVENT["eggs"]
-        }
-
-        doc = {
-            "_id": _analytics_doc_id(event_id),
-            "event_id": event_id,
-            "event_type": "easter",
-            "event_name": EASTER_EVENT["title"],
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
-
-            "counters": {
-                "page_views": 0,
-                "unique_page_views": 0,
-                "logged_in_views": 0,
-                "member_views": 0,
-                "banner_views": 0,
-                "banner_clicks": 0,
-                "banner_closes": 0,
-                "cta_clicks": 0,
-                "egg_clicks": 0,
-                "open_attempts": 0,
-                "successful_opens": 0,
-                "duplicate_open_attempts": 0,
-                "locked_egg_attempts": 0,
-                "invalid_egg_attempts": 0,
-                "login_gate_hits": 0,
-                "admin_tab_clicks": 0,
-                "member_gate_hits": 0,
-                "event_over_attempts": 0,
-                "preview_opens": 0,
-                "admin_views": 0,
-            },
-
-            "results": {
-                "real_wins": 0,
-                "soft_losses": 0,
-            },
-
-            "eggs": egg_defaults,
-            "prizes": {},
-            "traffic": {
-                "by_day": {},
-                "by_hour": {},
-            },
-            "users": {
-                "unique_viewers": 0,
-                "unique_openers": 0,
-            },
-            "performance": {
-                "open_requests": 0,
-                "open_response_ms_total": 0,
-                "last_open_response_ms": 0,
-            },
-        }
-        analytics_col.insert_one(doc)
+    doc = analytics_col.find_one({"_id": _analytics_doc_id(event_id)})
+    if doc:
         return doc
-    finally:
-        client.close()
+
+    egg_defaults = {
+        str(egg["id"]): {
+            "views": 0,
+            "clicks": 0,
+            "open_attempts": 0,
+            "successful_opens": 0,
+            "wins": 0,
+            "losses": 0,
+            "already_opened_attempts": 0,
+            "locked_attempts": 0,
+            "invalid_attempts": 0,
+        }
+        for egg in EASTER_EVENT["eggs"]
+    }
+
+    doc = {
+        "_id": _analytics_doc_id(event_id),
+        "event_id": event_id,
+        "event_type": "easter",
+        "event_name": EASTER_EVENT["title"],
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+        "counters": {
+            "page_views": 0,
+            "unique_page_views": 0,
+            "logged_in_views": 0,
+            "member_views": 0,
+            "banner_views": 0,
+            "banner_clicks": 0,
+            "banner_closes": 0,
+            "cta_clicks": 0,
+            "egg_clicks": 0,
+            "open_attempts": 0,
+            "successful_opens": 0,
+            "duplicate_open_attempts": 0,
+            "locked_egg_attempts": 0,
+            "invalid_egg_attempts": 0,
+            "login_gate_hits": 0,
+            "admin_tab_clicks": 0,
+            "member_gate_hits": 0,
+            "event_over_attempts": 0,
+            "preview_opens": 0,
+            "admin_views": 0,
+        },
+        "results": {
+            "real_wins": 0,
+            "soft_losses": 0,
+        },
+        "eggs": egg_defaults,
+        "prizes": {},
+        "traffic": {"by_day": {}, "by_hour": {}},
+        "users": {"unique_viewers": 0, "unique_openers": 0},
+        "performance": {
+            "open_requests": 0,
+            "open_response_ms_total": 0,
+            "last_open_response_ms": 0,
+        },
+    }
+    analytics_col.insert_one(doc)
+    return doc
 
 def _analytics_inc(event_id: str, inc_ops: dict, extra_set: dict | None = None):
-    client, _, _, _, analytics_col, _ = _easter_collections()
-    try:
-        _ensure_event_analytics(event_id)
-        update = {
-            "$inc": inc_ops,
-            "$set": {"updated_at": datetime.now(timezone.utc)},
-        }
-        if extra_set:
-            update["$set"].update(extra_set)
-        analytics_col.update_one({"_id": _analytics_doc_id(event_id)}, update)
-    finally:
-        client.close()
+    cols = _easter_collections()
+    analytics_col = cols["analytics"]
+
+    _ensure_event_analytics(event_id)
+
+    update = {
+        "$inc": inc_ops,
+        "$set": {"updated_at": datetime.now(timezone.utc)},
+    }
+    if extra_set:
+        update["$set"].update(extra_set)
+
+    analytics_col.update_one({"_id": _analytics_doc_id(event_id)}, update)
 
 def _analytics_log(action: str, event_id: str = EASTER_EVENT_ID, **data):
-    client, _, _, _, _, analytics_log_col = _easter_collections()
-    try:
-        analytics_log_col.insert_one({
-            "event_id": event_id,
-            "action": action,
-            "discord_id": str(session.get("discord_id")) if session.get("discord_id") else None,
-            "session_id": _client_session_key(),
-            "ip": _client_ip(),
-            "user_agent": request.headers.get("User-Agent"),
-            "path": request.path,
-            "created_at": datetime.now(timezone.utc),
-            **data,
-        })
-    finally:
-        client.close()
+    cols = _easter_collections()
+    analytics_log_col = cols["analytics_log"]
+
+    analytics_log_col.insert_one({
+        "event_id": event_id,
+        "action": action,
+        "discord_id": str(session.get("discord_id")) if session.get("discord_id") else None,
+        "session_id": _client_session_key(),
+        "ip": _client_ip(),
+        "user_agent": request.headers.get("User-Agent"),
+        "path": request.path,
+        "created_at": datetime.now(timezone.utc),
+        **data,
+    })
 
 def _analytics_track_page_view(access: dict, event_id: str = EASTER_EVENT_ID):
     _ensure_event_analytics(event_id)
@@ -1311,94 +1288,83 @@ def _json_safe(value):
 
 def _event_analytics_state(event_id: str = EASTER_EVENT_ID):
     _ensure_event_analytics(event_id)
-    client, _, _, _, analytics_col, _ = _easter_collections()
-    try:
-        return analytics_col.find_one({"_id": _analytics_doc_id(event_id)}) or {}
-    finally:
-        client.close()
+    cols = _easter_collections()
+    return cols["analytics"].find_one({"_id": _analytics_doc_id(event_id)}) or {}
 
 def _recent_event_logs(event_id: str = EASTER_EVENT_ID, limit: int = 50):
-    client, _, _, _, _, analytics_log_col = _easter_collections()
-    try:
-        return list(
-            analytics_log_col.find({"event_id": event_id})
-            .sort("created_at", -1)
-            .limit(limit)
-        )
-    finally:
-        client.close()
+    cols = _easter_collections()
+    return list(
+        cols["analytics_log"].find({"event_id": event_id})
+        .sort("created_at", -1)
+        .limit(limit)
+    )
 
 def _easter_feed_entries(limit: int = 20):
-    client = get_mongo_client()
-    try:
-        db = client["Website"]
-        feed_col = db["easter_feed"]
-        usernames_col = db["usernames"]
+    cols = _easter_collections()
+    feed_col = cols["feed"]
+    usernames_col = cols["usernames"]
 
-        rows = list(
-            feed_col.find({"event_id": EASTER_EVENT_ID})
-            .sort("opened_at", -1)
-            .limit(limit)
+    rows = list(
+        feed_col.find({"event_id": EASTER_EVENT_ID})
+        .sort("opened_at", -1)
+        .limit(limit)
+    )
+
+    user_ids = list({
+        str(row.get("discord_id"))
+        for row in rows
+        if row.get("discord_id")
+    })
+
+    user_map = {}
+    if user_ids:
+        for doc in usernames_col.find(
+            {"_id": {"$in": user_ids}},
+            {"display_name": 1, "username": 1, "avatar": 1}
+        ):
+            user_map[str(doc["_id"])] = doc
+
+    feed = []
+    for row in rows:
+        discord_id = str(row.get("discord_id") or "")
+        profile = user_map.get(discord_id, {})
+
+        display_name = (
+            profile.get("display_name")
+            or profile.get("username")
+            or row.get("username")
+            or (f"User {discord_id[-4:]}" if discord_id else "Unknown")
         )
 
-        user_ids = list({
-            str(row.get("discord_id"))
-            for row in rows
-            if row.get("discord_id")
+        feed.append({
+            "_id": str(row.get("_id")),
+            "discord_id": discord_id,
+            "display_name": display_name,
+            "avatar": profile.get("avatar"),
+            "egg_id": row.get("egg_id"),
+            "reward": row.get("reward"),
+            "rarity": row.get("rarity"),
+            "opened_at": row.get("opened_at"),
         })
 
-        user_map = {}
-        if user_ids:
-            for doc in usernames_col.find(
-                {"_id": {"$in": user_ids}},
-                {"display_name": 1, "username": 1, "avatar": 1}
-            ):
-                user_map[str(doc["_id"])] = doc
-
-        feed = []
-        for row in rows:
-            discord_id = str(row.get("discord_id") or "")
-            profile = user_map.get(discord_id, {})
-
-            display_name = (
-                profile.get("display_name")
-                or profile.get("username")
-                or row.get("username")
-                or f"User {discord_id[-4:]}" if discord_id else "Unknown"
-            )
-
-            feed.append({
-                "_id": str(row.get("_id")),
-                "discord_id": discord_id,
-                "display_name": display_name,
-                "avatar": profile.get("avatar"),
-                "egg_id": row.get("egg_id"),
-                "reward": row.get("reward"),
-                "rarity": row.get("rarity"),
-                "opened_at": row.get("opened_at"),
-            })
-
-        return feed
-    finally:
-        client.close()
+    return feed
 
 
 def _insert_easter_feed_entry(discord_id: str, egg_id: int, reward: str, rarity: str):
-    client = get_mongo_client()
-    try:
-        db = client["Website"]
-        feed_col = db["easter_feed"]
+    cols = _easter_collections()
+    feed_col = cols["feed"]
 
-        feed_col.insert_one({
-            "event_id": EASTER_EVENT_ID,
-            "discord_id": str(discord_id),
-            "egg_id": int(egg_id),
-            "reward": reward,
-            "rarity": rarity,
-            "opened_at": datetime.now(timezone.utc),
-        })
-    finally:
-        client.close()
+    feed_col.insert_one({
+        "event_id": EASTER_EVENT_ID,
+        "discord_id": str(discord_id),
+        "egg_id": int(egg_id),
+        "reward": reward,
+        "rarity": rarity,
+        "opened_at": datetime.now(timezone.utc),
+    })
+
+    EASTER_FEED_CACHE["payload"] = None
+    EASTER_FEED_CACHE["expires"] = 0
 
 def _has_easter_wins_access() -> bool:
     if is_staff():
@@ -1406,43 +1372,43 @@ def _has_easter_wins_access() -> bool:
     return bool(session.get("easter_wins_authed", False))
 
 def _ensure_easter_event():
-    client, events_col, _, _, _, _ = _easter_collections()
-    try:
-        doc = events_col.find_one({"_id": EASTER_EVENT_ID})
-        if not doc:
-            reserved_inventory = {
-                str(egg_id): pool.copy()
-                for egg_id, pool in EASTER_EVENT["reserved_prize_inventory"].items()
-            }
+    cols = _easter_collections()
+    events_col = cols["events"]
 
-            egg_stats = {
-                str(egg["id"]): {
-                    "total_opens": 0,
-                    "total_real_wins": 0,
-                    "soft_losses": 0,
-                }
-                for egg in EASTER_EVENT["eggs"]
-            }
+    doc = events_col.find_one({"_id": EASTER_EVENT_ID})
+    if not doc:
+        reserved_inventory = {
+            str(egg_id): pool.copy()
+            for egg_id, pool in EASTER_EVENT["reserved_prize_inventory"].items()
+        }
 
-            doc = {
-                "_id": EASTER_EVENT_ID,
-                "title": EASTER_EVENT["title"],
-                "created_at": datetime.now(timezone.utc),
-                "analytics_enabled": True,
-                "prize_pool_by_egg": reserved_inventory,
-                "stats": {
-                    "total_opens": 0,
-                    "total_real_wins": 0,
-                    "soft_losses": 0,
-                    "eggs": egg_stats,
-                },
-                "rollover_done_from_egg": {},
-                "contributors": {}
+        egg_stats = {
+            str(egg["id"]): {
+                "total_opens": 0,
+                "total_real_wins": 0,
+                "soft_losses": 0,
             }
-            events_col.insert_one(doc)
-        return doc
-    finally:
-        client.close()
+            for egg in EASTER_EVENT["eggs"]
+        }
+
+        doc = {
+            "_id": EASTER_EVENT_ID,
+            "title": EASTER_EVENT["title"],
+            "created_at": datetime.now(timezone.utc),
+            "analytics_enabled": True,
+            "prize_pool_by_egg": reserved_inventory,
+            "stats": {
+                "total_opens": 0,
+                "total_real_wins": 0,
+                "soft_losses": 0,
+                "eggs": egg_stats,
+            },
+            "rollover_done_from_egg": {},
+            "contributors": {}
+        }
+        events_col.insert_one(doc)
+
+    return doc
 
 def _event_inventory_state():
     doc = _ensure_easter_event()
@@ -1471,55 +1437,47 @@ def _egg_stats_state(egg_id: int) -> dict:
     })
 
 def _rollover_unused_stock_to_egg(target_egg_id: int):
-    """
-    Move all leftover stock from earlier eggs into this egg once.
-    Example:
-    - opening egg 4 can absorb leftovers from egg 1, 2 and 3
-    - each source egg is only rolled forward once
-    """
     if target_egg_id <= 1:
         return
 
-    client, events_col, _, _, _, _ = _easter_collections()
-    try:
-        doc = events_col.find_one({"_id": EASTER_EVENT_ID}) or {}
-        pools = doc.get("prize_pool_by_egg", {}) or {}
-        rollover_done = doc.get("rollover_done_from_egg", {}) or {}
+    cols = _easter_collections()
+    events_col = cols["events"]
 
-        inc_ops = {}
-        set_ops = {}
-        moved_any = False
+    doc = events_col.find_one({"_id": EASTER_EVENT_ID}) or {}
+    pools = doc.get("prize_pool_by_egg", {}) or {}
+    rollover_done = doc.get("rollover_done_from_egg", {}) or {}
 
-        for source_egg_id in range(1, target_egg_id):
-            source_key = str(source_egg_id)
+    inc_ops = {}
+    set_ops = {}
+    moved_any = False
 
-            if rollover_done.get(source_key):
+    for source_egg_id in range(1, target_egg_id):
+        source_key = str(source_egg_id)
+
+        if rollover_done.get(source_key):
+            continue
+
+        source_pool = pools.get(source_key, {}) or {}
+        for prize_name, qty in source_pool.items():
+            qty = int(qty or 0)
+            if qty <= 0:
                 continue
 
-            source_pool = pools.get(source_key, {}) or {}
-            for prize_name, qty in source_pool.items():
-                qty = int(qty or 0)
-                if qty <= 0:
-                    continue
+            inc_ops[f"prize_pool_by_egg.{target_egg_id}.{prize_name}"] = (
+                inc_ops.get(f"prize_pool_by_egg.{target_egg_id}.{prize_name}", 0) + qty
+            )
+            inc_ops[f"prize_pool_by_egg.{source_egg_id}.{prize_name}"] = (
+                inc_ops.get(f"prize_pool_by_egg.{source_egg_id}.{prize_name}", 0) - qty
+            )
+            moved_any = True
 
-                inc_ops[f"prize_pool_by_egg.{target_egg_id}.{prize_name}"] = (
-                    inc_ops.get(f"prize_pool_by_egg.{target_egg_id}.{prize_name}", 0) + qty
-                )
-                inc_ops[f"prize_pool_by_egg.{source_egg_id}.{prize_name}"] = (
-                    inc_ops.get(f"prize_pool_by_egg.{source_egg_id}.{prize_name}", 0) - qty
-                )
-                moved_any = True
+        set_ops[f"rollover_done_from_egg.{source_key}"] = True
 
-            set_ops[f"rollover_done_from_egg.{source_key}"] = True
-
-        if set_ops:
-            update = {"$set": set_ops}
-            if moved_any:
-                update["$inc"] = inc_ops
-            events_col.update_one({"_id": EASTER_EVENT_ID}, update)
-
-    finally:
-        client.close()
+    if set_ops:
+        update = {"$set": set_ops}
+        if moved_any:
+            update["$inc"] = inc_ops
+        events_col.update_one({"_id": EASTER_EVENT_ID}, update)
 
 def _remaining_prizes(inventory: dict) -> int:
     total = 0
@@ -1564,45 +1522,45 @@ def add_easter_contribution(contributor_id: str, contributor_name: str, egg_id: 
     if egg_id < 1 or egg_id > len(EASTER_EVENT["eggs"]):
         raise ValueError("Invalid egg_id")
 
-    client, events_col, contributions_col, _, _, _ = _easter_collections()
-    try:
-        inc_fields = {
-            f"prize_pool_by_egg.{egg_id}.{k}": v
-            for k, v in clean_prizes.items()
-        }
+    cols = _easter_collections()
+    events_col = cols["events"]
+    contributions_col = cols["contributions"]
 
-        update_doc = {
-            "$setOnInsert": {
-                "_id": EASTER_EVENT_ID,
-                "title": EASTER_EVENT["title"],
-                "created_at": datetime.now(timezone.utc),
-            },
-            "$inc": inc_fields,
-            "$set": {
-                f"contributors.{contributor_id}.name": contributor_name,
-                f"contributors.{contributor_id}.discord_id": contributor_id,
-            }
-        }
+    inc_fields = {
+        f"prize_pool_by_egg.{egg_id}.{k}": v
+        for k, v in clean_prizes.items()
+    }
 
-        for prize_name, qty in clean_prizes.items():
-            update_doc["$inc"][f"contributors.{contributor_id}.totals.{prize_name}"] = qty
-
-        events_col.update_one(
-            {"_id": EASTER_EVENT_ID},
-            update_doc,
-            upsert=True
-        )
-
-        contributions_col.insert_one({
-            "event_id": EASTER_EVENT_ID,
-            "egg_id": egg_id,
-            "contributor_id": contributor_id,
-            "contributor_name": contributor_name,
-            "prizes": clean_prizes,
+    update_doc = {
+        "$setOnInsert": {
+            "_id": EASTER_EVENT_ID,
+            "title": EASTER_EVENT["title"],
             "created_at": datetime.now(timezone.utc),
-        })
-    finally:
-        client.close()
+        },
+        "$inc": inc_fields,
+        "$set": {
+            f"contributors.{contributor_id}.name": contributor_name,
+            f"contributors.{contributor_id}.discord_id": contributor_id,
+        }
+    }
+
+    for prize_name, qty in clean_prizes.items():
+        update_doc["$inc"][f"contributors.{contributor_id}.totals.{prize_name}"] = qty
+
+    events_col.update_one(
+        {"_id": EASTER_EVENT_ID},
+        update_doc,
+        upsert=True
+    )
+
+    contributions_col.insert_one({
+        "event_id": EASTER_EVENT_ID,
+        "egg_id": egg_id,
+        "contributor_id": contributor_id,
+        "contributor_name": contributor_name,
+        "prizes": clean_prizes,
+        "created_at": datetime.now(timezone.utc),
+    })
 
 def _pick_weighted_prize(egg_id: int) -> str | None:
     inventory = _egg_inventory_state(egg_id)
@@ -1624,24 +1582,23 @@ def _pick_weighted_prize(egg_id: int) -> str | None:
     if not chosen:
         return None
 
-    client, events_col, _, _, _, _ = _easter_collections()
-    try:
-        result = events_col.update_one(
-            {
-                "_id": EASTER_EVENT_ID,
-                f"prize_pool_by_egg.{egg_id}.{chosen}": {"$gt": 0}
-            },
-            {
-                "$inc": {
-                    f"prize_pool_by_egg.{egg_id}.{chosen}": -1
-                }
+    cols = _easter_collections()
+    events_col = cols["events"]
+
+    result = events_col.update_one(
+        {
+            "_id": EASTER_EVENT_ID,
+            f"prize_pool_by_egg.{egg_id}.{chosen}": {"$gt": 0}
+        },
+        {
+            "$inc": {
+                f"prize_pool_by_egg.{egg_id}.{chosen}": -1
             }
-        )
-        if result.modified_count == 0:
-            return None
-        return chosen
-    finally:
-        client.close()
+        }
+    )
+    if result.modified_count == 0:
+        return None
+    return chosen
 
 
 def _pick_soft_loss_reward() -> str:
@@ -1668,36 +1625,32 @@ def _next_available_eggs():
     return available
 
 def _claim_easter_egg_slot(discord_id: str, egg_id: int) -> bool:
-    client = get_mongo_client()
-    col = client["Website"]["easter_user_opens"]
-    try:
-        now = datetime.now(timezone.utc)
+    col = get_db("Website")["easter_user_opens"]
+    now = datetime.now(timezone.utc)
 
-        result = col.update_one(
-            {
-                "_id": f"{EASTER_EVENT_ID}:{discord_id}",
-                f"opened.{egg_id}": {"$exists": False},
-            },
-            {
-                "$set": {
-                    "event_id": EASTER_EVENT_ID,
-                    "discord_id": str(discord_id),
-                    f"opened.{egg_id}": {
-                        "pending": True,
-                        "opened_at": now.isoformat(),
-                    },
-                    "updated_at": now,
+    result = col.update_one(
+        {
+            "_id": f"{EASTER_EVENT_ID}:{discord_id}",
+            f"opened.{egg_id}": {"$exists": False},
+        },
+        {
+            "$set": {
+                "event_id": EASTER_EVENT_ID,
+                "discord_id": str(discord_id),
+                f"opened.{egg_id}": {
+                    "pending": True,
+                    "opened_at": now.isoformat(),
                 },
-                "$setOnInsert": {
-                    "created_at": now,
-                }
+                "updated_at": now,
             },
-            upsert=True
-        )
+            "$setOnInsert": {
+                "created_at": now,
+            }
+        },
+        upsert=True
+    )
 
-        return result.modified_count > 0 or result.upserted_id is not None
-    finally:
-        client.close()
+    return result.modified_count > 0 or result.upserted_id is not None
 
 def _is_easter_testing_enabled() -> bool:
     return bool(EASTER_TESTING.get("enabled", False))
@@ -1706,7 +1659,7 @@ def _session_role_ids() -> set[str]:
     return {str(r) for r in (session.get("roles") or [])}
 
 def _is_easter_member() -> bool:
-    return str(MEMBER_ROLE_ID) in _session_role_ids()
+    return bool(session.get("is_member", False))
 
 def _easter_access_state() -> dict:
     logged_in = "discord_id" in session
@@ -1728,9 +1681,6 @@ def _easter_access_state() -> dict:
         "gate_message": gate_message,
     }
 
-def get_mongo_client():
-    mongo_uri = os.getenv("MONGO_URI")
-    return MongoClient(mongo_uri)
 
 def serialize_auction(auction):
     auction["_id"] = str(auction["_id"])
@@ -1761,19 +1711,24 @@ def serialize_mongo(obj):
     else:
         return obj
 
-def fetch_role_mapping(guild_id):
-    url = f"https://discord.com/api/guilds/{guild_id}/roles"
-    headers = {
-        "Authorization": f"Bot {BOT_TOKEN}"
-    }
+_ROLE_CACHE = {
+    "data": None,
+    "expires": 0,
+}
 
-    response = requests.get(url, headers=headers)
+def fetch_role_mapping(guild_id, ttl=300):
+    now = time.time()
+    if _ROLE_CACHE["data"] is not None and now < _ROLE_CACHE["expires"]:
+        return _ROLE_CACHE["data"]
+
+    url = f"https://discord.com/api/guilds/{guild_id}/roles"
+    headers = {"Authorization": f"Bot {BOT_TOKEN}"}
+
+    response = requests.get(url, headers=headers, timeout=10)
     response.raise_for_status()
 
     roles = response.json()
-
-    # Create a dict with role ID mapped to name, color, position
-    return {
+    mapping = {
         role["id"]: {
             "name": role["name"],
             "color": f"#{int(role['color']):06x}" if role["color"] != 0 else "#888",
@@ -1782,6 +1737,10 @@ def fetch_role_mapping(guild_id):
         for role in roles
     }
 
+    _ROLE_CACHE["data"] = mapping
+    _ROLE_CACHE["expires"] = now + ttl
+    return mapping
+
 WIKI_API = "https://hayday.fandom.com/api.php"
 WIKI_USER_AGENT = "HayDay🍀/wiki-products (contact: your-email@example.com)"
 WIKI_CACHE_ID = "wiki_products_v1"
@@ -1789,7 +1748,7 @@ WIKI_TTL = 60 * 60 * 24  # 24h
 
 
 def _mongo():
-    return MongoClient(os.getenv("MONGO_URI"))
+    return get_db()
 
 
 
@@ -1948,12 +1907,12 @@ def _templates_for(pageids):
     return out
 
 def _save_cache(items):
-    with _mongo() as m:
-        m["Website"]["cache"].update_one(
-            {"_id": WIKI_CACHE_ID},
-            {"$set": {"items": items, "updated_at": int(time.time())}},
-            upsert=True,
-        )
+    m= get_db()
+    m["Website"]["cache"].update_one(
+        {"_id": WIKI_CACHE_ID},
+        {"$set": {"items": items, "updated_at": int(time.time())}},
+        upsert=True,
+    )
 
 def _cache_fresh(doc):
     if not doc or "updated_at" not in doc: return False
@@ -1962,9 +1921,9 @@ def _cache_fresh(doc):
 
 
 def _load_cache():
-    with _mongo() as m:
-        doc = m["Website"]["cache"].find_one({"_id": WIKI_CACHE_ID})
-        return doc
+    m = get_db()
+    doc = m["Website"]["cache"].find_one({"_id": WIKI_CACHE_ID})
+    return doc
     
 def _req(params):
     params = dict(params)
@@ -2210,8 +2169,10 @@ def calculate_achievements(xp, message_count, coins, streak, auctions_won=0, top
 
 def log_abuse_attempt(action, details=None):
     """Log a blocked login or callback attempt to the Interaction Logs collection."""
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Website"]["InteractionLogs"]
+    db = get_db("Website")
+    col = db["InteractionLogs"]
+
+    try:
         col.insert_one({
             "action": action,
             "details": details or {},
@@ -2221,26 +2182,36 @@ def log_abuse_attempt(action, details=None):
             "user_agent": request.headers.get("User-Agent", "Unknown"),
             "ip": request.headers.get("X-Forwarded-For", request.remote_addr),
         })
+    except Exception as e:
+        print("[log_abuse_attempt] failed:", e)
 
 def get_settings_collection(client=None):
     if client:
         return client["Website"]["settings"]
-    with MongoClient(os.getenv("MONGO_URI")) as client2:
-        return client2["Website"]["settings"]
+    return get_db("Website")["settings"]
 
+_MAINT_BANNER_CACHE = {"data": None, "expires": 0}
 def read_maintenance_banner():
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Website"]["settings"]
-        doc = col.find_one({"_id": "maintenance_banner"})
-        if not doc:
-            return {"enabled": False, "message": "", "require_ack": False, "version": 1}
-        # Normalize expected fields
-        return {
+    now = time.time()
+    if _MAINT_BANNER_CACHE["data"] is not None and now < _MAINT_BANNER_CACHE["expires"]:
+        return _MAINT_BANNER_CACHE["data"]
+
+    col = get_db("Website")["settings"]
+    doc = col.find_one({"_id": "maintenance_banner"})
+
+    if not doc:
+        data = {"enabled": False, "message": "", "require_ack": False, "version": 1}
+    else:
+        data = {
             "enabled": bool(doc.get("enabled", False)),
             "message": doc.get("message", ""),
             "require_ack": bool(doc.get("require_ack", True)),
             "version": int(doc.get("version", 1)),
         }
+
+    _MAINT_BANNER_CACHE["data"] = data
+    _MAINT_BANNER_CACHE["expires"] = now + 30
+    return data
 
 @app.context_processor
 def inject_maintenance_banner():
@@ -2277,9 +2248,9 @@ def ip_watch():
     ]
 
     banned = []
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        for doc in client["Security"]["banned_ips"].find():
-            banned.append(f"{escape(doc['_id'])} (internal: {escape(doc.get('internal_ip', 'N/A'))}, reason: {escape(doc.get('reason', 'n/a'))}, hits: {doc.get('hit_count', '?')})")
+    client = get_db()
+    for doc in client["Security"]["banned_ips"].find():
+        banned.append(f"{escape(doc['_id'])} (internal: {escape(doc.get('internal_ip', 'N/A'))}, reason: {escape(doc.get('reason', 'n/a'))}, hits: {doc.get('hit_count', '?')})")
 
     return f"""
         <h1>🛡️ IP Scanner Watch</h1>
@@ -2300,13 +2271,13 @@ def ratelimit_handler(e):
     print(log_message)  # log to Fly logs
 
     # OPTIONAL: Save to MongoDB
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        client["Website"]["Logs"].insert_one({
-            "type": "ratelimit",
-            "ip": user_ip,
-            "path": request.path,
-            "timestamp": now
-        })
+    client = get_db()
+    client["Website"]["Logs"].insert_one({
+        "type": "ratelimit",
+        "ip": user_ip,
+        "path": request.path,
+        "timestamp": now
+    })
 
     return jsonify({
         "error": "Too many requests, slow down.",
@@ -2333,35 +2304,39 @@ def api_update_setting():
     if not key:
         return jsonify({"error": "Missing key"}), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Website"]["settings"]
+    client = get_db()
+    col = client["Website"]["settings"]
 
-        # If complex object (dict) is passed for maintenance banner, store as-is
-        if key == "maintenance_banner":
-            if not isinstance(value, dict):
-                return jsonify({"error": "maintenance_banner value must be an object"}), 400
-            value["_id"] = "maintenance_banner"
-            col.update_one({"_id": "maintenance_banner"}, {"$set": value}, upsert=True)
-            return jsonify({"message": "Maintenance banner updated"}), 200
+    # If complex object (dict) is passed for maintenance banner, store as-is
+    if key == "maintenance_banner":
+        if not isinstance(value, dict):
+            return jsonify({"error": "maintenance_banner value must be an object"}), 400
+        value["_id"] = "maintenance_banner"
+        col.update_one({"_id": "maintenance_banner"}, {"$set": value}, upsert=True)
+        return jsonify({"message": "Maintenance banner updated"}), 200
 
-        # Fallback for your other scalar settings (e.g., prefix)
-        col.update_one({"_id": key}, {"$set": {"_id": key, "value": value}}, upsert=True)
-        return jsonify({"message": f"{key} updated"}), 200
+    # Fallback for your other scalar settings (e.g., prefix)
+    col.update_one({"_id": key}, {"$set": {"_id": key, "value": value}}, upsert=True)
+    return jsonify({"message": f"{key} updated"}), 200
 
 
 @app.route("/send-reply", methods=["POST"])
 def send_reply():
-    if not is_staff(session.get("roles", [])):
+    if not is_staff():
         return "Unauthorized", 403
 
     channel_id = request.form["channel_id"]
     message = request.form["message"]
 
     # Use requests.post to tell your bot server to send message
-    requests.post("http://localhost:5000/api/send-message", json={
-        "channel_id": channel_id,
-        "message": message
-    })
+    requests.post(
+        "http://localhost:5000/api/send-message",
+        json={
+            "channel_id": channel_id,
+            "message": message
+        },
+        timeout=5
+    )
     return redirect("/active-tickets")
 
 @app.route("/api/wiki-products-local")
@@ -2386,6 +2361,10 @@ def img_proxy():
     url = request.args.get("url")
     if not url:
         abort(400, "url required")
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or parsed.netloc not in ALLOWED_IMAGE_HOSTS:
+        abort(403, "host not allowed")
 
     path = _cache_key_for_url(url)
     if not path.exists():
@@ -2432,117 +2411,119 @@ def admin_lookup(identifier):
     if not is_staff():
         return jsonify({"error": "Unauthorized"}), 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        try:
-            raw = (identifier or "").strip()
-            user_id = None
-            tag_used = None
+    client = get_db()
+    try:
+        raw = (identifier or "").strip()
+        user_id = None
+        tag_used = None
 
-            # Helper to normalize tags like "pc2rlpypy" -> "#PC2RLPYPY"
-            def normalize_tag(s: str) -> str:
-                core = re.sub(r"[^A-Za-z0-9]", "", (s or "")).upper()
-                return f"#{core}" if core else ""
+        # Helper to normalize tags like "pc2rlpypy" -> "#PC2RLPYPY"
+        def normalize_tag(s: str) -> str:
+            core = re.sub(r"[^A-Za-z0-9]", "", (s or "")).upper()
+            return f"#{core}" if core else ""
 
-            # 1) Resolve identifier -> user_id
-            if raw.isdigit() and 15 <= len(raw) <= 20:
-                user_id = raw
-            else:
-                tag_used = normalize_tag(raw)
-                if tag_used:
-                    # Find the first verify log that contains this tag and extract the Discord ID
-                    doc = client["log"]["verify"].find_one({
-                        "Message content": {"$regex": re.escape(tag_used), "$options": "i"}
-                    })
-                    if doc and doc.get("id"):
-                        user_id = str(doc["id"])
-
-            if not user_id:
-                return jsonify({"error": "No matching user found"}), 404
-
-            # 2) Load collections you already rely on
-            mentions = client["Mentions"]["Amount"].find_one({"id": int(user_id)})
-            birthday = client["Birthdays"]["Users"].find_one({"user_id": user_id})
-            scam_records = list(client["Scam"]["Banned"].find({}))
-            scam_ids = {val.strip().upper() for rec in scam_records for val in rec.get("id", [])}
-
-            mute_info = list(client["Moderation"]["mute"].find({"user_id": int(user_id)}))
-            mute_count = mute_info[0].get("mute_count", 0) if mute_info else 0
-
-            # LIVE ban check via bot internal API with auth header
-            banned = None
-            ban_reason = None
-            try:
-                bot_api_url = os.getenv("BOT_WEBHOOK_URL") + f"/internal/is_banned/{user_id}"
-                headers = {"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
-                resp = requests.get(bot_api_url, headers=headers, timeout=3)
-                if resp.ok:
-                    data = resp.json()
-                    banned = data.get("banned", False)
-                    ban_reason = data.get("reason") if banned else None
-            except Exception as e:
-                print(f"⚠️ Ban check failed: {e}")
-
-            usernames = client["Website"]["usernames"].find_one({"_id": user_id})
-
-            # Find active mute if exists
-            active_mute = next(
-                (m for m in mute_info if m.get("muted") and m.get("mute_end") and m["mute_end"] > datetime.utcnow()),
-                None
-            )
-
-            # Fetch logs and name changes
-            logs = list(client["Website"]["Logs"].find({
-                "$or": [{"author.id": user_id}, {"user_id": user_id}]
-            }))
-            name_changes = list(client["log"]["namechange"].find({"user_id": user_id}))
-
-            message_edits = [log for log in logs if log.get("type") == "message_edit"]
-            message_deletes = [log for log in logs if log.get("type") == "message_delete"]
-            commands = [log for log in logs if log.get("type") == "command"]
-
-            # Verifications: by Discord ID and (if provided) by tag text
-            verify_or = [{"id": int(user_id)}]
+        # 1) Resolve identifier -> user_id
+        if raw.isdigit() and 15 <= len(raw) <= 20:
+            user_id = raw
+        else:
+            tag_used = normalize_tag(raw)
             if tag_used:
-                verify_or.append({"Message content": {"$regex": re.escape(tag_used), "$options": "i"}})
+                # Find the first verify log that contains this tag and extract the Discord ID
+                doc = client["log"]["verify"].find_one({
+                    "Message content": {"$regex": re.escape(tag_used), "$options": "i"}
+                })
+                if doc and doc.get("id"):
+                    user_id = str(doc["id"])
 
-            linked_data = list(client["log"]["verify"].find({"$or": verify_or}))
-            for entry in linked_data:
-                message = entry.get("Message content", "")
-                match = re.search(r"HayDay ID:\s*([#A-Z0-9]+)", message, re.I)
-                hayday_id = match.group(1).strip().upper() if match else None
-                entry["hayday_id"] = hayday_id
-                entry["is_scammer"] = (hayday_id in scam_ids) if hayday_id else False
+        if not user_id:
+            return jsonify({"error": "No matching user found"}), 404
 
-            # Prepare response JSON
-            response = {
-                "user_summary": {
-                    "user_id": user_id,
-                    "mention_count": mentions.get("Mentions") if mentions else 0,
-                    "birthday": f"{birthday.get('day')}/{birthday.get('month')} {birthday.get('timezone', '')}" if birthday else None,
-                    "banned": banned,
-                    "ban_reason": ban_reason,
-                    "muted": bool(active_mute),
-                    "mute_reason": active_mute.get("reason") if active_mute else None,
-                    "mute_end": active_mute.get("mute_end") if active_mute else None,
-                    "mute_end_str": active_mute["mute_end"].strftime("%Y-%m-%d %H:%M:%S UTC") if active_mute else None,
-                    "mute_count": mute_count,
-                    "display_name": usernames.get("display_name") if usernames else None,
-                    "username": usernames.get("username") if usernames else None,
-                    "avatar_url": usernames.get("avatar") if usernames else None
-                },
-                "linked_data": linked_data,
-                "scam_records": scam_records,
-                "mute_ban_info": mute_info,
-                "commands": commands,
-                "messages_deleted": message_deletes,
-                "messages_edited": message_edits,
-                "name_history": name_changes
-            }
+        # 2) Load collections you already rely on
+        mentions = client["Mentions"]["Amount"].find_one({"id": int(user_id)})
+        birthday = client["Birthdays"]["Users"].find_one({"user_id": user_id})
+        scam_records = list(client["Scam"]["Banned"].find({}, {"id": 1}).limit(5000))
+        scam_ids = {val.strip().upper() for rec in scam_records for val in rec.get("id", [])}
 
-            return jsonify(serialize_mongo(response))
+        mute_info = list(client["Moderation"]["mute"].find({"user_id": int(user_id)}))
+        mute_count = mute_info[0].get("mute_count", 0) if mute_info else 0
 
+        # LIVE ban check via bot internal API with auth header
+        banned = None
+        ban_reason = None
+        try:
+            bot_api_url = os.getenv("BOT_WEBHOOK_URL") + f"/internal/is_banned/{user_id}"
+            headers = {"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+            resp = requests.get(bot_api_url, headers=headers, timeout=3)
+            if resp.ok:
+                data = resp.json()
+                banned = data.get("banned", False)
+                ban_reason = data.get("reason") if banned else None
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            print(f"⚠️ Ban check failed: {e}")
+
+        usernames = client["Website"]["usernames"].find_one({"_id": user_id})
+
+        # Find active mute if exists
+        active_mute = next(
+            (m for m in mute_info if m.get("muted") and m.get("mute_end") and m["mute_end"] > datetime.utcnow()),
+            None
+        )
+
+        # Fetch logs and name changes
+        logs = list(client["Website"]["Logs"].find(
+            {"$or": [{"author.id": user_id}, {"user_id": user_id}]}
+        ).sort("timestamp", -1).limit(200))
+        name_changes = list(
+            client["log"]["namechange"].find({"user_id": user_id}).sort("timestamp", -1).limit(50)
+        )
+
+        message_edits = [log for log in logs if log.get("type") == "message_edit"]
+        message_deletes = [log for log in logs if log.get("type") == "message_delete"]
+        commands = [log for log in logs if log.get("type") == "command"]
+
+        # Verifications: by Discord ID and (if provided) by tag text
+        verify_or = [{"id": int(user_id)}]
+        if tag_used:
+            verify_or.append({"Message content": {"$regex": re.escape(tag_used), "$options": "i"}})
+
+        linked_data = list(client["log"]["verify"].find({"$or": verify_or}))
+        for entry in linked_data:
+            message = entry.get("Message content", "")
+            match = re.search(r"HayDay ID:\s*([#A-Z0-9]+)", message, re.I)
+            hayday_id = match.group(1).strip().upper() if match else None
+            entry["hayday_id"] = hayday_id
+            entry["is_scammer"] = (hayday_id in scam_ids) if hayday_id else False
+
+        # Prepare response JSON
+        response = {
+            "user_summary": {
+                "user_id": user_id,
+                "mention_count": mentions.get("Mentions") if mentions else 0,
+                "birthday": f"{birthday.get('day')}/{birthday.get('month')} {birthday.get('timezone', '')}" if birthday else None,
+                "banned": banned,
+                "ban_reason": ban_reason,
+                "muted": bool(active_mute),
+                "mute_reason": active_mute.get("reason") if active_mute else None,
+                "mute_end": active_mute.get("mute_end") if active_mute else None,
+                "mute_end_str": active_mute["mute_end"].strftime("%Y-%m-%d %H:%M:%S UTC") if active_mute else None,
+                "mute_count": mute_count,
+                "display_name": usernames.get("display_name") if usernames else None,
+                "username": usernames.get("username") if usernames else None,
+                "avatar_url": usernames.get("avatar") if usernames else None
+            },
+            "linked_data": linked_data,
+            "scam_records": scam_records,
+            "mute_ban_info": mute_info,
+            "commands": commands,
+            "messages_deleted": message_deletes,
+            "messages_edited": message_edits,
+            "name_history": name_changes
+        }
+
+        return jsonify(serialize_mongo(response))
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
@@ -2563,74 +2544,76 @@ def api_mute_user():
         if not user_id:
             return jsonify({"error": "Missing user ID"}), 400
 
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            collection = client["Moderation"]["mute"]
+        client = get_db()
+        collection = client["Moderation"]["mute"]
 
-            if action == "unmute":
-                # Update DB
-                collection.update_one(
-                    {"user_id": user_id, "guild_id": guild_id},
-                    {"$set": {"muted": False}}
-                )
-                # Trigger bot webhook
-                try:
-                    requests.post(
-                        os.getenv("BOT_WEBHOOK_URL") + "/webhook/moderation/unmute",
-                        json={
-                            "user_id": user_id,
-                            "reason": reason,
-                            "staff_id": staff_id
-                        },
-                        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
-                    )
-                except Exception as e:
-                    print(f"⚠️ Failed to trigger unmute webhook: {e}")
-
-                return jsonify({"success": True})
-
-            # Proceed with mute
-            duration_raw = data.get("duration")
-            if not duration_raw:
-                return jsonify({"error": "Missing duration"}), 400
-
-            duration_seconds = parse_duration(duration_raw)
-            if duration_seconds is None:
-                return jsonify({"error": "Invalid duration format"}), 400
-
-            mute_end = datetime.utcnow() + timedelta(seconds=duration_seconds)
-
-            # Save to MongoDB
+        if action == "unmute":
+            # Update DB
             collection.update_one(
                 {"user_id": user_id, "guild_id": guild_id},
-                {
-                    "$set": {
-                        "user_id": user_id,
-                        "guild_id": guild_id,
-                        "mute_end": mute_end,
-                        "reason": reason,
-                        "muted": True
-                    },
-                    "$inc": {"mute_count": 1}
-                },
-                upsert=True
+                {"$set": {"muted": False}}
             )
-
-            # Trigger mute webhook
+            # Trigger bot webhook
             try:
                 requests.post(
-                    os.getenv("BOT_WEBHOOK_URL") + "/webhook/moderation/mute",
+                    os.getenv("BOT_WEBHOOK_URL") + "/webhook/moderation/unmute",
                     json={
                         "user_id": user_id,
-                        "duration": duration_raw,
                         "reason": reason,
                         "staff_id": staff_id
                     },
-                    headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+                    headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+                    timeout=5
                 )
             except Exception as e:
-                print(f"⚠️ Failed to trigger bot mute webhook: {e}")
+                print(f"⚠️ Failed to trigger unmute webhook: {e}")
 
             return jsonify({"success": True})
+
+        # Proceed with mute
+        duration_raw = data.get("duration")
+        if not duration_raw:
+            return jsonify({"error": "Missing duration"}), 400
+
+        duration_seconds = parse_duration(duration_raw)
+        if duration_seconds is None:
+            return jsonify({"error": "Invalid duration format"}), 400
+
+        mute_end = datetime.utcnow() + timedelta(seconds=duration_seconds)
+
+        # Save to MongoDB
+        collection.update_one(
+            {"user_id": user_id, "guild_id": guild_id},
+            {
+                "$set": {
+                    "user_id": user_id,
+                    "guild_id": guild_id,
+                    "mute_end": mute_end,
+                    "reason": reason,
+                    "muted": True
+                },
+                "$inc": {"mute_count": 1}
+            },
+            upsert=True
+        )
+
+        # Trigger mute webhook
+        try:
+            requests.post(
+                os.getenv("BOT_WEBHOOK_URL") + "/webhook/moderation/mute",
+                json={
+                    "user_id": user_id,
+                    "duration": duration_raw,
+                    "reason": reason,
+                    "staff_id": staff_id
+                },
+                headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+                timeout=5
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to trigger bot mute webhook: {e}")
+
+        return jsonify({"success": True})
 
     except Exception as e:
         print("[/api/moderation/mute] Error:", e)
@@ -2656,7 +2639,8 @@ def api_kick_user():
                 "reason": reason,
                 "staff_id": staff_id
             },
-            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+            timeout=5
         )
         return jsonify({"success": True})
     except Exception as e:
@@ -2686,7 +2670,8 @@ def api_scam_action():
                 "scam_id": scam_id,
                 "staff_id": staff_id
             },
-            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+            timeout=5
         )
 
         return jsonify({"success": True})
@@ -2710,22 +2695,22 @@ def api_ban_user():
         if not user_id or action not in ("ban", "unban"):
             return jsonify({"error": "Invalid input"}), 400
 
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            ban_col = client["Moderation"]["ban_list"]
+        client = get_db()
+        ban_col = client["Moderation"]["ban_list"]
 
-            if action == "ban":
-                ban_col.update_one(
-                    {"_id": user_id},
-                    {"$set": {
-                        "banned": True,
-                        "reason": reason,
-                        "banned_by": staff_id,
-                        "timestamp": datetime.utcnow()
-                    }},
-                    upsert=True
-                )
-            else:
-                ban_col.delete_one({"_id": user_id})
+        if action == "ban":
+            ban_col.update_one(
+                {"_id": user_id},
+                {"$set": {
+                    "banned": True,
+                    "reason": reason,
+                    "banned_by": staff_id,
+                    "timestamp": datetime.utcnow()
+                }},
+                upsert=True
+            )
+        else:
+            ban_col.delete_one({"_id": user_id})
 
         # 🔁 Trigger bot webhook
         try:
@@ -2737,7 +2722,8 @@ def api_ban_user():
                     "staff_id": staff_id,
                     "action": action
                 },
-                headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+                headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+                timeout=5
             )
         except Exception as e:
             print(f"⚠️ Failed to trigger bot ban webhook: {e}")
@@ -2755,12 +2741,12 @@ def remove_featured_achievement():
     if "discord_id" not in session:
         return redirect("/login")
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        users = client["Website"]["users"]
-        users.update_one(
-            {"_id": session["discord_id"]},
-            {"$unset": {"featured_achievement": ""}}
-        )
+    client = get_db()
+    users = client["Website"]["users"]
+    users.update_one(
+        {"_id": session["discord_id"]},
+        {"$unset": {"featured_achievement": ""}}
+    )
 
     return redirect("/profile")
 
@@ -2773,33 +2759,34 @@ def booster_dashboard():
     discord_id = int(session["discord_id"])
     message = None
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        booster_col = client["hayday"]["Booster"]
-        user_col = client["Website"]["usernames"]
-        roles_cache = client["Website"]["roles_cache"].find_one({"_id": "live"}) or {}
+    client = get_db()
+    booster_col = client["hayday"]["Booster"]
+    user_col = client["Website"]["usernames"]
+    roles_cache = client["Website"]["roles_cache"].find_one({"_id": "live"}) or {}
 
-        # Handle form submission
-        if request.method == "POST":
-            target_id = int(request.form.get("target_id"))
-            role_name = request.form.get("role_name")
-            role_color = request.form.get("role_color")
+    # Handle form submission
+    if request.method == "POST":
+        target_id = int(request.form.get("target_id"))
+        role_name = request.form.get("role_name")
+        role_color = request.form.get("role_color")
 
-            if not role_name or not role_color:
-                message = "❌ Both fields are required."
-            else:
-                try:
-                    r = requests.post(
-                        os.getenv("BOT_WEBHOOK_URL") + "/webhook/booster-update",
-                        json={
-                            "discord_id": target_id,
-                            "role_name": role_name,
-                            "role_color": role_color
-                        },
-                        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
-                    )
-                    message = "✅ Role updated!" if r.status_code == 200 else "❌ Failed to update role"
-                except Exception as e:
-                    message = f"❌ Error: {e}"
+        if not role_name or not role_color:
+            message = "❌ Both fields are required."
+        else:
+            try:
+                r = requests.post(
+                    os.getenv("BOT_WEBHOOK_URL") + "/webhook/booster-update",
+                    json={
+                        "discord_id": target_id,
+                        "role_name": role_name,
+                        "role_color": role_color
+                    },
+                    headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+                    timeout=5
+                )
+                message = "✅ Role updated!" if r.status_code == 200 else "❌ Failed to update role"
+            except Exception as e:
+                message = f"❌ Error: {e}"
 
         # Load all boosters
         boosters = []
@@ -2827,15 +2814,15 @@ def force_logout_all():
     if session.get("discord_id") != "154282062973501441":
         return "❌ Unauthorized", 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        # Clear all session data in the Website.users collection
-        result = client["Website"]["users"].update_many({}, {
-            "$unset": {
-                "session": "",
-                "last_login": "",
-                "staff_role": "",
-            }
-        })
+    client = get_db()
+    # Clear all session data in the Website.users collection
+    result = client["Website"]["users"].update_many({}, {
+        "$unset": {
+            "session": "",
+            "last_login": "",
+            "staff_role": "",
+        }
+    })
 
     # Optionally log out current user too
     session.clear()
@@ -2856,12 +2843,12 @@ def update_bio():
 
     safe_bio = escape(new_bio)  # prevent injection
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        users = client["Website"]["users"]
-        users.update_one(
-            {"_id": session["discord_id"]},
-            {"$set": {"bio": safe_bio}}
-        )
+    client = get_db()
+    users = client["Website"]["users"]
+    users.update_one(
+        {"_id": session["discord_id"]},
+        {"$set": {"bio": safe_bio}}
+    )
 
     flash("✅ Bio updated successfully!", "success")
     return redirect(url_for("profile"))
@@ -2877,12 +2864,12 @@ def set_featured_achievement():
     if not new_badge:
         return jsonify({"success": False, "error": "Missing badge"}), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        users = client["Website"]["users"]
-        users.update_one(
-            {"_id": session["discord_id"]},
-            {"$set": {"featured_achievement": new_badge}}
-        )
+    client = get_db()
+    users = client["Website"]["users"]
+    users.update_one(
+        {"_id": session["discord_id"]},
+        {"$set": {"featured_achievement": new_badge}}
+    )
 
     return jsonify({"success": True})
     
@@ -2895,169 +2882,169 @@ def button_toggles():
     if "discord_id" not in session:
         return redirect("/login-page")
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        toggle_col = client["Website"]["ButtonToggles"]
+    client = get_db()
+    toggle_col = client["Website"]["ButtonToggles"]
 
-        if request.method == "GET":
-            toggles = {
-                doc["_id"]: {
-                    "enabled": doc["enabled"],
-                    "reason": doc.get("reason", "")
-                } for doc in toggle_col.find()
-            }
-            return jsonify(toggles)
+    if request.method == "GET":
+        toggles = {
+            doc["_id"]: {
+                "enabled": doc["enabled"],
+                "reason": doc.get("reason", "")
+            } for doc in toggle_col.find()
+        }
+        return jsonify(toggles)
 
-        if request.method == "POST":
-            data = request.json
-            key = data.get("key")
-            enabled = data.get("enabled", True)
-            reason = data.get("reason", "").strip()
+    if request.method == "POST":
+        data = request.json
+        key = data.get("key")
+        enabled = data.get("enabled", True)
+        reason = data.get("reason", "").strip()
 
-            if not enabled and not reason:
-                reason = "🔒 This function is disabled by the staff."
+        if not enabled and not reason:
+            reason = "🔒 This function is disabled by the staff."
 
-            if key not in ["staff_application", "support", "giveaway", "verification", "auction"]:
-                return jsonify({"error": "Invalid key"}), 400
+        if key not in ["staff_application", "support", "giveaway", "verification", "auction"]:
+            return jsonify({"error": "Invalid key"}), 400
 
-            toggle_col.update_one(
-                {"_id": key},
-                {"$set": {"enabled": enabled, "reason": reason}},
-                upsert=True
-            )
-            return jsonify({"message": f"{key} status updated."})
+        toggle_col.update_one(
+            {"_id": key},
+            {"$set": {"enabled": enabled, "reason": reason}},
+            upsert=True
+        )
+        return jsonify({"message": f"{key} status updated."})
 
 
 
 @app.route("/giveaways")
 def giveaways_page():
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Giveaway"]
-        user_db = client["Website"]["usernames"]
-        raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
+    client = get_db()
+    db = client["Giveaway"]
+    user_db = client["Website"]["usernames"]
+    raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
 
-        # --- ensure session roles are present & normalized ---
-        discord_id = session.get("discord_id")
-        session_roles = session.get("roles") or []
-        if not session_roles and discord_id:
-            # fallback: load roles from Website.usernames
-            udoc = user_db.find_one({"_id": str(discord_id)}, {"roles": 1})
-            if udoc:
-                session_roles = [str(r) for r in udoc.get("roles", [])]
-                session["roles"] = session_roles  # cache back into session
-        else:
-            # normalize whatever's in session to strings
-            session_roles = [str(r) for r in session_roles]
+    # --- ensure session roles are present & normalized ---
+    discord_id = session.get("discord_id")
+    session_roles = session.get("roles") or []
+    if not session_roles and discord_id:
+        # fallback: load roles from Website.usernames
+        udoc = user_db.find_one({"_id": str(discord_id)}, {"roles": 1})
+        if udoc:
+            session_roles = [str(r) for r in udoc.get("roles", [])]
+            session["roles"] = session_roles  # cache back into session
+    else:
+        # normalize whatever's in session to strings
+        session_roles = [str(r) for r in session_roles]
 
-        # collect user + host ids (unchanged) ...
-        user_ids = set()
-        for g in raw_giveaways:
-            user_ids.update(map(str, g.get("participants", {}).keys()))
-            if "host_id" in g:
-                user_ids.add(str(g["host_id"]))
-        users = user_db.find({"_id": {"$in": list(user_ids)}})
-        user_map = {str(u["_id"]): u for u in users}
+    # collect user + host ids (unchanged) ...
+    user_ids = set()
+    for g in raw_giveaways:
+        user_ids.update(map(str, g.get("participants", {}).keys()))
+        if "host_id" in g:
+            user_ids.add(str(g["host_id"]))
+    users = user_db.find({"_id": {"$in": list(user_ids)}})
+    user_map = {str(u["_id"]): u for u in users}
 
-        giveaways = []
-        now_ts = time.time()
-        now = datetime.now(COPENHAGEN_TZ)
+    giveaways = []
+    now_ts = time.time()
+    now = datetime.now(COPENHAGEN_TZ)
 
-        guild_id = "959220051427340379"
-        try:
-            role_mapping = fetch_role_mapping(guild_id)
-        except Exception as e:
-            print(f"[Giveaways Page] Failed to fetch roles: {e}")
-            role_mapping = {}
+    guild_id = "959220051427340379"
+    try:
+        role_mapping = fetch_role_mapping(guild_id)
+    except Exception as e:
+        print(f"[Giveaways Page] Failed to fetch roles: {e}")
+        role_mapping = {}
 
-        # Make sure these IDs are strings
-        BYPASS_ROLE_ID = "975188431636418681"
-        # Make sure this is your real member role ID:
-        MEMBER_ROLE_ID = "959220051469279296"
+    # Make sure these IDs are strings
+    BYPASS_ROLE_ID = "975188431636418681"
+    # Make sure this is your real member role ID:
+    MEMBER_ROLE_ID = "959220051469279296"
 
-        for g in raw_giveaways:
-            end = g.get("end_time")
-            if not end:
-                continue
-            if end.tzinfo is None:
-                end = end.replace(tzinfo=timezone.utc)
-            end_local = end.astimezone(COPENHAGEN_TZ)
+    for g in raw_giveaways:
+        end = g.get("end_time")
+        if not end:
+            continue
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        end_local = end.astimezone(COPENHAGEN_TZ)
 
-            if end_local.timestamp() < now_ts:
-                continue
+        if end_local.timestamp() < now_ts:
+            continue
 
-            diff = int(end.timestamp() - now_ts)
-            hours = diff // 3600
-            minutes = (diff % 3600) // 60
-            g["time_remaining"] = f"{hours}h {minutes}m"
-            g["end_time"] = end_local
-            g["end_time_str"] = f"<t:{int(end.timestamp())}:R>"
-            g["end_time_ts"] = int(end.timestamp())
+        diff = int(end.timestamp() - now_ts)
+        hours = diff // 3600
+        minutes = (diff % 3600) // 60
+        g["time_remaining"] = f"{hours}h {minutes}m"
+        g["end_time"] = end_local
+        g["end_time_str"] = f"<t:{int(end.timestamp())}:R>"
+        g["end_time_ts"] = int(end.timestamp())
 
-            g["entry_count"] = sum(g.get("participants", {}).values())
-            g["winners"] = g.get("winners_count", 1)
-            g["guild_id"] = str(g.get("guild_id", GUILD_ID))
-            g["channel_id"] = str(g.get("channel_id", ""))
+        g["entry_count"] = sum(g.get("participants", {}).values())
+        g["winners"] = g.get("winners_count", 1)
+        g["guild_id"] = str(g.get("guild_id", GUILD_ID))
+        g["channel_id"] = str(g.get("channel_id", ""))
 
-            # --- Required roles (OR + legacy fallback) ---
-            raw_ids = list(g.get("required_role_ids") or [])
-            legacy = g.get("required_role_id")
-            if legacy not in (None, "", 0):
-                raw_ids.append(legacy)
+        # --- Required roles (OR + legacy fallback) ---
+        raw_ids = list(g.get("required_role_ids") or [])
+        legacy = g.get("required_role_id")
+        if legacy not in (None, "", 0):
+            raw_ids.append(legacy)
 
-            # normalize to strings for display & session compare
-            required_ids = [str(x) for x in raw_ids if x not in (None, "", 0)]
-            g["required_role_ids"] = required_ids  # expose to Jinja
+        # normalize to strings for display & session compare
+        required_ids = [str(x) for x in raw_ids if x not in (None, "", 0)]
+        g["required_role_ids"] = required_ids  # expose to Jinja
 
-            # names for display (if you fetched role_mapping earlier)
-            required_names = [role_mapping.get(rid, {}).get("name") for rid in required_ids]
-            required_names = [n for n in required_names if n]
-            g["required_role_names"] = required_names
-            g["required_role_display"] = ", ".join(required_names) if required_names else None
+        # names for display (if you fetched role_mapping earlier)
+        required_names = [role_mapping.get(rid, {}).get("name") for rid in required_ids]
+        required_names = [n for n in required_names if n]
+        g["required_role_names"] = required_names
+        g["required_role_display"] = ", ".join(required_names) if required_names else None
 
-            # Eligibility (OR): has at least one of the required roles
-            user_roles = session_roles  # already normalized to strings earlier
-            is_booster = BYPASS_ROLE_ID in user_roles
-            has_required = (len(required_ids) == 0) or any(rid in user_roles for rid in required_ids)
+        # Eligibility (OR): has at least one of the required roles
+        user_roles = session_roles  # already normalized to strings earlier
+        is_booster = BYPASS_ROLE_ID in user_roles
+        has_required = (len(required_ids) == 0) or any(rid in user_roles for rid in required_ids)
 
-            boosters_bypass = bool(g.get("boosters_bypass", True))
-            can_booster_bypass = is_booster and boosters_bypass
+        boosters_bypass = bool(g.get("boosters_bypass", True))
+        can_booster_bypass = is_booster and boosters_bypass
 
-            # checkbox only when they LACK all required roles but ARE a booster (bypass)
-            g["has_bypass"] = (len(required_ids) > 0) and (not has_required) and can_booster_bypass
-            g["can_join"] = has_required or can_booster_bypass
+        # checkbox only when they LACK all required roles but ARE a booster (bypass)
+        g["has_bypass"] = (len(required_ids) > 0) and (not has_required) and can_booster_bypass
+        g["can_join"] = has_required or can_booster_bypass
 
-            g["not_in_guild"] = str(MEMBER_ROLE_ID) not in user_roles
+        g["not_in_guild"] = str(MEMBER_ROLE_ID) not in user_roles
 
-            # host info…
-            host_id = str(g.get("host_id"))
-            host = user_map.get(host_id)
-            g["host_display"] = host.get("display_name", f"<@{host_id}>") if host else f"<@{host_id}>"
-            g["host_avatar"] = (
-                f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
-                if host and host.get("avatar_hash") else None
-            )
-
-            # participants info…
-            total_entries = g["entry_count"]
-            g["participants_percent"] = []
-            g["participant_info"] = []
-            for uid, count in g.get("participants", {}).items():
-                uid_str = str(uid)
-                percent = round((count / total_entries) * 100, 2) if total_entries else 0
-                user = user_map.get(uid_str)
-                display_name = user.get("display_name", f"<@{uid_str}>") if user else f"<@{uid_str}>"
-                avatar = user.get("avatar") if user and user.get("avatar") else "https://cdn.discordapp.com/embed/avatars/0.png"
-                g["participants_percent"].append({"id": uid_str, "count": count, "percent": percent})
-                g["participant_info"].append({"id": uid_str, "count": count, "percent": percent, "name": display_name, "avatar": avatar})
-
-            giveaways.append(g)
-
-        return render_template(
-            "giveaways.html",
-            giveaways=giveaways,
-            discord_id=discord_id,
-            user_roles=session_roles,
-            year=now.year
+        # host info…
+        host_id = str(g.get("host_id"))
+        host = user_map.get(host_id)
+        g["host_display"] = host.get("display_name", f"<@{host_id}>") if host else f"<@{host_id}>"
+        g["host_avatar"] = (
+            f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
+            if host and host.get("avatar_hash") else None
         )
+
+        # participants info…
+        total_entries = g["entry_count"]
+        g["participants_percent"] = []
+        g["participant_info"] = []
+        for uid, count in g.get("participants", {}).items():
+            uid_str = str(uid)
+            percent = round((count / total_entries) * 100, 2) if total_entries else 0
+            user = user_map.get(uid_str)
+            display_name = user.get("display_name", f"<@{uid_str}>") if user else f"<@{uid_str}>"
+            avatar = user.get("avatar") if user and user.get("avatar") else "https://cdn.discordapp.com/embed/avatars/0.png"
+            g["participants_percent"].append({"id": uid_str, "count": count, "percent": percent})
+            g["participant_info"].append({"id": uid_str, "count": count, "percent": percent, "name": display_name, "avatar": avatar})
+
+        giveaways.append(g)
+
+    return render_template(
+        "giveaways.html",
+        giveaways=giveaways,
+        discord_id=discord_id,
+        user_roles=session_roles,
+        year=now.year
+    )
 
 
 @app.route("/api/giveaways/won")
@@ -3070,44 +3057,44 @@ def won_giveaways():
     skip = (page - 1) * limit
     discord_id = session["discord_id"]
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Giveaway"]["current_giveaways"]
+    client = get_db()
+    col = client["Giveaway"]["current_giveaways"]
 
-        query = {
-            "ended": True,
-            "winners": {"$in": [discord_id]}
-        }
+    query = {
+        "ended": True,
+        "winners": {"$in": [discord_id]}
+    }
 
-        total = col.count_documents(query)
-        recent = list(col.find(query)
-                      .sort("end_time", -1)
-                      .skip(skip)
-                      .limit(limit))
+    total = col.count_documents(query)
+    recent = list(col.find(query)
+                    .sort("end_time", -1)
+                    .skip(skip)
+                    .limit(limit))
 
-        usernames_col = client["Website"]["usernames"]
+    usernames_col = client["Website"]["usernames"]
 
-        for g in recent:
-            g["_id"] = str(g["_id"])
-            g["you_won"] = True
+    for g in recent:
+        g["_id"] = str(g["_id"])
+        g["you_won"] = True
 
-            # Timestamp fix
-            end_time = g.get("end_time")
-            if isinstance(end_time, datetime):
-                g["end_time_ts"] = int(end_time.timestamp())
-            else:
-                g["end_time_ts"] = 0
+        # Timestamp fix
+        end_time = g.get("end_time")
+        if isinstance(end_time, datetime):
+            g["end_time_ts"] = int(end_time.timestamp())
+        else:
+            g["end_time_ts"] = 0
 
-            # Host display/avatars
-            host_id = g.get("host_id")
-            if host_id:
-                profile = usernames_col.find_one({"_id": str(host_id)})
-                g["host_display"] = profile.get("display_name", "Unknown") if profile else "Unknown"
-                g["host_avatar"] = profile.get("avatar_url", "") if profile else ""
-                g["host_id"] = str(host_id)
-            else:
-                g["host_display"] = "Unknown"
-                g["host_avatar"] = ""
-                g["host_id"] = None
+        # Host display/avatars
+        host_id = g.get("host_id")
+        if host_id:
+            profile = usernames_col.find_one({"_id": str(host_id)})
+            g["host_display"] = profile.get("display_name", "Unknown") if profile else "Unknown"
+            g["host_avatar"] = profile.get("avatar_url", "") if profile else ""
+            g["host_id"] = str(host_id)
+        else:
+            g["host_display"] = "Unknown"
+            g["host_avatar"] = ""
+            g["host_id"] = None
 
     return jsonify({
         "giveaways": recent,
@@ -3116,61 +3103,82 @@ def won_giveaways():
         "limit": limit
     })
 
-
-
-
-
-    
 @app.route("/api/live-giveaways")
 def api_live_giveaways():
-    COPENHAGEN_TZ = pytz_timezone("Europe/Copenhagen")
     now_ts = time.time()
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Giveaway"]
-        user_db = client["Website"]["usernames"]
-        raw_giveaways = list(db["current_giveaways"].find({"ended": False}))
+    if LIVE_GIVEAWAYS_CACHE["payload"] is not None and now_ts < LIVE_GIVEAWAYS_CACHE["expires"]:
+        return jsonify(LIVE_GIVEAWAYS_CACHE["payload"])
 
-        user_ids = set()
-        for g in raw_giveaways:
-            user_ids.update(g.get("participants", {}).keys())
-            if "host_id" in g:
-                user_ids.add(str(g["host_id"]))
+    client = get_db()
+    db = client["Giveaway"]
+    user_db = client["Website"]["usernames"]
 
-        users = user_db.find({"_id": {"$in": list(user_ids)}})
+    raw_giveaways = list(
+        db["current_giveaways"].find(
+            {"ended": False},
+            {"prize": 1, "end_time": 1, "host_id": 1}
+        )
+    )
+
+    host_ids = {
+        str(g["host_id"])
+        for g in raw_giveaways
+        if g.get("host_id") is not None
+    }
+
+    user_map = {}
+    if host_ids:
+        users = user_db.find(
+            {"_id": {"$in": list(host_ids)}},
+            {"username": 1, "display_name": 1, "avatar": 1, "avatar_hash": 1}
+        )
         user_map = {str(u["_id"]): u for u in users}
 
-        output = []
+    output = []
 
-        for g in raw_giveaways:
-            end = g.get("end_time")
-            if not end:
-                continue
-            if end.tzinfo is None:
-                end = end.replace(tzinfo=timezone.utc)
-            end_ts = end.timestamp()
-            if end_ts < now_ts:
-                continue
+    for g in raw_giveaways:
+        end = g.get("end_time")
+        if not end:
+            continue
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
 
-            host_id = str(g.get("host_id"))
-            host = user_map.get(host_id)
+        end_ts = end.timestamp()
+        if end_ts < now_ts:
+            continue
 
-            output.append({
-                "prize": g.get("prize"),
-                "end_time_ts": int(end_ts),
-                "host_display": host.get("username") if host else f"User {host_id}",
-                "host_avatar": f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
-                    if host and host.get("avatar_hash") else None
-            })
+        host_id = str(g.get("host_id") or "")
+        host = user_map.get(host_id, {})
 
-        return jsonify(output)
+        output.append({
+            "prize": g.get("prize"),
+            "end_time_ts": int(end_ts),
+            "host_display": host.get("display_name") or host.get("username") or f"User {host_id}",
+            "host_avatar": host.get("avatar")
+        })
+
+    payload = output
+    LIVE_GIVEAWAYS_CACHE["payload"] = payload
+    LIVE_GIVEAWAYS_CACHE["expires"] = now_ts + 10
+
+    return jsonify(payload)
 
 
 @app.route("/api/production-data")
 def api_production_data():
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["ProductionGuide"]
-        data = list(col.find({}, {"_id": 0}))  # Exclude _id for frontend use
+    now_ts = time.time()
+
+    if PRODUCTION_DATA_CACHE["payload"] is not None and now_ts < PRODUCTION_DATA_CACHE["expires"]:
+        return jsonify(PRODUCTION_DATA_CACHE["payload"])
+
+    client = get_db()
+    col = client["hayday"]["ProductionGuide"]
+    data = list(col.find({}, {"_id": 0}))
+
+    PRODUCTION_DATA_CACHE["payload"] = data
+    PRODUCTION_DATA_CACHE["expires"] = now_ts + 300
+
     return jsonify(data)
 
 @app.route("/api/fandom-thumbs")
@@ -3241,51 +3249,51 @@ def admin_production():
     if not is_staff():
         return "Unauthorized", 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["ProductionGuide"]
+    client = get_db()
+    col = client["hayday"]["ProductionGuide"]
 
-        if request.method == "POST":
-            if "delete_product" in request.form:
-                to_delete = request.form.get("delete_product")
-                col.delete_one({"product": to_delete})
-            else:
-                product = request.form.get("product").strip()
-                machine = request.form.get("machine").strip()
-                xp = int(request.form.get("xp"))
-                price = int(request.form.get("price"))
-                time_min = float(request.form.get("time_min"))
-                level = int(request.form.get("level"))
+    if request.method == "POST":
+        if "delete_product" in request.form:
+            to_delete = request.form.get("delete_product")
+            col.delete_one({"product": to_delete})
+        else:
+            product = request.form.get("product").strip()
+            machine = request.form.get("machine").strip()
+            xp = int(request.form.get("xp"))
+            price = int(request.form.get("price"))
+            time_min = float(request.form.get("time_min"))
+            level = int(request.form.get("level"))
 
-                # Save image if uploaded
-                image = request.files.get("image")
-                if image and image.filename:
-                    filename = product.lower().replace(" ", "_") + ".png"
-                    image_path = os.path.join("static/img/hayday/products", filename)
-                    image.save(image_path)
-                    
-                machine_image = request.files.get("machine_image")
-                if machine_image and machine_image.filename:
-                    filename = machine.lower().replace(" ", "_") + ".png"
-                    image_path = os.path.join("static/img/hayday/machines", filename)
-                    machine_image.save(image_path)
+            # Save image if uploaded
+            image = request.files.get("image")
+            if image and image.filename:
+                filename = product.lower().replace(" ", "_") + ".png"
+                image_path = os.path.join("static/img/hayday/products", filename)
+                image.save(image_path)
+                
+            machine_image = request.files.get("machine_image")
+            if machine_image and machine_image.filename:
+                filename = machine.lower().replace(" ", "_") + ".png"
+                image_path = os.path.join("static/img/hayday/machines", filename)
+                machine_image.save(image_path)
 
-                col.update_one(
-                    {"product": product},
-                    {"$set": {
-                        "machine": machine,
-                        "xp": xp,
-                        "price": price,
-                        "time_min": time_min,
-                        "level": level
-                    }},
-                    upsert=True
-                )
-
-
-            return redirect("/admin/production")
+            col.update_one(
+                {"product": product},
+                {"$set": {
+                    "machine": machine,
+                    "xp": xp,
+                    "price": price,
+                    "time_min": time_min,
+                    "level": level
+                }},
+                upsert=True
+            )
 
 
-        all_items = list(col.find().sort("level", 1))
+        return redirect("/admin/production")
+
+
+    all_items = list(col.find().sort("level", 1))
 
     return render_template("admin_production.html", products=all_items, year=datetime.now().year)
 
@@ -3295,6 +3303,8 @@ def admin_panel():
     if not is_staff():  # Ensure only staff can access
         return "Unauthorized", 403
     return render_template("admin.html", year=datetime.now().year)
+
+
 
 @csrf.exempt
 @app.post("/easter/track")
@@ -3370,13 +3380,12 @@ def admin_easter_wins():
     _analytics_inc(EASTER_EVENT_ID, {"counters.admin_views": 1})
     _analytics_log("admin_dashboard_view")
 
-    with get_mongo_client() as client:
-        wins_col = client["Website"]["easter_wins"]
-        wins = list(
-            wins_col.find({"event_id": EASTER_EVENT_ID})
-            .sort("opened_at", -1)
-            .limit(200)
-        )
+    wins_col = get_db("Website")["easter_wins"]
+    wins = list(
+        wins_col.find({"event_id": EASTER_EVENT_ID})
+        .sort("opened_at", -1)
+        .limit(200)
+    )
 
     analytics = _event_analytics_state()
     logs = _recent_event_logs(limit=100)
@@ -3441,6 +3450,53 @@ def admin_easter_wins_logout():
     session.modified = True
     return redirect(url_for("admin_easter_wins"))
 
+
+@csrf.exempt
+@app.post("/admin/easter-wins/mark-delivered")
+def admin_easter_mark_delivered():
+    if not _has_easter_wins_access():
+        return jsonify(ok=False, error="Unauthorized"), 403
+
+    data = request.get_json(silent=True) or {}
+    win_id = (data.get("win_id") or "").strip()
+
+    if not win_id:
+        return jsonify(ok=False, error="Missing win_id"), 400
+
+    try:
+        object_id = ObjectId(win_id)
+    except Exception:
+        return jsonify(ok=False, error="Invalid win_id"), 400
+
+    wins_col = get_db("Website")["easter_wins"]
+
+    result = wins_col.update_one(
+        {
+            "_id": object_id,
+            "event_id": EASTER_EVENT_ID,
+            "delivered": {"$ne": True}
+        },
+        {
+            "$set": {
+                "delivered": True,
+                "delivered_by": str(session.get("discord_id")),
+                "delivered_by_name": session.get("display_name") or session.get("username"),
+                "delivered_at": datetime.now(timezone.utc),
+            }
+        }
+    )
+
+    if result.matched_count == 0:
+        return jsonify(ok=False, error="Win not found or already delivered"), 404
+
+    _analytics_log("admin_mark_delivered", win_id=win_id)
+
+    return jsonify(
+        ok=True,
+        delivered_by=session.get("display_name") or session.get("username") or session.get("discord_id"),
+        delivered_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    )
+
 @csrf.exempt
 @app.route("/easter")
 def easter_event_page():
@@ -3464,14 +3520,30 @@ def easter_event_page():
         error=None,
     )
 
+EASTER_FEED_CACHE = {
+    "expires": 0,
+    "payload": None,
+}
+
 @csrf.exempt
 @app.get("/api/easter-feed")
 def api_easter_feed():
-    return jsonify(
-        ok=True,
-        feed=_json_safe(_easter_feed_entries(limit=20))
-    )
+    now = time.time()
 
+    if EASTER_FEED_CACHE["payload"] is not None and now < EASTER_FEED_CACHE["expires"]:
+        return jsonify(EASTER_FEED_CACHE["payload"])
+
+    payload = {
+        "ok": True,
+        "feed": _json_safe(_easter_feed_entries(limit=20))
+    }
+
+    EASTER_FEED_CACHE["payload"] = payload
+    EASTER_FEED_CACHE["expires"] = now + 8   # cache for 8 seconds
+
+    return jsonify(payload)
+
+@csrf.exempt
 @limiter.limit("5 per minute")
 @app.post("/easter/open")
 def easter_open_egg():
@@ -3563,19 +3635,18 @@ def easter_open_egg():
             )
             return jsonify(ok=False, error="This egg was already opened."), 409
 
-        client, events_col, _, wins_col, _, _ = _easter_collections()
-        try:
-            events_col.update_one(
-                {"_id": EASTER_EVENT_ID},
-                {
-                    "$inc": {
-                        "stats.total_opens": 1,
-                        f"stats.eggs.{egg_id}.total_opens": 1
-                    }
+        cols = _easter_collections()
+        events_col = cols["events"]
+
+        events_col.update_one(
+            {"_id": EASTER_EVENT_ID},
+            {
+                "$inc": {
+                    "stats.total_opens": 1,
+                    f"stats.eggs.{egg_id}.total_opens": 1
                 }
-            )
-        finally:
-            client.close()
+            }
+        )
 
         inventory = _egg_inventory_state(egg_id)
         stats = _egg_stats_state(egg_id)
@@ -3596,45 +3667,46 @@ def easter_open_egg():
             if reward:
                 rarity = "winner"
 
-                client, events_col, _, wins_col, _, _ = _easter_collections()
-                try:
-                    events_col.update_one(
-                        {"_id": EASTER_EVENT_ID},
-                        {
-                            "$inc": {
-                                "stats.total_real_wins": 1,
-                                f"stats.eggs.{egg_id}.total_real_wins": 1
-                            }
+                cols = _easter_collections()
+                events_col = cols["events"]
+                wins_col = cols["wins"]
+
+                events_col.update_one(
+                    {"_id": EASTER_EVENT_ID},
+                    {
+                        "$inc": {
+                            "stats.total_real_wins": 1,
+                            f"stats.eggs.{egg_id}.total_real_wins": 1
                         }
-                    )
+                    }
+                )
 
-                    wins_col.insert_one({
-                        "event_id": EASTER_EVENT_ID,
-                        "discord_id": str(session["discord_id"]),
-                        "display_name": session.get("display_name"),
-                        "username": session.get("username"),
-                        "egg_id": egg_id,
-                        "reward": reward,
-                        "rarity": "winner",
-                        "opened_at": datetime.now(timezone.utc),
-                    })
+                wins_col.insert_one({
+                    "event_id": EASTER_EVENT_ID,
+                    "discord_id": str(session["discord_id"]),
+                    "display_name": session.get("display_name"),
+                    "username": session.get("username"),
+                    "egg_id": egg_id,
+                    "reward": reward,
+                    "rarity": "winner",
+                    "opened_at": datetime.now(timezone.utc),
+                })
 
-                    _insert_easter_feed_entry(
-                        discord_id=str(session["discord_id"]),
-                        egg_id=egg_id,
-                        reward=reward,
-                        rarity="winner",
-                    )
+                _insert_easter_feed_entry(
+                    discord_id=str(session["discord_id"]),
+                    egg_id=egg_id,
+                    reward=reward,
+                    rarity="winner",
+                )
 
-                    _analytics_track_open_result(
-                        egg_id=egg_id,
-                        result="win",
-                        reward=reward,
-                        rarity=rarity,
-                        response_ms=int((time.time() - start_ts) * 1000),
-                    )                    
-                finally:
-                    client.close()
+                _analytics_track_open_result(
+                    egg_id=egg_id,
+                    result="win",
+                    reward=reward,
+                    rarity=rarity,
+                    response_ms=int((time.time() - start_ts) * 1000),
+                )                    
+
             else:
                 rarity = "bonus"
                 reward = random.choice(EASTER_EVENT["soft_loss_rewards"])
@@ -3643,34 +3715,33 @@ def easter_open_egg():
             reward = random.choice(EASTER_EVENT["soft_loss_rewards"])
 
         if rarity == "bonus":
-            client, events_col, _, _, _, _ = _easter_collections()
-            try:
-                events_col.update_one(
-                    {"_id": EASTER_EVENT_ID},
-                    {
-                        "$inc": {
-                            "stats.soft_losses": 1,
-                            f"stats.eggs.{egg_id}.soft_losses": 1
-                        }
+            cols = _easter_collections()
+            events_col = cols["events"]
+
+            events_col.update_one(
+                {"_id": EASTER_EVENT_ID},
+                {
+                    "$inc": {
+                        "stats.soft_losses": 1,
+                        f"stats.eggs.{egg_id}.soft_losses": 1
                     }
-                )
+                }
+            )
 
-                _insert_easter_feed_entry(
-                    discord_id=str(session["discord_id"]),
-                    egg_id=egg_id,
-                    reward=reward,
-                    rarity="bonus",
-                )
+            _insert_easter_feed_entry(
+                discord_id=str(session["discord_id"]),
+                egg_id=egg_id,
+                reward=reward,
+                rarity="bonus",
+            )
 
-                _analytics_track_open_result(
-                    egg_id=egg_id,
-                    result="soft_loss",
-                    reward=reward,
-                    rarity=rarity,
-                    response_ms=int((time.time() - start_ts) * 1000),
-                )                
-            finally:
-                client.close()
+            _analytics_track_open_result(
+                egg_id=egg_id,
+                result="soft_loss",
+                reward=reward,
+                rarity=rarity,
+                response_ms=int((time.time() - start_ts) * 1000),
+            )                
 
         _save_opened_egg(discord_id, egg_id, reward, rarity)
 
@@ -3693,15 +3764,15 @@ def admin_competition():
     phase, default_comp = _phase_today()
     comp_id = request.args.get("comp_id", default_comp)
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Website"]
-        entries = list(db["CompEntries"].find({"comp_id": comp_id}).sort("created_at", -1))
-        vote_counts = _vote_counts_for(comp_id, client)  # ← reuse
+    client = get_db()
+    db = client["Website"]
+    entries = list(db["CompEntries"].find({"comp_id": comp_id}).sort("created_at", -1))
+    vote_counts = _vote_counts_for(comp_id, client)  # ← reuse
 
-        # Optional: label “who submitted” via your usernames cache
-        ids = [str(e.get("user_id")) for e in entries if e.get("user_id")]
-        users = list(db["usernames"].find({"_id": {"$in": ids}}))
-        user_map = {u["_id"]: u for u in users}
+    # Optional: label “who submitted” via your usernames cache
+    ids = [str(e.get("user_id")) for e in entries if e.get("user_id")]
+    users = list(db["usernames"].find({"_id": {"$in": ids}}))
+    user_map = {u["_id"]: u for u in users}
 
     return render_template("admin_competition.html",
                            comp_id=comp_id, phase=phase,
@@ -3714,11 +3785,11 @@ def admin_competition_caption(entry_id):
     if not is_staff(): 
         return "Unauthorized", 403
     new_caption = (request.form.get("caption") or "").strip()[:35]
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        c["Website"]["CompEntries"].update_one(
-            {"_id": ObjectId(entry_id)},
-            {"$set": {"caption": new_caption}}
-        )
+    db = get_db("Website")
+    db["CompEntries"].update_one(
+        {"_id": ObjectId(entry_id)},
+        {"$set": {"caption": new_caption}}
+    )
     flash("Caption updated.", "success")
     return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
 
@@ -3727,34 +3798,33 @@ def admin_competition_caption(entry_id):
 def admin_competition_delete(entry_id):
     if not is_staff():
         return "Unauthorized", 403
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        db = c["Website"]
-        db["CompEntries"].delete_one({"_id": ObjectId(entry_id)})
-        db["CompVotes"].delete_many({"entry_id": entry_id})
+    db = get_db("Website")
+    db["CompEntries"].delete_one({"_id": ObjectId(entry_id)})
+    db["CompVotes"].delete_many({"entry_id": entry_id})
     flash("Entry deleted (votes removed).", "success")
     return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
 
 @app.route("/api/live-auctions")
 def live_auctions():
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["hayday"]
-        now = datetime.now(timezone.utc)
-        auctions = list(db["auctions"].find({
-            "status": "active",
-            "end_time": {"$gt": now}
-        }))
-        user_cache = client["Website"]["UserCache"]
+    client = get_db()
+    db = client["hayday"]
+    now = datetime.now(timezone.utc)
+    auctions = list(db["auctions"].find({
+        "status": "active",
+        "end_time": {"$gt": now}
+    }))
+    user_cache = client["Website"]["UserCache"]
 
-        results = []
-        for auction in auctions:
-            data = serialize_auction(auction)
-            bidder_id = data.get("highest_bidder")
-            if bidder_id:
-                user_doc = user_cache.find_one({"user_id": bidder_id})
-                if user_doc:
-                    data["display_name"] = user_doc.get("display_name") or user_doc.get("username")
-                    data["bidder_tag"] = user_doc.get("discord_tag")
-            results.append(data)
+    results = []
+    for auction in auctions:
+        data = serialize_auction(auction)
+        bidder_id = data.get("highest_bidder")
+        if bidder_id:
+            user_doc = user_cache.find_one({"user_id": bidder_id})
+            if user_doc:
+                data["display_name"] = user_doc.get("display_name") or user_doc.get("username")
+                data["bidder_tag"] = user_doc.get("discord_tag")
+        results.append(data)
 
     return jsonify(results)
 
@@ -3762,13 +3832,6 @@ def live_auctions():
 @limiter.limit("10/minute")
 @app.route("/api/bid", methods=["POST"])
 def api_bid():
-    print("HIT: /api/bid")   # in api_bid
-    print("API BID endpoint called!")
-    print("Request content-type:", request.content_type)
-    print("Request data:", request.data)
-    print("Request form:", request.form)
-    print("Request args:", request.args)
-
     user_id = session.get("discord_id")
     if not user_id:
         return jsonify({"success": False, "message": "Not logged in via Discord"}), 401
@@ -3788,119 +3851,110 @@ def api_bid():
 
     try:
         data = request.get_json(force=True)
-        print("Received data from frontend:", data)
     except Exception as e:
-        print("❌ JSON decode error:", e)
         return jsonify({"success": False, "message": "Invalid JSON"}), 400
 
     auction_id = data.get("auction_id")
     amount = data.get("amount")
-    print(f"auction_id: {auction_id} (type: {type(auction_id)})")
-    print(f"amount: {amount} (type: {type(amount)})")
 
     try:
         amount = int(amount)
         auction_id_int = int(auction_id)
     except (TypeError, ValueError):
-        print("Failed to cast amount or auction_id to int!")
         return jsonify({"success": False, "message": "Invalid input (amount or auction_id)"}), 400
 
-    print(f"🔍 Incoming bid: auction_id={auction_id_int}, amount={amount}, user_id={user_id}")
 
     if amount <= 0:
-        print("amount <= 0")
         return jsonify({"success": False, "message": "Invalid input"}), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["hayday"]
-        auction = db["auctions"].find_one({"message_id": auction_id_int, "status": "active"})
+    client = get_db()
+    db = client["hayday"]
+    auction = db["auctions"].find_one({"message_id": auction_id_int, "status": "active"})
 
-        if not auction:
-            print("Auction not found or already ended")
-            return jsonify({"success": False, "message": "Auction not found or already ended"}), 404
+    if not auction:
+        return jsonify({"success": False, "message": "Auction not found or already ended"}), 404
 
-        if str(auction["owner_id"]) == str(user_id):
-            print("User tried to bid on their own auction!")
-            return jsonify({"success": False, "message": "❌ You cannot bid on your own auction."}), 403
+    if str(auction["owner_id"]) == str(user_id):
+        return jsonify({"success": False, "message": "❌ You cannot bid on your own auction."}), 403
 
-        now = datetime.now(timezone.utc)
-        end_time = auction["end_time"]
-        if end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=timezone.utc)
-        if end_time <= now:
-            return jsonify({"success": False, "message": "Auction already expired"}), 410
-        
-        # Step 2: Bid validation 
-        starting_bid = int(auction.get("starting_bid", 0) or 0)
-        current_bid = int(auction.get("current_bid", 0) or 0)
-        min_increment = int(auction.get("min_increment") or 1)
+    now = datetime.now(timezone.utc)
+    end_time = auction["end_time"]
+    if end_time.tzinfo is None:
+        end_time = end_time.replace(tzinfo=timezone.utc)
+    if end_time <= now:
+        return jsonify({"success": False, "message": "Auction already expired"}), 410
+    
+    # Step 2: Bid validation 
+    starting_bid = int(auction.get("starting_bid", 0) or 0)
+    current_bid = int(auction.get("current_bid", 0) or 0)
+    min_increment = int(auction.get("min_increment") or 1)
 
-        # If there are no bids yet, the minimum allowed is starting_bid
-        if current_bid <= 0:
-            min_allowed = starting_bid
-            if amount < min_allowed:
-                return jsonify({
-                    "success": False,
-                    "message": f"Bid must be at least {min_allowed:,} (starting bid)."
-                }), 400
-        else:
-            baseline = max(current_bid, starting_bid)
-            min_allowed = baseline + min_increment
-            if amount < min_allowed:
-                return jsonify({
-                    "success": False,
-                    "message": f"Bid must be at least {min_allowed:,} (min increment {min_increment:,})."
-                }), 400
-
-        # Step 3: Update auction (ATOMIC)
-        result = db["auctions"].update_one(
-            {
-                "_id": auction["_id"],
-                "status": "active",
-                # Guard against race: only update if current_bid is unchanged
-                "current_bid": current_bid
-            },
-            {
-                "$set": {
-                    "current_bid": amount,
-                    "highest_bidder": int(user_id),
-                    "last_bid": {
-                        "user_id": int(user_id),
-                        "amount": amount,
-                        "timestamp": datetime.utcnow()
-                    }
-                },
-                "$push": {
-                    "bid_logs": {
-                        "user_id": int(user_id),
-                        "amount": amount,
-                        "timestamp": datetime.utcnow()
-                    }
-                }
-            }
-        )
-
-        if result.modified_count == 0:
-            # Someone else updated the bid first → tell the user to re-try with the latest number
+    # If there are no bids yet, the minimum allowed is starting_bid
+    if current_bid <= 0:
+        min_allowed = starting_bid
+        if amount < min_allowed:
             return jsonify({
                 "success": False,
-                "message": "Another bid landed just before yours. Please refresh and try again."
-            }), 409
+                "message": f"Bid must be at least {min_allowed:,} (starting bid)."
+            }), 400
+    else:
+        baseline = max(current_bid, starting_bid)
+        min_allowed = baseline + min_increment
+        if amount < min_allowed:
+            return jsonify({
+                "success": False,
+                "message": f"Bid must be at least {min_allowed:,} (min increment {min_increment:,})."
+            }), 400
 
-        try:
-            requests.post(
-                os.getenv("BOT_WEBHOOK_URL") + "/webhook/auction",
-                json={
-                    "message_id": auction_id_int,
-                    "amount": amount,
+    # Step 3: Update auction (ATOMIC)
+    result = db["auctions"].update_one(
+        {
+            "_id": auction["_id"],
+            "status": "active",
+            # Guard against race: only update if current_bid is unchanged
+            "current_bid": current_bid
+        },
+        {
+            "$set": {
+                "current_bid": amount,
+                "highest_bidder": int(user_id),
+                "last_bid": {
                     "user_id": int(user_id),
-                    "channel_id": auction["channel_id"]
-                },
-                headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-                timeout=3
-            )
-        except Exception as e:
-            print(f"Failed to ping bot webhook: {e}")
+                    "amount": amount,
+                    "timestamp": datetime.utcnow()
+                }
+            },
+            "$push": {
+                "bid_logs": {
+                    "user_id": int(user_id),
+                    "amount": amount,
+                    "timestamp": datetime.utcnow()
+                }
+            }
+        }
+    )
+
+    if result.modified_count == 0:
+        # Someone else updated the bid first → tell the user to re-try with the latest number
+        return jsonify({
+            "success": False,
+            "message": "Another bid landed just before yours. Please refresh and try again."
+        }), 409
+
+    try:
+        requests.post(
+            os.getenv("BOT_WEBHOOK_URL") + "/webhook/auction",
+            json={
+                "message_id": auction_id_int,
+                "amount": amount,
+                "user_id": int(user_id),
+                "channel_id": auction["channel_id"]
+            },
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+            timeout=3
+        )
+    except Exception as e:
+        print(f"Failed to ping bot webhook: {e}")
 
     return jsonify({"success": True, "message": "Bid placed!"})
 
@@ -3942,22 +3996,33 @@ def track_page_views():
         "/api", "/thumb-file", "/img-proxy", "/log-interaction",
         "/static", "/assets", "/webhook", "/oauth", "/internal",
     )
-    ignore_exact = ("/robots.txt", "/favicon.ico", "/callback")  # add more if you like
-    file_exts = (".js",".css",".png",".jpg",".jpeg",".gif",".webp",
-                 ".svg",".ico",".json",".xml",".map",".txt",".csv")
+    ignore_exact = ("/robots.txt", "/favicon.ico", "/callback")
+    file_exts = (".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+                 ".svg", ".ico", ".json", ".xml", ".map", ".txt", ".csv")
 
     path = request.path
 
-    if (request.endpoint == "static"
+    if (
+        request.endpoint == "static"
         or any(path.startswith(p) for p in ignore_prefixes)
         or path in ignore_exact
-        or any(path.endswith(ext) for ext in file_exts)):
-        return  # don’t count
+        or any(path.endswith(ext) for ext in file_exts)
+    ):
+        return
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        client["Website"]["PageViews"].update_one({"_id": path}, {"$inc": {"count": 1}}, upsert=True)
+    with PAGEVIEW_LOCK:
+        PAGEVIEW_BUFFER[path] += 1
 
+@app.before_request
+def force_canonical_host():
+    host = request.host.split(":")[0].lower()
 
+    # Do not redirect OAuth callback requests
+    if request.path == "/callback":
+        return
+
+    if host == "www.hayday.info":
+        return redirect(f"https://hayday.info{request.full_path}", code=301)
 
 @app.before_request
 def ensure_session_id():
@@ -3969,11 +4034,15 @@ def set_session_lifetime():
     session.permanent = True
     user_roles = session.get("roles", [])
 
-    if any(role in STAFF_ROLES for role in user_roles):
-        # Staff — shorter lifetime
+    is_staff_role = any(
+        int(role) in STAFF_ROLES
+        for role in user_roles
+        if str(role).isdigit()
+    )
+
+    if is_staff_role:
         app.permanent_session_lifetime = timedelta(days=7)
     else:
-        # Normal users — longer lifetime
         app.permanent_session_lifetime = timedelta(days=14)
 
 @app.before_request
@@ -3993,32 +4062,35 @@ def handle_scanner_protection():
     now = time.time()
 
     # Load banned IPs from MongoDB once
-    if not banned_ips_loaded:
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            banned = client["Security"]["banned_ips"].find()
-            BANNED_IPS = set(doc["_id"] for doc in banned)
+    global banned_ips_loaded, BANNED_IPS, BANNED_IPS_LOADED_AT
+
+    if (not banned_ips_loaded) or (time.time() - BANNED_IPS_LOADED_AT > BANNED_IPS_REFRESH_SECONDS):
+        client = get_db()
+        banned = client["Security"]["banned_ips"].find()
+        BANNED_IPS = set(doc["_id"] for doc in banned)
         banned_ips_loaded = True
+        BANNED_IPS_LOADED_AT = time.time()
 
     # Auto-block if IP is banned
     if real_ip in BANNED_IPS:
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            doc = client["Security"]["banned_ips"].find_one({"_id": real_ip})
-            if doc:
-                banned_at = doc.get("banned_at")
-                if banned_at and (datetime.utcnow() - banned_at).total_seconds() >= BAN_TIME:
-                    # Expired — unban them
-                    client["Security"]["banned_ips"].delete_one({"_id": real_ip})
-                    BANNED_IPS.discard(real_ip)
-                    app.logger.info(f"[UNBANNED] IP {real_ip} was automatically unbanned after expiry")
-                else:
-                    # 🔄 Extend the ban if they hit again
-                    client["Security"]["banned_ips"].update_one(
-                        {"_id": real_ip},
-                        {"$set": {"banned_at": datetime.utcnow()}},
-                        upsert=True
-                    )
-                    app.logger.warning(f"[AUTO-EXTENDED BAN] {real_ip} tried {path} again — ban extended (internal: {internal_ip})")
-                    abort(403)
+        client = get_db()
+        doc = client["Security"]["banned_ips"].find_one({"_id": real_ip})
+        if doc:
+            banned_at = doc.get("banned_at")
+            if banned_at and (datetime.utcnow() - banned_at).total_seconds() >= BAN_TIME:
+                # Expired — unban them
+                client["Security"]["banned_ips"].delete_one({"_id": real_ip})
+                BANNED_IPS.discard(real_ip)
+                app.logger.info(f"[UNBANNED] IP {real_ip} was automatically unbanned after expiry")
+            else:
+                # 🔄 Extend the ban if they hit again
+                client["Security"]["banned_ips"].update_one(
+                    {"_id": real_ip},
+                    {"$set": {"banned_at": datetime.utcnow()}},
+                    upsert=True
+                )
+                app.logger.warning(f"[AUTO-EXTENDED BAN] {real_ip} tried {path} again — ban extended (internal: {internal_ip})")
+                abort(403)
 
     # Check for scanner-like behavior
     matched = next((pattern for pattern in SCANNER_PATHS if pattern in path), None)
@@ -4028,17 +4100,17 @@ def handle_scanner_protection():
 
         if len(ip_hits[real_ip]) >= SCAN_THRESHOLD:
             BANNED_IPS.add(real_ip)
-            with MongoClient(os.getenv("MONGO_URI")) as client:
-                client["Security"]["banned_ips"].update_one(
-                    {"_id": real_ip},
-                    {"$set": {
-                        "banned_at": datetime.utcnow(),
-                        "reason": f"Matched pattern: {matched}",
-                        "hit_count": len(ip_hits[real_ip]),
-                        "internal_ip": internal_ip
-                    }},
-                    upsert=True
-                )
+            client = get_db()
+            client["Security"]["banned_ips"].update_one(
+                {"_id": real_ip},
+                {"$set": {
+                    "banned_at": datetime.utcnow(),
+                    "reason": f"Matched pattern: {matched}",
+                    "hit_count": len(ip_hits[real_ip]),
+                    "internal_ip": internal_ip
+                }},
+                upsert=True
+            )
             app.logger.warning(f"[🔥 BANNED] IP {real_ip} matched '{matched}' {len(ip_hits[real_ip])} times (internal: {internal_ip})")
         else:
             app.logger.warning(f"[BLOCKED] Scanner-like request: {real_ip} tried {path} (matched: {matched})")
@@ -4063,15 +4135,38 @@ def submit_bid():
 
 @app.route("/auctions")
 def auctions_page():
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["hayday"]
-        auctions = list(db["auctions"].find({"status": "active"}).sort("end_time", 1))
-        user_cache = list(client["Website"]["UserCache"].find())
-        user_map = {str(u["_id"]): u for u in user_cache}
+    client = get_db()
+    db = client["hayday"]
+    auctions = list(
+        db["auctions"].find(
+            {"status": "active"},
+            {
+                "item": 1,
+                "quantity": 1,
+                "starting_bid": 1,
+                "min_increment": 1,
+                "current_bid": 1,
+                "highest_bidder": 1,
+                "owner_id": 1,
+                "message_id": 1,
+                "end_time": 1,
+                "status": 1
+            }
+        ).sort("end_time", 1)
+    )
+    needed_user_ids = set()
+    for auc in auctions:
+        if auc.get("owner_id") is not None:
+            needed_user_ids.add(str(auc["owner_id"]))
+        if auc.get("highest_bidder") is not None:
+            needed_user_ids.add(str(auc["highest_bidder"]))
 
-        # Ensure all owners are in the user_map
-        owner_ids = {str(a['owner_id']) for a in auctions}
-        # Optionally, fetch missing users and add to user_map if needed
+    user_map = {}
+    if needed_user_ids:
+        user_cache = client["Website"]["UserCache"].find(
+            {"_id": {"$in": list(needed_user_ids)}}
+        )
+        user_map = {str(u["_id"]): u for u in user_cache}
 
     now = datetime.now(pytz_timezone("Europe/Copenhagen"))  # local time
 
@@ -4107,37 +4202,34 @@ def auctions_page():
 
 @app.route("/current-bans")
 def current_bans():
-    search = request.args.get("search", "").lower()
+    search = request.args.get("search", "").strip().lower()
     page = int(request.args.get("page", 1))
     per_page = 12
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Moderation"]
-        bans_cursor = db["ban_list"].find()
-        bans = list(bans_cursor)
+    client = get_db()
+    db = client["Moderation"]
 
-    print(f"[Ban Debug] Found {len(bans)} total bans from DB")
-
+    query = {}
     if search:
-        bans = [
-            b for b in bans
-            if search in b.get("name", "").lower() or search in b.get("reason", "").lower()
+        query["$or"] = [
+            {"name": {"$regex": re.escape(search), "$options": "i"}},
+            {"reason": {"$regex": re.escape(search), "$options": "i"}},
         ]
 
-    print(f"[Ban Debug] Filtered to {len(bans)} after search")
-
-    total = len(bans)
-    start = (page - 1) * per_page
-    end = start + per_page
-    bans_paginated = bans[start:end]
+    total = db["ban_list"].count_documents(query)
+    bans_paginated = list(
+        db["ban_list"]
+        .find(query)
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
 
     if request.args.get("ajax") == "1":
         return render_template(
             "partials/ban_cards.html",
             bans=bans_paginated,
-            is_staff=is_staff(session.get("roles", []))  # ✅ fix here
+            is_staff=is_staff()
         )
-
 
     return render_template(
         "current_bans.html",
@@ -4145,12 +4237,12 @@ def current_bans():
         page=page,
         total_pages=(total + per_page - 1) // per_page,
         search=search,
-        is_staff=is_staff  # ✅ this makes it available inside Jinja
+        is_staff=is_staff
     )
 
 @app.route("/mod-action", methods=["POST"])
 def mod_action():
-    if "discord_id" not in session or not is_staff(session.get("roles", [])):
+    if "discord_id" not in session or not is_staff():
         return redirect(url_for("home"))
 
     user_input = request.form.get("user_input")
@@ -4162,10 +4254,10 @@ def mod_action():
         target_user_id = str(user_input).strip("<@!>")
         target_user_id = int(target_user_id)
 
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            db = client["Moderation"]
-            collection = db["mute"]
-            now = int(time.time())
+        client = get_db()
+        db = client["Moderation"]
+        collection = db["mute"]
+        now = int(time.time())
 
         if action == "mute":
             mute_end = now + parse_duration(duration_raw)
@@ -4231,21 +4323,20 @@ def mod_action():
 
 @app.route("/api/news")
 def api_news():
-    mongo_uri = os.getenv("MONGO_URI")
-    with MongoClient(mongo_uri) as client:
-        collection = client["hayday"]["NewsFeed"]
-        items = list(collection.find({"timestamp": {"$exists": True}}).sort("timestamp", -1).limit(5))
+    client = get_db()
+    collection = client["hayday"]["NewsFeed"]
+    items = list(collection.find({"timestamp": {"$exists": True}}).sort("timestamp", -1).limit(5))
 
-        return jsonify([
-            {
-                "title": item.get("title", "Untitled"),
-                "url": item.get("_id", "#"),
-                "timestamp": item.get("timestamp") or datetime.utcnow().isoformat(),
-                "source": item.get("source", "unknown"),
-                "thumbnail": item.get("thumbnail")  # ✅ ensure this field is populated by your bot
-            }
-            for item in items
-        ])
+    return jsonify([
+        {
+            "title": item.get("title", "Untitled"),
+            "url": item.get("_id", "#"),
+            "timestamp": item.get("timestamp") or datetime.utcnow().isoformat(),
+            "source": item.get("source", "unknown"),
+            "thumbnail": item.get("thumbnail")  # ✅ ensure this field is populated by your bot
+        }
+        for item in items
+    ])
 
 
 @app.route("/production_guide")
@@ -4257,23 +4348,23 @@ def scam_ids():
     if not is_staff():
         return "Unauthorized", 403
     
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        collection = client["Scam"]["Banned"]
+    client = get_db()
+    collection = client["Scam"]["Banned"]
 
-        # Collect all IDs
-        all_ids = []
-        for doc in collection.find():
-            ids = doc.get("id", [])
-            if isinstance(ids, list):
-                all_ids.extend(ids)
-            else:
-                all_ids.append(ids)
-        all_ids = sorted(set(all_ids), key=str.upper)
-        # Pagination setup
-        page = int(request.args.get("page", 1))
-        per_page = 30
-        total_pages = (len(all_ids) + per_page - 1) // per_page
-        paginated_ids = all_ids[(page - 1) * per_page : page * per_page]
+    # Collect all IDs
+    all_ids = []
+    for doc in collection.find():
+        ids = doc.get("id", [])
+        if isinstance(ids, list):
+            all_ids.extend(ids)
+        else:
+            all_ids.append(ids)
+    all_ids = sorted(set(all_ids), key=str.upper)
+    # Pagination setup
+    page = int(request.args.get("page", 1))
+    per_page = 30
+    total_pages = (len(all_ids) + per_page - 1) // per_page
+    paginated_ids = all_ids[(page - 1) * per_page : page * per_page]
     
     return render_template(
         "scam_ids.html",
@@ -4288,7 +4379,9 @@ def scam_ids():
 def home():
     meta = page_meta()
     year = datetime.now(timezone.utc).year
-    return render_template("index.html", year=year, meta=meta)
+    resp = make_response(render_template("index.html", year=year, meta=meta))
+    resp.headers["Cache-Control"] = "public, max-age=60"
+    return resp
 
 @app.route("/login-page")
 def login_page():
@@ -4296,12 +4389,13 @@ def login_page():
     return redirect(url_for("login", next=next_path))
 
 @app.route("/login")
-@limiter.limit("5 per minute",key_func=get_remote_address,error_message="Too many login attempts. Please wait a minute.")
+@limiter.limit("5 per minute", key_func=get_remote_address, error_message="Too many login attempts. Please wait a minute.")
 def login():
     state = secrets.token_urlsafe(16)
     session["oauth_state"] = state
     next_page = request.args.get("next", "/")
     session["next_page"] = next_page
+    session.modified = True
 
     return redirect(
         f"https://discord.com/oauth2/authorize"
@@ -4311,9 +4405,8 @@ def login():
         f"&scope=identify%20guilds.members.read"
         f"&guild_id=959220051427340379"
         f"&prompt=consent"
-        f"&state={state}" 
+        f"&state={state}"
     )
-
 
 
 @app.route("/admin/logs/export")
@@ -4340,35 +4433,42 @@ def export_logs():
         except ValueError:
             pass
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        logs = list(client["Website"]["Logs"].find(query).sort("timestamp", -1))
+    client = get_db()
+    logs_cursor = client["Website"]["Logs"].find(query).sort("timestamp", -1)
 
-    # Build CSV
-    si = StringIO()
-    writer = csv.writer(si)
-    writer.writerow(["Type", "Author", "Channel", "Timestamp", "Content", "Images"])
+    def generate():
+        si = StringIO()
+        writer = csv.writer(si)
+        writer.writerow(["Type", "Author", "Channel", "Timestamp", "Content", "Images"])
+        yield si.getvalue()
+        si.seek(0)
+        si.truncate(0)
 
-    for log in logs:
-        images = ", ".join(log.get("images", [])) if "images" in log else ""
-        if log["type"] == "message_edit":
-            content = f"Before: {log.get('before', '')} | After: {log.get('after', '')}"
-        else:
-            content = log.get("content", "")
-        writer.writerow([
-            log.get("type"),
-            log.get("author", {}).get("name", ""),
-            log.get("channel_name", ""),
-            log.get("timestamp", ""),
-            content,
-            images
-        ])
+        for log in logs_cursor:
+            images = ", ".join(log.get("images", [])) if "images" in log else ""
+            if log.get("type") == "message_edit":
+                content = f"Before: {log.get('before', '')} | After: {log.get('after', '')}"
+            else:
+                content = log.get("content", "")
 
-    output = si.getvalue()
-    si.close()
+            writer.writerow([
+                log.get("type"),
+                log.get("author", {}).get("name", ""),
+                log.get("channel_name", ""),
+                log.get("timestamp", ""),
+                content,
+                images
+            ])
+            yield si.getvalue()
+            si.seek(0)
+            si.truncate(0)
 
     filename = f"discord_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    return Response(output, mimetype="text/csv",
-                    headers={"Content-Disposition": f"attachment;filename={filename}"})
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={filename}"}
+    )
 
 
 @app.route("/admin/logs", methods=["GET", "POST"])
@@ -4384,7 +4484,7 @@ def view_logs():
 
     deleted_page = int(request.args.get("deleted_page", 1))
     edited_page = int(request.args.get("edited_page", 1))
-    per_page = 6  # 👈 adjust to how many logs per page you want
+    per_page = 6
 
     query = {"timestamp": {"$exists": True}}
 
@@ -4397,7 +4497,6 @@ def view_logs():
     if selected_channel:
         query["channel_name"] = selected_channel
 
-    # ✅ Preset date filter logic
     if preset == "24h":
         query["timestamp"]["$gte"] = now - timedelta(hours=24)
     elif preset == "7d":
@@ -4406,19 +4505,33 @@ def view_logs():
         start_of_week = now - timedelta(days=now.weekday())
         query["timestamp"]["$gte"] = datetime(start_of_week.year, start_of_week.month, start_of_week.day, tzinfo=timezone.utc)
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        logs_collection = client["Website"]["Logs"]
-        all_logs = list(logs_collection.find(query).sort("timestamp", -1))
+    client = get_db()
+    logs_collection = client["Website"]["Logs"]
 
-        deleted_logs = [log for log in all_logs if log.get("type") == "message_delete"]
-        edited_logs = [log for log in all_logs if log.get("type") == "message_edit"]
+    deleted_query = dict(query)
+    deleted_query["type"] = "message_delete"
 
-        deleted_total = len(deleted_logs)
-        edited_total = len(edited_logs)
-        deleted_logs = deleted_logs[(deleted_page-1)*per_page : deleted_page*per_page]
-        edited_logs = edited_logs[(edited_page-1)*per_page : edited_page*per_page]
+    edited_query = dict(query)
+    edited_query["type"] = "message_edit"
 
-        channels = logs_collection.distinct("channel_name", {"channel_name": {"$ne": None}})
+    deleted_total = logs_collection.count_documents(deleted_query)
+    edited_total = logs_collection.count_documents(edited_query)
+
+    deleted_logs = list(
+        logs_collection.find(deleted_query)
+        .sort("timestamp", -1)
+        .skip((deleted_page - 1) * per_page)
+        .limit(per_page)
+    )
+
+    edited_logs = list(
+        logs_collection.find(edited_query)
+        .sort("timestamp", -1)
+        .skip((edited_page - 1) * per_page)
+        .limit(per_page)
+    )
+
+    channels = logs_collection.distinct("channel_name", {"channel_name": {"$ne": None}})
 
     return render_template(
         "logs.html",
@@ -4436,15 +4549,840 @@ def view_logs():
         year=year
     )
 
+PET_SWITCH_LOCK_HOURS = 24
+VISIBLE_STAT_MIN = 0
+VISIBLE_STAT_MAX = 100
+INTERNAL_STAT_MIN = -100
+INTERNAL_STAT_MAX = 100
+NEGLECT_VISIBLE_AVG_THRESHOLD = 10
+RECOVERY_VISIBLE_AVG_THRESHOLD = 30
+NEGLECT_ITEM_LOSS_EVERY_DAYS = 7
 
-@app.route("/api/debug/session")
-def debug_session():
-    return jsonify({
-        "has_roles": "roles" in session,
-        "roles": session.get("roles"),
-        "discord_id": session.get("discord_id")
-    })
+PET_STARTERS = {
+    "cat": {"name": "Cat", "emoji": "🐱", "subtitle": "A sleepy barn sweetheart."},
+    "dog": {"name": "Dog", "emoji": "🐶", "subtitle": "Always ready for adventure."},
+    "duck": {"name": "Duck", "emoji": "🦆", "subtitle": "Waddles through every puddle."},
+    "bee": {"name": "Bee", "emoji": "🐝", "subtitle": "Tiny, buzzy, and full of energy."},
+    "bunny": {"name": "Bunny", "emoji": "🐰", "subtitle": "Softest helper on the farm."},
+}
 
+BOOST_SHOP = {
+    "daily_coin_chip": {
+        "name": "Daily Coin Chip",
+        "price": 25000,
+        "description": "Adds bonus coins to /daily while active.",
+        "bonus_type": "daily_coins_flat",
+        "bonus_by_level": {1: 10, 5: 20, 10: 35, 20: 50},
+    },
+    "daily_xp_chip": {
+        "name": "Daily XP Chip",
+        "price": 25000,
+        "description": "Adds bonus XP to /daily while active.",
+        "bonus_type": "daily_xp_flat",
+        "bonus_by_level": {1: 10, 5: 20, 10: 35, 20: 50},
+    },
+    "bee_hunt_chip": {
+        "name": "Bee Hunt Chip",
+        "price": 40000,
+        "description": "Adds Bee Hunt coin bonus while active.",
+        "bonus_type": "bee_hunt_coins_pct",
+        "bonus_by_level": {1: 2, 5: 4, 10: 6, 20: 8},
+    },
+}
+
+PETSHOP_ITEMS = {
+    "daily_coin_chip": {"name": "Daily Coin Chip", "price": 25000, "type": "boost", "description": "Adds bonus coins to /daily while active."},
+    "daily_xp_chip": {"name": "Daily XP Chip", "price": 25000, "type": "boost", "description": "Adds bonus XP to /daily while active."},
+    "bee_hunt_chip": {"name": "Bee Hunt Chip", "price": 40000, "type": "boost", "description": "Adds Bee Hunt coin bonus while active."},
+    "pet_snack": {"name": "Pet Snack", "price": 800, "type": "consumable", "description": "A simple snack for your pet."},
+    "toy_ball": {"name": "Toy Ball", "price": 1200, "type": "consumable", "description": "A toy to entertain your pet."},
+    "bubble_bath": {"name": "Bubble Bath", "price": 1500, "type": "consumable", "description": "A bath item for your pet."},
+    "pet_xp_treat": {"name": "Pet XP Treat", "price": 5000, "type": "consumable", "description": "A premium treat for pet growth."},
+    "red_bow": {"name": "Red Bow", "price": 8000, "type": "cosmetic", "description": "Cute cosmetic bow."},
+    "farmer_hat": {"name": "Farmer Hat", "price": 12000, "type": "cosmetic", "description": "A farm-style hat."},
+    "flower_crown": {"name": "Flower Crown", "price": 15000, "type": "cosmetic", "description": "A seasonal flower accessory."},
+    "golden_collar": {"name": "Golden Collar", "price": 35000, "type": "cosmetic", "description": "Luxury cosmetic collar."},
+    "bee_wings": {"name": "Bee Wings", "price": 40000, "type": "cosmetic", "description": "Buzzing wing accessory."},
+    "bunny_ears": {"name": "Bunny Ears", "price": 14000, "type": "cosmetic", "description": "Cute bunny ear headband."},
+    "royal_crown": {"name": "Royal Crown", "price": 90000, "type": "cosmetic", "description": "Prestige pet cosmetic."},
+    "cloud_bed": {"name": "Cloud Bed", "price": 25000, "type": "cosmetic", "description": "A dreamy pet bed."},
+    "lucky_bandana": {"name": "Lucky Bandana", "price": 18000, "type": "cosmetic", "description": "A lucky-looking bandana."},
+    "scholar_glasses": {"name": "Scholar Glasses", "price": 22000, "type": "cosmetic", "description": "Smart pet glasses."},
+}
+
+PET_COSMETIC_META = {
+    "red_bow": {"emoji": "🎀", "slot": "head"},
+    "farmer_hat": {"emoji": "👒", "slot": "head"},
+    "flower_crown": {"emoji": "🌸", "slot": "head"},
+    "golden_collar": {"emoji": "✨", "slot": "neck"},
+    "bee_wings": {"emoji": "🪽", "slot": "back"},
+    "bunny_ears": {"emoji": "🐇", "slot": "head"},
+    "royal_crown": {"emoji": "👑", "slot": "head"},
+    "cloud_bed": {"emoji": "☁️", "slot": "aura"},
+    "lucky_bandana": {"emoji": "🧣", "slot": "neck"},
+    "scholar_glasses": {"emoji": "👓", "slot": "face"},
+}
+
+CONSUMABLE_CAPS = {
+    "pet_snack": 10,
+    "toy_ball": 10,
+    "bubble_bath": 10,
+    "pet_xp_treat": 3,
+}
+
+CONSUMABLE_DAILY_USE_CAPS = {
+    "pet_snack": 2,
+    "toy_ball": 2,
+    "bubble_bath": 2,
+    "pet_xp_treat": 1,
+}
+
+PET_MOODS = [
+    (85, "Excellent"),
+    (70, "Happy"),
+    (50, "Okay"),
+    (30, "Grumpy"),
+    (0, "Neglected"),
+]
+
+PET_STYLE_SWATCHES = [
+    {"key": "strawberry", "label": "Strawberry", "color": "#ff7fa5"},
+    {"key": "sunflower", "label": "Sunflower", "color": "#ffc94d"},
+    {"key": "mint", "label": "Mint", "color": "#7ee2b8"},
+    {"key": "sky", "label": "Sky", "color": "#76b7ff"},
+    {"key": "lavender", "label": "Lavender", "color": "#b59cff"},
+]
+
+
+def _pet_now():
+    return datetime.utcnow()
+
+
+def _pet_users_col():
+    return get_db("Economy")["Users"]
+
+
+def _pet_logs_col():
+    return get_db("Economy")["pet_logs"]
+
+
+def _petshop_logs_col():
+    return get_db("Economy")["petshop_logs"]
+
+
+def _pet_flash_redirect():
+    return redirect(url_for("pet_profile"))
+
+
+def _pet_today_key() -> str:
+    return _pet_now().strftime("%Y-%m-%d")
+
+
+def _pet_clamp_visible(value: int) -> int:
+    return max(VISIBLE_STAT_MIN, min(VISIBLE_STAT_MAX, int(value)))
+
+
+def _pet_clamp_internal(value: int) -> int:
+    return max(INTERNAL_STAT_MIN, min(INTERNAL_STAT_MAX, int(value)))
+
+
+def _pet_visible_stat(value: int) -> int:
+    return _pet_clamp_visible(value)
+
+
+def _pet_xp_needed(level: int) -> int:
+    return int(160 * (int(level) ** 1.65))
+
+
+def _pet_default(pet_type: str, name: str | None = None) -> dict:
+    starter = PET_STARTERS[pet_type]
+    return {
+        "type": pet_type,
+        "emoji": starter["emoji"],
+        "name": (name or starter["name"])[:24],
+        "level": 1,
+        "xp": 0,
+        "hunger": 100,
+        "happiness": 100,
+        "cleanliness": 100,
+        "adopted_at": _pet_now(),
+        "last_fed": None,
+        "last_played": None,
+        "last_cleaned": None,
+        "last_decay_at": _pet_now(),
+        "owned_boosts": [],
+        "owned_cosmetics": [],
+        "owned_consumables": [],
+        "consumable_daily_uses": {},
+        "active_boost_key": None,
+        "boost_switch_locked_until": None,
+        "neglected_since": None,
+        "neglected_penalty_weeks_applied": 0,
+        "equipped_cosmetics": [],
+        "web_style": {"accent_color": "strawberry"},
+    }
+
+
+def _pet_visible_average_stats(pet: dict) -> int:
+    return int((
+        _pet_visible_stat(int(pet.get("hunger", 100))) +
+        _pet_visible_stat(int(pet.get("happiness", 100))) +
+        _pet_visible_stat(int(pet.get("cleanliness", 100)))
+    ) / 3)
+
+
+def _pet_mood(pet: dict) -> str:
+    avg = _pet_visible_average_stats(pet)
+    for threshold, label in PET_MOODS:
+        if avg >= threshold:
+            return label
+    return "Neglected"
+
+
+def _pet_is_neglected(pet: dict) -> bool:
+    return _pet_visible_average_stats(pet) <= NEGLECT_VISIBLE_AVG_THRESHOLD
+
+
+def _pet_is_recovered_from_neglect(pet: dict) -> bool:
+    return _pet_visible_average_stats(pet) > RECOVERY_VISIBLE_AVG_THRESHOLD
+
+
+def _pet_boost_locked(pet: dict) -> bool:
+    locked_until = pet.get("boost_switch_locked_until")
+    return isinstance(locked_until, datetime) and locked_until > _pet_now()
+
+
+def _pet_get_boost_value(boost_key: str, level: int) -> int:
+    boost = BOOST_SHOP.get(boost_key)
+    if not boost:
+        return 0
+
+    best = 0
+    for req_level in sorted(boost["bonus_by_level"].keys()):
+        if int(level) >= req_level:
+            best = boost["bonus_by_level"][req_level]
+    return best
+
+
+def _pet_boost_label(boost_key: str, pet_level: int) -> str:
+    boost = BOOST_SHOP[boost_key]
+    value = _pet_get_boost_value(boost_key, pet_level)
+    if boost["bonus_type"] == "daily_coins_flat":
+        return f"+{value} Daily coins"
+    if boost["bonus_type"] == "daily_xp_flat":
+        return f"+{value} Daily XP"
+    if boost["bonus_type"] == "bee_hunt_coins_pct":
+        return f"+{value}% Bee Hunt coins"
+    return "Unknown boost"
+
+
+def _pet_care_effectiveness_multiplier(stat_value: int) -> float:
+    if stat_value < -50:
+        return 0.35
+    if stat_value < 0:
+        return 0.50
+    return 1.00
+
+
+def _pet_normalize_neglect_state(pet: dict):
+    now = _pet_now()
+    if _pet_is_neglected(pet):
+        if not isinstance(pet.get("neglected_since"), datetime):
+            pet["neglected_since"] = now
+    elif pet.get("neglected_since") and _pet_is_recovered_from_neglect(pet):
+        pet["neglected_since"] = None
+        pet["neglected_penalty_weeks_applied"] = 0
+
+
+def _pet_random_removable_item(pet: dict):
+    pool = []
+
+    for item in pet.get("owned_consumables", []):
+        pool.append(("owned_consumables", item))
+    for item in pet.get("owned_cosmetics", []):
+        pool.append(("owned_cosmetics", item))
+
+    active_boost = pet.get("active_boost_key")
+    for item in pet.get("owned_boosts", []):
+        if item != active_boost:
+            pool.append(("owned_boosts", item))
+
+    if not pool:
+        return None
+    return random.choice(pool)
+
+
+def _pet_remove_owned_item(pet: dict, bucket: str, item: str):
+    values = list(pet.get(bucket, []))
+    if item in values:
+        values.remove(item)
+        pet[bucket] = values
+    if bucket == "owned_cosmetics":
+        equipped = [key for key in pet.get("equipped_cosmetics", []) if key != item]
+        pet["equipped_cosmetics"] = equipped
+
+
+def _pet_get_consumable_uses_today(pet: dict, item: str) -> int:
+    daily_uses = pet.get("consumable_daily_uses", {})
+    today_key = _pet_today_key()
+    return int(daily_uses.get(today_key, {}).get(item, 0))
+
+
+def _pet_increment_consumable_use(pet: dict, item: str):
+    today_key = _pet_today_key()
+    daily_uses = dict(pet.get("consumable_daily_uses", {}))
+    today_bucket = dict(daily_uses.get(today_key, {}))
+    today_bucket[item] = int(today_bucket.get(item, 0)) + 1
+    pet["consumable_daily_uses"] = {today_key: today_bucket}
+
+
+def _pet_apply_xp(pet: dict, gained_xp: int) -> list[int]:
+    if _pet_is_neglected(pet):
+        return []
+
+    pet["xp"] = int(pet.get("xp", 0)) + int(gained_xp)
+    pet["level"] = int(pet.get("level", 1))
+    leveled = []
+
+    while pet["xp"] >= _pet_xp_needed(pet["level"]):
+        pet["xp"] -= _pet_xp_needed(pet["level"])
+        pet["level"] += 1
+        leveled.append(pet["level"])
+
+    return leveled
+
+
+def _pet_sync_decay(pet: dict) -> tuple[dict, bool]:
+    now = _pet_now()
+    changed = False
+
+    last_decay_at = pet.get("last_decay_at")
+    if not isinstance(last_decay_at, datetime):
+        pet["last_decay_at"] = now
+        return pet, True
+
+    hours_passed = int((now - last_decay_at).total_seconds() // 3600)
+    if hours_passed < 1:
+        return pet, changed
+
+    neglected_before = _pet_is_neglected(pet)
+    if neglected_before:
+        hunger_decay = 5 * hours_passed
+        happiness_decay = 4 * hours_passed
+        cleanliness_decay = 4 * hours_passed
+    else:
+        hunger_decay = 3 * hours_passed
+        happiness_decay = 2 * hours_passed
+        cleanliness_decay = 2 * hours_passed
+
+    pet["hunger"] = _pet_clamp_internal(int(pet.get("hunger", 100)) - hunger_decay)
+    pet["happiness"] = _pet_clamp_internal(int(pet.get("happiness", 100)) - happiness_decay)
+    pet["cleanliness"] = _pet_clamp_internal(int(pet.get("cleanliness", 100)) - cleanliness_decay)
+    pet["last_decay_at"] = now
+    changed = True
+
+    _pet_normalize_neglect_state(pet)
+
+    neglected_since = pet.get("neglected_since")
+    if isinstance(neglected_since, datetime):
+        neglected_days = (now - neglected_since).days
+        weeks_due = neglected_days // NEGLECT_ITEM_LOSS_EVERY_DAYS
+        already_applied = int(pet.get("neglected_penalty_weeks_applied", 0))
+
+        while weeks_due > already_applied:
+            removable = _pet_random_removable_item(pet)
+            if removable:
+                bucket, item = removable
+                _pet_remove_owned_item(pet, bucket, item)
+            already_applied += 1
+            pet["neglected_penalty_weeks_applied"] = already_applied
+            changed = True
+
+    return pet, changed
+
+
+def _pet_log(user_id: int, action: str, extra: dict | None = None):
+    payload = {"user_id": user_id, "action": action, "ts": _pet_now()}
+    if extra:
+        payload.update(extra)
+    try:
+        _pet_logs_col().insert_one(payload)
+    except Exception:
+        app.logger.exception("Failed to write pet log")
+
+
+def _pet_log_purchase(user_id: int, item_key: str, price: int):
+    try:
+        _petshop_logs_col().insert_one({
+            "user_id": user_id,
+            "item": item_key,
+            "price": price,
+            "ts": _pet_now(),
+        })
+    except Exception:
+        app.logger.exception("Failed to write pet shop log")
+
+
+def _pet_load_user(user_id: int):
+    user_doc = _pet_users_col().find_one({"_id": int(user_id)}) or {"_id": int(user_id), "coins": 0}
+    pet = user_doc.get("pet")
+    if pet:
+        changed = False
+        if not isinstance(pet.get("equipped_cosmetics"), list):
+            pet["equipped_cosmetics"] = []
+            changed = True
+        if not isinstance(pet.get("web_style"), dict):
+            pet["web_style"] = {"accent_color": "strawberry"}
+            changed = True
+        elif pet["web_style"].get("accent_color") not in {sw["key"] for sw in PET_STYLE_SWATCHES}:
+            pet["web_style"]["accent_color"] = "strawberry"
+            changed = True
+        pet, decay_changed = _pet_sync_decay(pet)
+        changed = changed or decay_changed
+        if changed:
+            _pet_users_col().update_one({"_id": int(user_id)}, {"$set": {"pet": pet}}, upsert=True)
+        user_doc["pet"] = pet
+    return user_doc
+
+
+def _pet_save(user_id: int, pet: dict):
+    _pet_users_col().update_one({"_id": int(user_id)}, {"$set": {"pet": pet}}, upsert=True)
+
+
+def _pet_preview_cosmetics(pet: dict):
+    equipped = []
+    for key in pet.get("equipped_cosmetics", []):
+        if key not in PET_COSMETIC_META:
+            continue
+        item = dict(PETSHOP_ITEMS.get(key, {}))
+        item["key"] = key
+        item.update(PET_COSMETIC_META[key])
+        equipped.append(item)
+    return equipped
+
+
+def _pet_inventory_counts(items: list[str]):
+    counts = {}
+    for item in items:
+        counts[item] = counts.get(item, 0) + 1
+    return counts
+
+
+def _pet_context_from_doc(user_doc: dict):
+    pet = user_doc.get("pet")
+    coins = int(user_doc.get("coins", 0))
+    context = {
+        "pet": pet,
+        "coins": coins,
+        "pet_items": PETSHOP_ITEMS,
+        "pet_starters": PET_STARTERS,
+        "shop_categories": ("boost", "consumable", "cosmetic"),
+        "style_swatches": PET_STYLE_SWATCHES,
+        "equipped_cosmetic_items": [],
+        "owned_cosmetic_items": [],
+        "owned_boost_items": [],
+        "owned_consumable_items": [],
+        "active_boost_name": None,
+        "active_boost_label": None,
+        "mood": None,
+        "visible_hunger": 0,
+        "visible_happiness": 0,
+        "visible_cleanliness": 0,
+        "consumable_counts": {},
+        "pet_xp_needed": None,
+    }
+
+    if not pet:
+        return context
+
+    context["mood"] = _pet_mood(pet)
+    context["pet_xp_needed"] = _pet_xp_needed(int(pet.get("level", 1)))
+    context["visible_hunger"] = _pet_visible_stat(int(pet.get("hunger", 100)))
+    context["visible_happiness"] = _pet_visible_stat(int(pet.get("happiness", 100)))
+    context["visible_cleanliness"] = _pet_visible_stat(int(pet.get("cleanliness", 100)))
+    context["consumable_counts"] = _pet_inventory_counts(pet.get("owned_consumables", []))
+    context["equipped_cosmetic_items"] = _pet_preview_cosmetics(pet)
+
+    owned_cosmetic_items = []
+    for key in pet.get("owned_cosmetics", []):
+        item = dict(PETSHOP_ITEMS.get(key, {}))
+        item["key"] = key
+        item.update(PET_COSMETIC_META.get(key, {}))
+        item["equipped"] = key in pet.get("equipped_cosmetics", [])
+        owned_cosmetic_items.append(item)
+    context["owned_cosmetic_items"] = owned_cosmetic_items
+
+    owned_boost_items = []
+    for key in pet.get("owned_boosts", []):
+        if key not in BOOST_SHOP:
+            continue
+        item = dict(BOOST_SHOP[key])
+        item["key"] = key
+        item["label"] = _pet_boost_label(key, int(pet.get("level", 1)))
+        item["active"] = pet.get("active_boost_key") == key
+        owned_boost_items.append(item)
+    context["owned_boost_items"] = owned_boost_items
+
+    owned_consumable_items = []
+    for key, amount in context["consumable_counts"].items():
+        item = dict(PETSHOP_ITEMS.get(key, {}))
+        item["key"] = key
+        item["count"] = amount
+        owned_consumable_items.append(item)
+    context["owned_consumable_items"] = owned_consumable_items
+
+    active_boost = pet.get("active_boost_key")
+    if active_boost in BOOST_SHOP:
+        context["active_boost_name"] = BOOST_SHOP[active_boost]["name"]
+        context["active_boost_label"] = _pet_boost_label(active_boost, int(pet.get("level", 1)))
+
+    return context
+
+
+def _pet_require_login():
+    if "discord_id" not in session:
+        return redirect(url_for("login", next=url_for("pet_profile")))
+    return None
+
+
+@app.route("/profile/pet")
+def pet_profile():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    user_doc = _pet_load_user(discord_id)
+    fallback = get_db("Website")["usernames"].find_one({"_id": str(discord_id)}) or {}
+    pet_context = _pet_context_from_doc(user_doc)
+
+    return render_template(
+        "pet_profile.html",
+        discord_id=str(discord_id),
+        display_name=fallback.get("display_name", fallback.get("username", "Unknown")),
+        avatar_url=fallback.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png"),
+        **pet_context,
+    )
+
+
+@app.post("/profile/pet/adopt")
+def pet_adopt():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    pet_type = (request.form.get("pet_type") or "").strip().lower()
+    custom_name = (request.form.get("pet_name") or "").strip()[:24]
+
+    if pet_type not in PET_STARTERS:
+        flash("❌ Invalid pet choice.", "error")
+        return _pet_flash_redirect()
+
+    user_doc = _pet_load_user(discord_id)
+    if user_doc.get("pet"):
+        flash("❌ You already adopted a pet.", "error")
+        return _pet_flash_redirect()
+
+    pet = _pet_default(pet_type, custom_name or None)
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "adopt", {"pet_name": pet["name"], "pet_type": pet["type"]})
+    flash(f"✅ You adopted {pet['emoji']} {pet['name']}.", "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/rename")
+def pet_rename():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    new_name = (request.form.get("pet_name") or "").strip()[:24]
+    if not new_name:
+        flash("❌ Please give your pet a valid name.", "error")
+        return _pet_flash_redirect()
+
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    old_name = pet.get("name", "Pet")
+    pet["name"] = new_name
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "rename", {"old_name": old_name, "new_name": new_name})
+    flash(f"✅ Renamed {old_name} to {new_name}.", "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/care")
+def pet_care():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    action = (request.form.get("action") or "").strip().lower()
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    now = _pet_now()
+    configs = {
+        "feed": {"field": "last_fed", "hours": 4, "stat": "hunger", "gain": (20, 30), "min_gain": 8, "xp": (8, 14), "verb": "fed", "label": "Hunger"},
+        "play": {"field": "last_played", "hours": 3, "stat": "happiness", "gain": (20, 30), "min_gain": 8, "xp": (10, 16), "verb": "played with", "label": "Happiness"},
+        "clean": {"field": "last_cleaned", "hours": 6, "stat": "cleanliness", "gain": (25, 35), "min_gain": 10, "xp": (6, 12), "verb": "cleaned", "label": "Cleanliness"},
+    }
+    config = configs.get(action)
+    if not config:
+        flash("❌ Unknown care action.", "error")
+        return _pet_flash_redirect()
+
+    last_at = pet.get(config["field"])
+    if isinstance(last_at, datetime) and (now - last_at) < timedelta(hours=config["hours"]):
+        available_at = (last_at + timedelta(hours=config["hours"])).strftime("%H:%M UTC")
+        flash(f"❌ {pet['name']} is not ready yet. Try again after {available_at}.", "error")
+        return _pet_flash_redirect()
+
+    base_gain = random.randint(*config["gain"])
+    gain = int(base_gain * _pet_care_effectiveness_multiplier(int(pet.get(config["stat"], 100))))
+    gain = max(config["min_gain"], gain)
+    xp_gain = random.randint(*config["xp"])
+
+    pet[config["stat"]] = _pet_clamp_internal(int(pet.get(config["stat"], 100)) + gain)
+    pet[config["field"]] = now
+    _pet_normalize_neglect_state(pet)
+    leveled = _pet_apply_xp(pet, xp_gain)
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, action, {"gain": gain, "xp": xp_gain})
+
+    level_line = f" Level up to {pet['level']}!" if leveled else ""
+    flash(f"✅ You {config['verb']} {pet['name']}. +{gain} {config['label']}.{level_line}", "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/item")
+def pet_use_item():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    item = (request.form.get("item_key") or "").strip().lower()
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    owned = list(pet.get("owned_consumables", []))
+    if item not in owned:
+        flash("❌ You do not own that consumable.", "error")
+        return _pet_flash_redirect()
+
+    daily_cap = CONSUMABLE_DAILY_USE_CAPS.get(item)
+    if daily_cap is not None and _pet_get_consumable_uses_today(pet, item) >= daily_cap:
+        flash(f"❌ You already used {PETSHOP_ITEMS[item]['name']} the max amount today.", "error")
+        return _pet_flash_redirect()
+
+    message = None
+    if item == "pet_snack":
+        pet["hunger"] = _pet_clamp_internal(int(pet.get("hunger", 100)) + 25)
+        message = f"✅ {pet['name']} loved the Pet Snack. +25 Hunger."
+    elif item == "toy_ball":
+        pet["happiness"] = _pet_clamp_internal(int(pet.get("happiness", 100)) + 25)
+        message = f"✅ {pet['name']} chased the Toy Ball. +25 Happiness."
+    elif item == "bubble_bath":
+        pet["cleanliness"] = _pet_clamp_internal(int(pet.get("cleanliness", 100)) + 30)
+        message = f"✅ {pet['name']} feels fresh after Bubble Bath. +30 Cleanliness."
+    elif item == "pet_xp_treat":
+        leveled = _pet_apply_xp(pet, 25)
+        message = f"✅ {pet['name']} enjoyed a Pet XP Treat. +25 Pet XP."
+        if leveled:
+            message += f" Level up to {pet['level']}!"
+    else:
+        flash("❌ That item is not ready on web yet.", "error")
+        return _pet_flash_redirect()
+
+    owned.remove(item)
+    pet["owned_consumables"] = owned
+    _pet_increment_consumable_use(pet, item)
+    _pet_normalize_neglect_state(pet)
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "use_item", {"item": item})
+    flash(message, "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/cosmetic")
+def pet_toggle_cosmetic():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    item_key = (request.form.get("item_key") or "").strip().lower()
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    if item_key not in pet.get("owned_cosmetics", []):
+        flash("❌ You do not own that cosmetic.", "error")
+        return _pet_flash_redirect()
+    if item_key not in PET_COSMETIC_META:
+        flash("❌ That cosmetic cannot be previewed on web yet.", "error")
+        return _pet_flash_redirect()
+
+    equipped = list(pet.get("equipped_cosmetics", []))
+    if item_key in equipped:
+        equipped.remove(item_key)
+        pet["equipped_cosmetics"] = equipped
+        flash(f"✅ Removed {PETSHOP_ITEMS[item_key]['name']}.", "success")
+    else:
+        slot = PET_COSMETIC_META[item_key]["slot"]
+        equipped = [key for key in equipped if PET_COSMETIC_META.get(key, {}).get("slot") != slot]
+        equipped.append(item_key)
+        pet["equipped_cosmetics"] = equipped
+        flash(f"✅ Equipped {PETSHOP_ITEMS[item_key]['name']}.", "success")
+
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "toggle_cosmetic", {"item": item_key})
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/boost")
+def pet_boost():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    action = (request.form.get("action") or "").strip().lower()
+    item_key = (request.form.get("item_key") or "").strip().lower()
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    if action == "unequip":
+        if not pet.get("active_boost_key"):
+            flash("❌ No active boost equipped.", "error")
+            return _pet_flash_redirect()
+        old_key = pet["active_boost_key"]
+        pet["active_boost_key"] = None
+        pet["boost_switch_locked_until"] = None
+        _pet_save(discord_id, pet)
+        _pet_log(discord_id, "unequip_boost", {"old_boost_key": old_key})
+        flash(f"✅ Unequipped {BOOST_SHOP.get(old_key, {}).get('name', 'boost')}.", "success")
+        return _pet_flash_redirect()
+
+    if item_key not in pet.get("owned_boosts", []):
+        flash("❌ You do not own that boost.", "error")
+        return _pet_flash_redirect()
+    if pet.get("active_boost_key") == item_key:
+        flash("❌ That boost is already active.", "error")
+        return _pet_flash_redirect()
+    if _pet_boost_locked(pet):
+        flash("❌ Your boost slot is still locked.", "error")
+        return _pet_flash_redirect()
+
+    pet["active_boost_key"] = item_key
+    pet["boost_switch_locked_until"] = _pet_now() + timedelta(hours=PET_SWITCH_LOCK_HOURS)
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "equip_boost", {"boost_key": item_key})
+    flash(f"✅ Equipped {BOOST_SHOP[item_key]['name']}. Locked for {PET_SWITCH_LOCK_HOURS} hours.", "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/style")
+def pet_style():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    accent = (request.form.get("accent_color") or "").strip().lower()
+    valid_keys = {swatch["key"] for swatch in PET_STYLE_SWATCHES}
+    if accent not in valid_keys:
+        flash("❌ Invalid style color.", "error")
+        return _pet_flash_redirect()
+
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    web_style = dict(pet.get("web_style", {}))
+    web_style["accent_color"] = accent
+    pet["web_style"] = web_style
+    _pet_save(discord_id, pet)
+    flash("✅ Updated your pet style.", "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/shop")
+def pet_shop_buy():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    item_key = (request.form.get("item_key") or "").strip().lower()
+    if item_key not in PETSHOP_ITEMS:
+        flash("❌ Invalid pet shop item.", "error")
+        return _pet_flash_redirect()
+
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    item_data = PETSHOP_ITEMS[item_key]
+    item_type = item_data["type"]
+    price = int(item_data["price"])
+
+    if item_type == "boost" and item_key in pet.get("owned_boosts", []):
+        flash("❌ You already own that boost.", "error")
+        return _pet_flash_redirect()
+    if item_type == "cosmetic" and item_key in pet.get("owned_cosmetics", []):
+        flash("❌ You already own that cosmetic.", "error")
+        return _pet_flash_redirect()
+    if item_type == "consumable":
+        current_amount = list(pet.get("owned_consumables", [])).count(item_key)
+        max_allowed = CONSUMABLE_CAPS.get(item_key, 10)
+        if current_amount >= max_allowed:
+            flash(f"❌ You already hold the max amount of {item_data['name']}.", "error")
+            return _pet_flash_redirect()
+
+    result = _pet_users_col().update_one(
+        {"_id": discord_id, "coins": {"$gte": price}},
+        {"$inc": {"coins": -price}},
+        upsert=False,
+    )
+    if result.modified_count != 1:
+        flash("❌ You do not have enough coins.", "error")
+        return _pet_flash_redirect()
+
+    if item_type == "boost":
+        pet["owned_boosts"] = list(pet.get("owned_boosts", [])) + [item_key]
+    elif item_type == "cosmetic":
+        pet["owned_cosmetics"] = list(pet.get("owned_cosmetics", [])) + [item_key]
+    elif item_type == "consumable":
+        pet["owned_consumables"] = list(pet.get("owned_consumables", [])) + [item_key]
+
+    _pet_save(discord_id, pet)
+    _pet_log_purchase(discord_id, item_key, price)
+    flash(f"✅ Bought {item_data['name']} for {price:,} coins.", "success")
+    return _pet_flash_redirect()
 
 
 @app.route("/profile")
@@ -4475,31 +5413,30 @@ def profile():
     sorted_roles = sorted(enriched_roles, key=lambda r: r["position"], reverse=True)
     highest_role = sorted_roles[0] if sorted_roles else None
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        level_col = client["hayday"]["level"]
-        level_doc = level_col.find_one({"_id": discord_id})
-        all_users = list(level_col.find().sort("xp", -1))
+    client = get_db()
+    level_col = client["hayday"]["level"]
+    level_doc = level_col.find_one({"_id": discord_id})
 
-        users_collection = client["Website"]["users"]
-        usernames_collection = client["Website"]["usernames"]
+    users_collection = client["Website"]["users"]
+    usernames_collection = client["Website"]["usernames"]
 
-        user = users_collection.find_one({"_id": discord_id}) or {}
-        fallback = usernames_collection.find_one({"_id": discord_id}) or {}
+    user = users_collection.find_one({"_id": discord_id}) or {}
+    fallback = usernames_collection.find_one({"_id": discord_id}) or {}
 
-        display_name = fallback.get("display_name", "Unknown")
+    display_name = fallback.get("display_name", "Unknown")
 
-        # ✅ Always fetch avatar from synced collection
-        avatar_url = fallback.get("avatar", f"https://cdn.discordapp.com/embed/avatars/0.png")
+    # ✅ Always fetch avatar from synced collection
+    avatar_url = fallback.get("avatar", f"https://cdn.discordapp.com/embed/avatars/0.png")
 
-        eco_user = client["Economy"]["Users"].find_one({"_id": int(discord_id)}) or {}
-        coins = eco_user.get("coins", 0)
-        streak = eco_user.get("streak", 0)
+    eco_user = client["Economy"]["Users"].find_one({"_id": int(discord_id)}) or {}
+    coins = eco_user.get("coins", 0)
+    streak = eco_user.get("streak", 0)
 
-        mention_doc = client["Mentions"]["Amount"].find_one({"id": int(discord_id)})
-        mention_count = mention_doc.get("Mentions", 0) if mention_doc else 0
+    mention_doc = client["Mentions"]["Amount"].find_one({"id": int(discord_id)})
+    mention_count = mention_doc.get("Mentions", 0) if mention_doc else 0
 
-        friend_doc = client["Website"]["FriendRequests"].find_one({"_id": discord_id}) or {}
-        friend_count = len(friend_doc.get("friends", []))
+    friend_doc = client["Website"]["FriendRequests"].find_one({"_id": discord_id}) or {}
+    friend_count = len(friend_doc.get("friends", []))
 
     user_roles = user.get("roles", fallback.get("roles", []))
     staff_badges = [STAFF_ROLES[int(rid)] for rid in user_roles if int(rid) in STAFF_ROLES]
@@ -4537,7 +5474,7 @@ def profile():
 
         current_xp_formatted = f"{current_xp:,}"
         required_xp_formatted = f"{required_xp:,}"
-        rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
+        rank = level_col.count_documents({"xp": {"$gt": xp}}) + 1
 
     achievements = calculate_achievements(
         xp=xp,
@@ -4592,7 +5529,7 @@ def toggle_privacy():
         return redirect(url_for("login"))
 
     discord_id = session["discord_id"]
-    users_collection = MongoClient(os.getenv("MONGO_URI"))["Website"]["users"]
+    users_collection = get_db("Website")["users"]
     user = users_collection.find_one({"_id": discord_id})
 
     if user:
@@ -4617,237 +5554,237 @@ def leaderboard():
             return 1
         return ((rank - 1) // per_page) + 1
     
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        username_col = client["Website"]["usernames"]
-        username_col2 = client["Website"]["users"]
-        viewer_id = session.get("discord_id")
-        viewer_profile = username_col2.find_one({"_id": str(viewer_id)}) if viewer_id else None
+    client = get_db()
+    username_col = client["Website"]["usernames"]
+    username_col2 = client["Website"]["users"]
+    viewer_id = session.get("discord_id")
+    viewer_profile = username_col2.find_one({"_id": str(viewer_id)}) if viewer_id else None
 
-        is_staff = False
-        if viewer_profile:
-            user_roles = viewer_profile.get("roles", [])
-            is_staff = any((role) in STAFF_ROLE_IDS for role in user_roles)
+    is_staff = False
+    if viewer_profile:
+        user_roles = viewer_profile.get("roles", [])
+        is_staff = any(str(role) in STAFF_ROLE_IDS for role in user_roles)
 
-        level_col = client["hayday"]["level"]
+    level_col = client["hayday"]["level"]
 
-        sort_field = {
-            "level": "xp",
-            "messages": "message_count",
-            "streak": "streak",
-           "mentions": "Mentions"
-        }.get(lb_type, "xp")
+    sort_field = {
+        "level": "xp",
+        "messages": "message_count",
+        "streak": "streak",
+        "mentions": "Mentions"
+    }.get(lb_type, "xp")
 
-        if lb_type == "streak":
-            col = client["Economy"]["Users"]
-            total_users = col.count_documents({"streak": {"$gt": 0}})
-            users = list(col.find({"streak": {"$gt": 0}}).sort("streak", -1).skip(skip).limit(limit))
-            user_ids = [str(u["_id"]) for u in users]
+    if lb_type == "streak":
+        col = client["Economy"]["Users"]
+        total_users = col.count_documents({"streak": {"$gt": 0}})
+        users = list(col.find({"streak": {"$gt": 0}}).sort("streak", -1).skip(skip).limit(limit))
+        user_ids = [str(u["_id"]) for u in users]
 
-        elif lb_type == "mentions":
-            col = client["Mentions"]["Amount"]
-            total_users = col.count_documents({"Mentions": {"$gt": 0}})
-            users = list(col.find().sort("Mentions", -1).skip(skip).limit(limit))
-            user_ids = [str(u["id"]) for u in users]
+    elif lb_type == "mentions":
+        col = client["Mentions"]["Amount"]
+        total_users = col.count_documents({"Mentions": {"$gt": 0}})
+        users = list(col.find().sort("Mentions", -1).skip(skip).limit(limit))
+        user_ids = [str(u["id"]) for u in users]
 
-        elif lb_type == "hosted":
-            col = client["Giveaway"]["current_giveaways"]
-            count_cursor = col.aggregate([
-                {"$match": {"host_id": {"$exists": True}}},
-                {"$group": {"_id": "$host_id"}},
-                {"$count": "count"}
-            ])
-            total_users = next(count_cursor, {}).get("count", 0)
-            users = list(col.aggregate([
-                {"$match": {"host_id": {"$exists": True}}},
-                {"$group": {"_id": {"$toString": "$host_id"}, "hosted_count": {"$sum": 1}}},
-                {"$sort": {"hosted_count": -1}},
-                {"$skip": skip},
-                {"$limit": limit}
-            ]))
-            user_ids = [u["_id"] for u in users]
+    elif lb_type == "hosted":
+        col = client["Giveaway"]["current_giveaways"]
+        count_cursor = col.aggregate([
+            {"$match": {"host_id": {"$exists": True}}},
+            {"$group": {"_id": "$host_id"}},
+            {"$count": "count"}
+        ])
+        total_users = next(count_cursor, {}).get("count", 0)
+        users = list(col.aggregate([
+            {"$match": {"host_id": {"$exists": True}}},
+            {"$group": {"_id": {"$toString": "$host_id"}, "hosted_count": {"$sum": 1}}},
+            {"$sort": {"hosted_count": -1}},
+            {"$skip": skip},
+            {"$limit": limit}
+        ]))
+        user_ids = [u["_id"] for u in users]
 
-        elif lb_type == "wins":
-            col = client["Giveaway"]["current_giveaways"]
-            count_cursor = col.aggregate([
-                {"$match": {"winners": {"$exists": True}}},
-                {"$unwind": "$winners"},
-                {"$group": {"_id": "$winners"}},
-                {"$count": "count"}
-            ])
-            total_users = next(count_cursor, {}).get("count", 0)
-            users = list(col.aggregate([
-                {"$match": {"winners": {"$exists": True}}},
-                {"$unwind": "$winners"},
-                {"$group": {"_id": {"$toString": "$winners"}, "won_count": {"$sum": 1}}},
-                {"$sort": {"won_count": -1}},
-                {"$skip": skip},
-                {"$limit": limit}
-            ]))
-            user_ids = [u["_id"] for u in users]
+    elif lb_type == "wins":
+        col = client["Giveaway"]["current_giveaways"]
+        count_cursor = col.aggregate([
+            {"$match": {"winners": {"$exists": True}}},
+            {"$unwind": "$winners"},
+            {"$group": {"_id": "$winners"}},
+            {"$count": "count"}
+        ])
+        total_users = next(count_cursor, {}).get("count", 0)
+        users = list(col.aggregate([
+            {"$match": {"winners": {"$exists": True}}},
+            {"$unwind": "$winners"},
+            {"$group": {"_id": {"$toString": "$winners"}, "won_count": {"$sum": 1}}},
+            {"$sort": {"won_count": -1}},
+            {"$skip": skip},
+            {"$limit": limit}
+        ]))
+        user_ids = [u["_id"] for u in users]
 
-        elif lb_type == "trivia":
-            col = client["Economy"]["Users"]
-            raw = list(col.find({"trivia_total": {"$gte": 5}}))
-            total_users = len(raw)
-            sorted_users = sorted(raw, key=lambda u: u.get("trivia_correct", 0) / max(u.get("trivia_total", 1), 1), reverse=True)
-            users = sorted_users[skip:skip + limit]
-            user_ids = [str(u["_id"]) for u in users]
+    elif lb_type == "trivia":
+        col = client["Economy"]["Users"]
+        raw = list(col.find({"trivia_total": {"$gte": 5}}))
+        total_users = len(raw)
+        sorted_users = sorted(raw, key=lambda u: u.get("trivia_correct", 0) / max(u.get("trivia_total", 1), 1), reverse=True)
+        users = sorted_users[skip:skip + limit]
+        user_ids = [str(u["_id"]) for u in users]
 
-        elif lb_type == "verifications":
-            col = client["Verify"]["TopUsers"]
-            all_staff = list(col.find({}))
-            total_users = len(all_staff)
+    elif lb_type == "verifications":
+        col = client["Verify"]["TopUsers"]
+        all_staff = list(col.find({}))
+        total_users = len(all_staff)
 
-            # Sort and slice
-            sorted_staff = sorted(all_staff, key=lambda u: u.get("Number of Verifications", 0), reverse=True)
-            users = sorted_staff[skip:skip + limit]
+        # Sort and slice
+        sorted_staff = sorted(all_staff, key=lambda u: u.get("Number of Verifications", 0), reverse=True)
+        users = sorted_staff[skip:skip + limit]
 
-            # 🔧 Make sure all user IDs are strings
-            for user in users:
-                user["_id"] = str(user["id"])
+        # 🔧 Make sure all user IDs are strings
+        for user in users:
+            user["_id"] = str(user["id"])
 
-            user_ids = [user["_id"] for user in users]
+        user_ids = [user["_id"] for user in users]
 
-        elif lb_type == "coins":
-            col = client["Economy"]["Users"]
-            total_users = col.count_documents({"coins": {"$gt": 0}})
-            users = list(col.find({"coins": {"$gt": 0}}).sort("coins", -1).skip(skip).limit(limit))
-            user_ids = [str(u["_id"]) for u in users]
+    elif lb_type == "coins":
+        col = client["Economy"]["Users"]
+        total_users = col.count_documents({"coins": {"$gt": 0}})
+        users = list(col.find({"coins": {"$gt": 0}}).sort("coins", -1).skip(skip).limit(limit))
+        user_ids = [str(u["_id"]) for u in users]
 
-        else:  # default = level or messages
-            total_users = level_col.count_documents({})
-            users = list(level_col.find().sort(sort_field, -1).skip(skip).limit(limit))
-            user_ids = [u["_id"] for u in users]
+    else:  # default = level or messages
+        total_users = level_col.count_documents({})
+        users = list(level_col.find().sort(sort_field, -1).skip(skip).limit(limit))
+        user_ids = [u["_id"] for u in users]
 
-        profiles = list(username_col.find({"_id": {"$in": user_ids}}))
-        profile_map = {p["_id"]: p for p in profiles}
+    profiles = list(username_col.find({"_id": {"$in": user_ids}}))
+    profile_map = {p["_id"]: p for p in profiles}
 
-        for i, user in enumerate(users):
-            uid = str(user["id"]) if lb_type == "mentions" else str(user["_id"])
+    for i, user in enumerate(users):
+        uid = str(user["id"]) if lb_type == "mentions" else str(user["_id"])
 
-            user["uid"] = uid
-            user["profile_url"] = f"/profile/{uid}"
+        user["uid"] = uid
+        user["profile_url"] = f"/profile/{uid}"
 
-            user["rank"] = skip + i + 1
-            user["xp_formatted"] = f"{user.get('xp', 0):,}"
-            user["level"] = user.get("level", 1)
-            user["message_count"] = user.get("message_count", 0)
-            user["mention_count"] = user.get("Mentions", 0)
-            user["streak"] = user.get("streak", 0)
-            user["coins"] = int(user.get("coins", 0) or 0)
-            profile = profile_map.get(uid)
-            user["display_name"] = profile.get("display_name") or profile.get("username", "Unknown") if profile else f"<@{uid}>"
-            user["avatar_url"] = profile.get("avatar") if profile else "https://cdn.discordapp.com/embed/avatars/0.png"
-            user["is_boosting"] = profile.get("boosting", False) if profile else False
-            user["hosted_count"] = user.get("hosted_count", 0)
-            user["won_count"] = user.get("won_count", 0)
-            user["trivia_correct"] = user.get("trivia_correct", 0)
-            user["trivia_total"] = user.get("trivia_total", 0)
+        user["rank"] = skip + i + 1
+        user["xp_formatted"] = f"{user.get('xp', 0):,}"
+        user["level"] = user.get("level", 1)
+        user["message_count"] = user.get("message_count", 0)
+        user["mention_count"] = user.get("Mentions", 0)
+        user["streak"] = user.get("streak", 0)
+        user["coins"] = int(user.get("coins", 0) or 0)
+        profile = profile_map.get(uid)
+        user["display_name"] = profile.get("display_name") or profile.get("username", "Unknown") if profile else f"<@{uid}>"
+        user["avatar_url"] = profile.get("avatar") if profile else "https://cdn.discordapp.com/embed/avatars/0.png"
+        user["is_boosting"] = profile.get("boosting", False) if profile else False
+        user["hosted_count"] = user.get("hosted_count", 0)
+        user["won_count"] = user.get("won_count", 0)
+        user["trivia_correct"] = user.get("trivia_correct", 0)
+        user["trivia_total"] = user.get("trivia_total", 0)
 
-            if user["trivia_total"] > 0:
-                user["trivia_percent"] = round((user["trivia_correct"] / user["trivia_total"]) * 100, 1)
-            else:
-                user["trivia_percent"] = 0.0
-            user["verifications"] = user.get("Number of Verifications", 0)
+        if user["trivia_total"] > 0:
+            user["trivia_percent"] = round((user["trivia_correct"] / user["trivia_total"]) * 100, 1)
+        else:
+            user["trivia_percent"] = 0.0
+        user["verifications"] = user.get("Number of Verifications", 0)
 
-        viewer_rank = None
-        viewer_page = None
+    viewer_rank = None
+    viewer_page = None
 
-        if viewer_id:
-            vid = str(viewer_id)
+    if viewer_id:
+        vid = str(viewer_id)
 
-            try:
-                if lb_type in ("coins", "streak", "trivia"):
-                    econ = client["Economy"]["Users"]
+        try:
+            if lb_type in ("coins", "streak", "trivia"):
+                econ = client["Economy"]["Users"]
 
-                    try:
-                        econ_id = int(vid)
-                    except (TypeError, ValueError):
-                        econ_id = vid
+                try:
+                    econ_id = int(vid)
+                except (TypeError, ValueError):
+                    econ_id = vid
 
-                    me = econ.find_one({"_id": econ_id}) or {}
+                me = econ.find_one({"_id": econ_id}) or {}
 
-                    if lb_type == "coins":
-                        my_val = int(me.get("coins", 0) or 0)
-                        if my_val > 0:
-                            above = econ.count_documents({"coins": {"$gt": my_val}})
-                            viewer_rank = above + 1
-
-                    elif lb_type == "streak":
-                        my_val = int(me.get("streak", 0) or 0)
-                        if my_val > 0:
-                            above = econ.count_documents({"streak": {"$gt": my_val}})
-                            viewer_rank = above + 1
-
-                    elif lb_type == "trivia":
-                        raw = list(econ.find({"trivia_total": {"$gte": 5}}))
-                        def _ratio(u):
-                            return (u.get("trivia_correct", 0) / max(u.get("trivia_total", 1), 1))
-                        raw_sorted = sorted(raw, key=_ratio, reverse=True)
-                        for idx, u in enumerate(raw_sorted):
-                            if u.get("_id") == econ_id:
-                                viewer_rank = idx + 1
-                                break
-
-                elif lb_type == "mentions":
-                    mcol = client["Mentions"]["Amount"]
-                    me = mcol.find_one({"id": vid}) or {}
-                    my_val = int(me.get("Mentions", 0) or 0)
+                if lb_type == "coins":
+                    my_val = int(me.get("coins", 0) or 0)
                     if my_val > 0:
-                        above = mcol.count_documents({"Mentions": {"$gt": my_val}})
+                        above = econ.count_documents({"coins": {"$gt": my_val}})
                         viewer_rank = above + 1
 
-                elif lb_type in ("hosted", "wins"):
-                    gcol = client["Giveaway"]["current_giveaways"]
+                elif lb_type == "streak":
+                    my_val = int(me.get("streak", 0) or 0)
+                    if my_val > 0:
+                        above = econ.count_documents({"streak": {"$gt": my_val}})
+                        viewer_rank = above + 1
 
-                    if lb_type == "hosted":
-                        grouped = list(gcol.aggregate([
-                            {"$match": {"host_id": {"$exists": True}}},
-                            {"$group": {"_id": {"$toString": "$host_id"}, "hosted_count": {"$sum": 1}}},
-                        ]))
-                        grouped.sort(key=lambda x: x.get("hosted_count", 0), reverse=True)
-                        for idx, u in enumerate(grouped):
-                            if str(u.get("_id")) == vid:
-                                viewer_rank = idx + 1
-                                break
+                elif lb_type == "trivia":
+                    raw = list(econ.find({"trivia_total": {"$gte": 5}}))
+                    def _ratio(u):
+                        return (u.get("trivia_correct", 0) / max(u.get("trivia_total", 1), 1))
+                    raw_sorted = sorted(raw, key=_ratio, reverse=True)
+                    for idx, u in enumerate(raw_sorted):
+                        if u.get("_id") == econ_id:
+                            viewer_rank = idx + 1
+                            break
 
-                    else:
-                        grouped = list(gcol.aggregate([
-                            {"$match": {"winners": {"$exists": True}}},
-                            {"$unwind": "$winners"},
-                            {"$group": {"_id": {"$toString": "$winners"}, "won_count": {"$sum": 1}}},
-                        ]))
-                        grouped.sort(key=lambda x: x.get("won_count", 0), reverse=True)
-                        for idx, u in enumerate(grouped):
-                            if str(u.get("_id")) == vid:
-                                viewer_rank = idx + 1
-                                break
+            elif lb_type == "mentions":
+                mcol = client["Mentions"]["Amount"]
+                me = mcol.find_one({"id": vid}) or {}
+                my_val = int(me.get("Mentions", 0) or 0)
+                if my_val > 0:
+                    above = mcol.count_documents({"Mentions": {"$gt": my_val}})
+                    viewer_rank = above + 1
 
-                elif lb_type == "verifications":
-                    vcol = client["Verify"]["TopUsers"]
-                    all_staff = list(vcol.find({}))
-                    all_staff.sort(key=lambda u: u.get("Number of Verifications", 0), reverse=True)
-                    for idx, u in enumerate(all_staff):
-                        if str(u.get("id")) == vid:
+            elif lb_type in ("hosted", "wins"):
+                gcol = client["Giveaway"]["current_giveaways"]
+
+                if lb_type == "hosted":
+                    grouped = list(gcol.aggregate([
+                        {"$match": {"host_id": {"$exists": True}}},
+                        {"$group": {"_id": {"$toString": "$host_id"}, "hosted_count": {"$sum": 1}}},
+                    ]))
+                    grouped.sort(key=lambda x: x.get("hosted_count", 0), reverse=True)
+                    for idx, u in enumerate(grouped):
+                        if str(u.get("_id")) == vid:
                             viewer_rank = idx + 1
                             break
 
                 else:
-                    # default leaderboard (level/messages)
-                    me = level_col.find_one({"_id": vid}) or {}
-                    my_val = int(me.get(sort_field, 0) or 0)
-                    my_val = int(me.get(sort_field, 0) or 0)
-                    if my_val > 0:
-                        above = level_col.count_documents({sort_field: {"$gt": my_val}})
-                        viewer_rank = above + 1
+                    grouped = list(gcol.aggregate([
+                        {"$match": {"winners": {"$exists": True}}},
+                        {"$unwind": "$winners"},
+                        {"$group": {"_id": {"$toString": "$winners"}, "won_count": {"$sum": 1}}},
+                    ]))
+                    grouped.sort(key=lambda x: x.get("won_count", 0), reverse=True)
+                    for idx, u in enumerate(grouped):
+                        if str(u.get("_id")) == vid:
+                            viewer_rank = idx + 1
+                            break
 
-            except Exception:
-                viewer_rank = None
+            elif lb_type == "verifications":
+                vcol = client["Verify"]["TopUsers"]
+                all_staff = list(vcol.find({}))
+                all_staff.sort(key=lambda u: u.get("Number of Verifications", 0), reverse=True)
+                for idx, u in enumerate(all_staff):
+                    if str(u.get("id")) == vid:
+                        viewer_rank = idx + 1
+                        break
 
-            if viewer_rank:
-                viewer_page = _viewer_page_from_rank(viewer_rank, limit)
+            else:
+                # default leaderboard (level/messages)
+                me = level_col.find_one({"_id": vid}) or {}
+                my_val = int(me.get(sort_field, 0) or 0)
+                my_val = int(me.get(sort_field, 0) or 0)
+                if my_val > 0:
+                    above = level_col.count_documents({sort_field: {"$gt": my_val}})
+                    viewer_rank = above + 1
 
-        total_pages = (total_users + limit - 1) // limit
+        except Exception:
+            viewer_rank = None
+
+        if viewer_rank:
+            viewer_page = _viewer_page_from_rank(viewer_rank, limit)
+
+    total_pages = (total_users + limit - 1) // limit
 
     return render_template(
         "leaderboard.html",
@@ -4861,22 +5798,12 @@ def leaderboard():
         viewer_page=viewer_page,
     )
 
-
 @app.route("/callback")
 @limiter.limit("10 per minute", key_func=get_remote_address, error_message="Too many requests to the callback endpoint. Please wait a bit.")
 def callback():
     try:
-        #state = request.args.get("state")
-        #if not state or state != session.get("oauth_state"):
-        #    log_abuse_attempt("OAuth Invalid State", {
-        #        "state": state,
-        #        "expected_state": session.get("oauth_state"),
-        #        "ip": request.headers.get("X-Forwarded-For", request.remote_addr)
-        #    })
-        #    return "❌ Invalid OAuth state parameter", 400
-        #session.pop("oauth_state", None)
-
         code = request.args.get("code")
+        state = request.args.get("state")      
         if not code:
             return "❌ Missing code from Discord redirect", 400
 
@@ -4889,66 +5816,89 @@ def callback():
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-        r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
+        r = requests.post(
+            "https://discord.com/api/oauth2/token",
+            data=data,
+            headers=headers,
+            timeout=10
+        )
         r.raise_for_status()
         access_token = r.json()["access_token"]
-
         user = requests.get(
             "https://discord.com/api/users/@me",
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"}, timeout=10
         ).json()
 
         GUILD_ID = "959220051427340379"  # Replace with your actual server ID
 
         member = requests.get(
             f"https://discord.com/api/users/@me/guilds/{GUILD_ID}/member",
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"}, timeout=10
         )
         guild_data = requests.get(
             f"https://discord.com/api/guilds/{GUILD_ID}",
-            headers={"Authorization": f"Bot {BOT_TOKEN}"}
+            headers={"Authorization": f"Bot {BOT_TOKEN}"}, timeout=10
         ).json()
         session.permanent = True
-        session["guild_name"] = guild_data.get("name", "HayDay 🍀")
         member_data = {}
         if member.status_code == 200:
             member_data = member.json()
+            role_ids = [str(r) for r in member_data.get("roles", [])]
+
+            session["roles"] = role_ids
             session["display_name"] = member_data.get("nick") or user["username"]
-            session["roles"] = member_data.get("roles", [])
+            session["is_member"] = str(MEMBER_ROLE_ID) in role_ids
+
+            session["staff_role"] = None
+            for rid, role_name in STAFF_ROLES.items():
+                if str(rid) in role_ids:
+                    session["staff_role"] = role_name
+                    break
         else:
-            session["display_name"] = user["username"]
+            role_ids = []
             session["roles"] = []
+            session["display_name"] = user["username"]
+            session["is_member"] = False
+            session["staff_role"] = None
 
         session["discord_id"] = user["id"]
         session["username"] = user["username"] + "#" + user["discriminator"]
-        session["avatar_hash"] = user["avatar"]
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            users_collection = client["Website"]["users"]
+        
+        client = get_db()
+        users_collection = client["Website"]["users"]
 
-            users_collection.update_one(
-                {"_id": user["id"]},
-                {"$set": {
-                    "username": user["username"] + "#" + user["discriminator"],
-                    "display_name": member_data.get("nick") or user["username"],
-                    "avatar_hash": user["avatar"],
-                    "hay_day_id": None,  # Will be filled after linking
-                    "linked_at": datetime.utcnow(),
-                    "public_profile": True
-                }},
-                upsert=True
-            )
-            staff_collection = client["Website"]["Staff"]
-            staff_doc = staff_collection.find_one({"_id": user["id"]})
-            if staff_doc:
-                session["staff_role"] = staff_doc.get("role", None)  # Use .get safely
-            else:
-                session["staff_role"] = None
+        users_collection.update_one(
+            {"_id": user["id"]},
+            {"$set": {
+                "username": user["username"] + "#" + user["discriminator"],
+                "display_name": member_data.get("nick") or user["username"],
+                "avatar_hash": user["avatar"],
+                "hay_day_id": None,  # Will be filled after linking
+                "linked_at": datetime.utcnow(),
+                "public_profile": True
+            }},
+            upsert=True
+        )
+        staff_collection = client["Website"]["Staff"]
+        staff_doc = staff_collection.find_one({"_id": user["id"]})
+        if staff_doc:
+            session["staff_role"] = staff_doc.get("role", None)  # Use .get safely
+        else:
+            session["staff_role"] = None
 
+        session.modified = True      
+        next_page = session.get("next_page", url_for("profile"))
 
-        next_page = session.pop("next_page", url_for("profile"))
-        print("User object:", user)  # <- add this too
+        if not str(next_page).startswith("/"):
+            next_page = url_for("profile")
 
-        return redirect(next_page)
+        session.pop("oauth_state", None)
+        session.pop("next_page", None)
+        session.modified = True
+
+        resp = redirect(f"https://hayday.info{next_page}")
+        return resp
+    
     except Exception as e:
         traceback.print_exc()
         return f"<h1>❌ Error:</h1><pre>{e}</pre>", 500
@@ -4978,16 +5928,16 @@ def export_purchases_csv():
             {"user_id": {"$regex": query}}
         ]
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        purchases = list(
-            client["Economy"]["Purchases"]
-            .find(filter_)
-            .sort("timestamp", -1)
-        )
+    client = get_db()
+    purchases = list(
+        client["Economy"]["Purchases"]
+        .find(filter_)
+        .sort("timestamp", -1)
+    )
 
-        user_ids = list({str(p["user_id"]) for p in purchases})
-        users = client["Website"]["users"].find({"_id": {"$in": user_ids}})
-        user_map = {u["_id"]: u for u in users}
+    user_ids = list({str(p["user_id"]) for p in purchases})
+    users = client["Website"]["users"].find({"_id": {"$in": user_ids}})
+    user_map = {u["_id"]: u for u in users}
 
     # Prepare CSV in memory
     output = StringIO()
@@ -5031,16 +5981,16 @@ def admin_users():
             {"_id": {"$regex": query}}
         ]
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        users_collection = client["Website"]["users"]
+    client = get_db()
+    users_collection = client["Website"]["users"]
 
-        total = users_collection.count_documents(search_filter)
-        users = list(
-            users_collection.find(search_filter)
-            .sort("username", 1)
-            .skip((page - 1) * per_page)
-            .limit(per_page)
-        )
+    total = users_collection.count_documents(search_filter)
+    users = list(
+        users_collection.find(search_filter)
+        .sort("username", 1)
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
 
     return render_template(
         "admin_users.html",
@@ -5060,12 +6010,12 @@ def update_user_bio():
     is_clear = request.form.get("clear") == "1"
     new_bio = request.form.get("bio", "").strip()
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        users = client["Website"]["users"]
-        if is_clear:
-            users.update_one({"_id": user_id}, {"$unset": {"bio": ""}})
-        elif new_bio:
-            users.update_one({"_id": user_id}, {"$set": {"bio": new_bio}})
+    client = get_db()
+    users = client["Website"]["users"]
+    if is_clear:
+        users.update_one({"_id": user_id}, {"$unset": {"bio": ""}})
+    elif new_bio:
+        users.update_one({"_id": user_id}, {"$set": {"bio": new_bio}})
 
     return redirect(url_for("moderate_bios"))
 
@@ -5088,15 +6038,15 @@ def moderate_bios():
             {"_id": {"$regex": query}}
         ]
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        users_col = client["Website"]["users"]
-        total = users_col.count_documents(filter_)
-        users = list(
-            users_col.find(filter_)
-            .sort("username", 1)
-            .skip((page - 1) * per_page)
-            .limit(per_page)
-        )
+    client = get_db()
+    users_col = client["Website"]["users"]
+    total = users_col.count_documents(filter_)
+    users = list(
+        users_col.find(filter_)
+        .sort("username", 1)
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
 
     return render_template(
         "admin_bios.html",
@@ -5112,7 +6062,7 @@ def public_directory():
     page = int(request.args.get("page", 1))
     page_size = 12
 
-    users_collection = MongoClient(os.getenv("MONGO_URI"))["Website"]["users"]
+    users_collection = get_db("Website")["users"]
 
     query_filter = {"public_profile": True}
     if query:
@@ -5141,7 +6091,7 @@ def profile_directory():
     page = int(request.args.get("page", 1))
     per_page = 12
 
-    db = MongoClient(os.getenv("MONGO_URI"))["Website"]
+    db = get_db("Website")
     usernames_col = db["usernames"]
     users_col = db["users"]
 
@@ -5180,7 +6130,14 @@ def profile_directory():
         .skip((page - 1) * per_page)
         .limit(per_page)
     )
-
+    user_ids = [u["_id"] for u in raw_users]
+    public_docs = list(
+        users_col.find(
+            {"_id": {"$in": user_ids}},
+            {"public_profile": 1}
+        )
+    )
+    public_map = {doc["_id"]: doc for doc in public_docs}
     users = []
     for user in raw_users:
         roles = user.get("roles", [])
@@ -5196,8 +6153,8 @@ def profile_directory():
             except:
                 continue
 
-        existing_user = users_col.find_one({"_id": user["_id"]})
-        user["public_profile"] = user.get("public_profile", True)
+        settings_doc = public_map.get(user["_id"], {})
+        user["public_profile"] = settings_doc.get("public_profile", True)
         avatar = user.get("avatar")
         if avatar and avatar.startswith("http"):
             user["avatar_url"] = avatar
@@ -5231,27 +6188,26 @@ def admin_trading_override_delete():
     if not item_key:
         return jsonify(ok=False, error="Missing item_key"), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        col = c["Website"]["trading_item_overrides"]
+    col = get_db("Website")["trading_item_overrides"]
 
-        doc = col.find_one({"_id": item_key})
-        if not doc:
-            return jsonify(ok=False, error="Not found"), 404
+    doc = col.find_one({"_id": item_key})
+    if not doc:
+        return jsonify(ok=False, error="Not found"), 404
 
-        # ✅ Only allow deleting manual overrides
-        if not doc.get("manual_override"):
-            return jsonify(ok=False, error="Cannot delete non-manual override"), 400
+    # ✅ Only allow deleting manual overrides
+    if not doc.get("manual_override"):
+        return jsonify(ok=False, error="Cannot delete non-manual override"), 400
 
-        # Best-effort delete image from R2 if we have a key
-        image_key = doc.get("image_key")
-        if image_key:
-            try:
-                r2 = get_r2_client()
-                r2.delete_object(Bucket=os.getenv("R2_BUCKET"), Key=image_key)
-            except Exception:
-                pass
+    # Best-effort delete image from R2 if we have a key
+    image_key = doc.get("image_key")
+    if image_key:
+        try:
+            r2 = get_r2_client()
+            r2.delete_object(Bucket=os.getenv("R2_BUCKET"), Key=image_key)
+        except Exception:
+            pass
 
-        col.delete_one({"_id": item_key})
+    col.delete_one({"_id": item_key})
 
     return jsonify(ok=True)
 
@@ -5300,9 +6256,8 @@ def admin_trading_override():
         update["image_key"] = key_name
         update["image_url"] = image_url
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        col = c["Website"]["trading_item_overrides"]
-        col.update_one({"_id": item_key}, {"$set": update}, upsert=True)
+    col = get_db("Website")["trading_item_overrides"]
+    col.update_one({"_id": item_key}, {"$set": update}, upsert=True)
 
     return jsonify(ok=True, item_key=item_key, name=name, image_url=update.get("image_url"))
 
@@ -5378,97 +6333,97 @@ def api_trading_overview():
         match["post_type"] = {"$in": ["buy", "sell"]}
 
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        db = c["hayday"]
-        ticks = db["auctions.Trading.ticks"]
-        mp_ticks = db["auctions.Trading.mp_ticks"]
-        display_map, alias_to_key, key_to_filename, key_to_source_url, key_to_image_url = _trading_maps_with_overrides()
+    c = get_db()
+    db = c["hayday"]
+    ticks = db["auctions.Trading.ticks"]
+    mp_ticks = db["auctions.Trading.mp_ticks"]
+    display_map, alias_to_key, key_to_filename, key_to_source_url, key_to_image_url = _trading_maps_with_overrides()
 
 
-        pipeline = [
-        {"$match": match},
+    pipeline = [
+    {"$match": match},
+    {"$group": {
+        "_id": {"k": "$item_key", "t": "$post_type"},
+        "sum_qty": {"$sum": {"$ifNull": ["$qty", 0]}},
+        "sum_value": {"$sum": {"$ifNull": ["$total_value", 0]}},
+        "posts": {"$sum": 1},
+        "price_posts": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, 1, 0]}},
+        "sum_unit_price": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, "$unit_price", 0]}},
+    }},
+
+    {"$project": {
+        "_id": 0,
+        "item_key": "$_id.k",
+        "post_type": "$_id.t",
+        "sum_qty": 1,
+        "sum_value": 1,
+        "posts": 1,
+
+        # ✅ NEW
+        "price_posts": 1,
+        "sum_unit_price": 1,
+    }},
+
+    {"$limit": 10000},
+    ]
+    rows = list(ticks.aggregate(pipeline))
+
+    trend_match = dict(match)
+    trend_match["unit_price"] = {"$ne": None}  # only meaningful prices
+    # match already excludes trade because post_type is buy/sell/all(buy+sell)
+
+    trend_pipe = [
+        {"$match": trend_match},
+        {"$sort": {"ts": 1}},
         {"$group": {
             "_id": {"k": "$item_key", "t": "$post_type"},
-            "sum_qty": {"$sum": {"$ifNull": ["$qty", 0]}},
-            "sum_value": {"$sum": {"$ifNull": ["$total_value", 0]}},
-            "posts": {"$sum": 1},
-            "price_posts": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, 1, 0]}},
-            "sum_unit_price": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, "$unit_price", 0]}},
+            "first_price": {"$first": "$unit_price"},
+            "last_price": {"$last": "$unit_price"},
         }},
+    ]
+    trend_rows = list(ticks.aggregate(trend_pipe))
 
-        {"$project": {
-            "_id": 0,
-            "item_key": "$_id.k",
-            "post_type": "$_id.t",
-            "sum_qty": 1,
-            "sum_value": 1,
-            "posts": 1,
+    # --- XMP range (mp_mult) per item_key (from mp_ticks collection) ---
+    mp_match = {
+        "guild_id": TRADING_GUILD_ID,
+        "mp_mult": {"$ne": None},
+    }
+    # only apply ts filter if you know mp_ticks has ts
+    mp_match["ts"] = {"$gte": since}
 
-            # ✅ NEW
-            "price_posts": 1,
-            "sum_unit_price": 1,
+
+    mp_pipe = [
+        {"$match": mp_match},
+        {"$group": {
+            "_id": "$item_key",
+            "min_mp": {"$min": "$mp_mult"},
+            "max_mp": {"$max": "$mp_mult"},
+            "mp_posts": {"$sum": 1},
         }},
+    ]
+    mp_rows = list(mp_ticks.aggregate(mp_pipe))
 
-        {"$limit": 10000},
-        ]
-        rows = list(ticks.aggregate(pipeline))
+    mp_map = {}  # canonical_key -> {"min": x, "max": y, "posts": n}
+    for r in mp_rows:
+        raw_key = (r.get("_id") or "").strip().lower()
+        if not raw_key:
+            continue
 
-        trend_match = dict(match)
-        trend_match["unit_price"] = {"$ne": None}  # only meaningful prices
-        # match already excludes trade because post_type is buy/sell/all(buy+sell)
+        # resolve to canonical key
+        if raw_key in display_map:
+            canonical = raw_key
+        else:
+            ck = clean_key(raw_key)
+            canonical = alias_to_key.get(raw_key) or alias_to_key.get(ck)
 
-        trend_pipe = [
-            {"$match": trend_match},
-            {"$sort": {"ts": 1}},
-            {"$group": {
-                "_id": {"k": "$item_key", "t": "$post_type"},
-                "first_price": {"$first": "$unit_price"},
-                "last_price": {"$last": "$unit_price"},
-            }},
-        ]
-        trend_rows = list(ticks.aggregate(trend_pipe))
+        if not canonical or canonical not in display_map:
+            continue
 
-        # --- XMP range (mp_mult) per item_key (from mp_ticks collection) ---
-        mp_match = {
-            "guild_id": TRADING_GUILD_ID,
-            "mp_mult": {"$ne": None},
+        mp_map[canonical] = {
+            "min": r.get("min_mp"),
+            "max": r.get("max_mp"),
+            "posts": int(r.get("mp_posts") or 0),
         }
-        # only apply ts filter if you know mp_ticks has ts
-        mp_match["ts"] = {"$gte": since}
-
-
-        mp_pipe = [
-            {"$match": mp_match},
-            {"$group": {
-                "_id": "$item_key",
-                "min_mp": {"$min": "$mp_mult"},
-                "max_mp": {"$max": "$mp_mult"},
-                "mp_posts": {"$sum": 1},
-            }},
-        ]
-        mp_rows = list(mp_ticks.aggregate(mp_pipe))
-
-        mp_map = {}  # canonical_key -> {"min": x, "max": y, "posts": n}
-        for r in mp_rows:
-            raw_key = (r.get("_id") or "").strip().lower()
-            if not raw_key:
-                continue
-
-            # resolve to canonical key
-            if raw_key in display_map:
-                canonical = raw_key
-            else:
-                ck = clean_key(raw_key)
-                canonical = alias_to_key.get(raw_key) or alias_to_key.get(ck)
-
-            if not canonical or canonical not in display_map:
-                continue
-
-            mp_map[canonical] = {
-                "min": r.get("min_mp"),
-                "max": r.get("max_mp"),
-                "posts": int(r.get("mp_posts") or 0),
-            }
 
 
     trend_map = {}  # canonical_key -> {"sell": pct, "buy": pct}
@@ -5639,9 +6594,8 @@ def admin_trading_tick_delete():
     except InvalidId:
         return jsonify(ok=False, error="Invalid tick_id"), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        ticks = c["hayday"]["auctions.Trading.ticks"]
-        res = ticks.delete_one({"_id": oid, "guild_id": TRADING_GUILD_ID})
+    ticks = get_db()["hayday"]["auctions.Trading.ticks"]
+    res = ticks.delete_one({"_id": oid, "guild_id": TRADING_GUILD_ID})
 
     return jsonify(ok=True, deleted=int(res.deleted_count))
 
@@ -5693,25 +6647,24 @@ def api_trading_item_posts(item_key):
     }
 
     # Return posts for scrolling + jump link
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        ticks = c["hayday"]["auctions.Trading.ticks"]
-        cursor = ticks.find(match).sort("ts", -1).limit(limit)
+    ticks = get_db()["hayday"]["auctions.Trading.ticks"]
+    cursor = ticks.find(match).sort("ts", -1).limit(limit)
 
-        posts = []
-        for d in cursor:
-            posts.append({
-                "id": str(d.get("_id")),
-                "post_type": d.get("post_type"),
-                "ts": d.get("ts").isoformat() if d.get("ts") else None,
-                "jump_url": d.get("jump_url"),
-                "author_id": str(d.get("author_id")) if d.get("author_id") is not None else None,
-                "channel_id": str(d.get("channel_id")) if d.get("channel_id") is not None else None,
-                "message_id": str(d.get("message_id")) if d.get("message_id") is not None else None,
-                "qty": d.get("qty"),
-                "unit_price": d.get("unit_price"),
-                "total_value": d.get("total_value"),
-                "raw_text": d.get("raw_text") or d.get("content") or d.get("text"),
-            })
+    posts = []
+    for d in cursor:
+        posts.append({
+            "id": str(d.get("_id")),
+            "post_type": d.get("post_type"),
+            "ts": d.get("ts").isoformat() if d.get("ts") else None,
+            "jump_url": d.get("jump_url"),
+            "author_id": str(d.get("author_id")) if d.get("author_id") is not None else None,
+            "channel_id": str(d.get("channel_id")) if d.get("channel_id") is not None else None,
+            "message_id": str(d.get("message_id")) if d.get("message_id") is not None else None,
+            "qty": d.get("qty"),
+            "unit_price": d.get("unit_price"),
+            "total_value": d.get("total_value"),
+            "raw_text": d.get("raw_text") or d.get("content") or d.get("text"),
+        })
 
 
     return jsonify(
@@ -5779,10 +6732,9 @@ def api_trading_item_history(item_key):
         {"$sort": {"_id.d": 1}},
     ]
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        db = c["hayday"]
-        ticks = db["auctions.Trading.ticks"]
-        rows = list(ticks.aggregate(pipeline))
+    db = get_db("hayday")
+    ticks = db["auctions.Trading.ticks"]
+    rows = list(ticks.aggregate(pipeline))
 
     # date -> { buy: {avg, posts}, sell: {avg, posts} }
     series = {}
@@ -5832,74 +6784,74 @@ def public_profile(discord_id):
     progress_percent = current_xp_formatted = required_xp_formatted = rank = None
     is_owner = viewer_id == discord_id
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        usernames_collection = client["Website"]["usernames"]
-        users_collection = client["Website"]["users"]
+    client= get_db()
+    usernames_collection = client["Website"]["usernames"]
+    users_collection = client["Website"]["users"]
 
-        fallback = usernames_collection.find_one({"_id": discord_id})
-        if not fallback:
-            return "🚫 This profile is private or does not exist.", 404
+    fallback = usernames_collection.find_one({"_id": discord_id})
+    if not fallback:
+        return "🚫 This profile is private or does not exist.", 404
 
-        # Get synced info from Website.usernames
-        display_name = fallback.get("display_name", fallback.get("username", "Unknown"))
-        avatar_url = fallback.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png")
-        roles = fallback.get("roles", [])
+    # Get synced info from Website.usernames
+    display_name = fallback.get("display_name", fallback.get("username", "Unknown"))
+    avatar_url = fallback.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png")
+    roles = fallback.get("roles", [])
 
-        # Get Website.users doc and force-sync name/avatar
-        user = users_collection.find_one({"_id": discord_id}) or {}
-        user["display_name"] = display_name  # ✅ always use latest name from usernames collection
-        user["avatar"] = avatar_url          # ✅ always use latest avatar from usernames collection
+    # Get Website.users doc and force-sync name/avatar
+    user = users_collection.find_one({"_id": discord_id}) or {}
+    user["display_name"] = display_name  # ✅ always use latest name from usernames collection
+    user["avatar"] = avatar_url          # ✅ always use latest avatar from usernames collection
 
-        # Public/private check
-        if not user.get("public_profile", True) and not is_owner:
-            return "🚫 This profile is private or does not exist.", 404
+    # Public/private check
+    if not user.get("public_profile", True) and not is_owner:
+        return "🚫 This profile is private or does not exist.", 404
 
 
-        # Staff badges from roles
-        staff_badges = []
-        for rid in roles:
-            try:
-                if isinstance(rid, dict) and "$numberLong" in rid:
-                    rid_int = int(rid["$numberLong"])
-                else:
-                    rid_int = int(rid)
-                if rid_int in STAFF_ROLES:
-                    staff_badges.append(STAFF_ROLES[rid_int])
-            except:
-                continue
+    # Staff badges from roles
+    staff_badges = []
+    for rid in roles:
+        try:
+            if isinstance(rid, dict) and "$numberLong" in rid:
+                rid_int = int(rid["$numberLong"])
+            else:
+                rid_int = int(rid)
+            if rid_int in STAFF_ROLES:
+                staff_badges.append(STAFF_ROLES[rid_int])
+        except:
+            continue
 
-        # Economy
-        eco_user = client["Economy"]["Users"].find_one({"_id": int(discord_id)}) or {}
-        coins = eco_user.get("coins", 0)
-        streak = eco_user.get("streak", 0)
+    # Economy
+    eco_user = client["Economy"]["Users"].find_one({"_id": int(discord_id)}) or {}
+    coins = eco_user.get("coins", 0)
+    streak = eco_user.get("streak", 0)
 
-        # Mentions
-        mention_col = client["Mentions"]["Amount"]
-        mention_doc = mention_col.find_one({"id": int(discord_id)})
-        mention_count = mention_doc.get("Mentions", 0) if mention_doc else 0
+    # Mentions
+    mention_col = client["Mentions"]["Amount"]
+    mention_doc = mention_col.find_one({"id": int(discord_id)})
+    mention_count = mention_doc.get("Mentions", 0) if mention_doc else 0
 
-        # Level
-        level_col = client["hayday"]["level"]
-        level_doc = level_col.find_one({"_id": discord_id})
-        if level_doc:
-            level = level_doc.get("level", 1)
-            xp = level_doc.get("xp", 0)
-            message_count = level_doc.get("message_count", 0)
+    # Level
+    level_col = client["hayday"]["level"]
+    level_doc = level_col.find_one({"_id": discord_id})
+    if level_doc:
+        level = level_doc.get("level", 1)
+        xp = level_doc.get("xp", 0)
+        message_count = level_doc.get("message_count", 0)
 
-            def calc_required_xp(lvl):
-                return 100 * (lvl ** 2) + 100 * lvl + 100
+        def calc_required_xp(lvl):
+            return 100 * (lvl ** 2) + 100 * lvl + 100
 
-            prev_xp = calc_required_xp(level - 1) if level > 1 else 0
-            next_xp = calc_required_xp(level)
-            current_xp = xp - prev_xp
-            required_xp = next_xp - prev_xp
-            progress_percent = int((current_xp / required_xp) * 100)
+        prev_xp = calc_required_xp(level - 1) if level > 1 else 0
+        next_xp = calc_required_xp(level)
+        current_xp = xp - prev_xp
+        required_xp = next_xp - prev_xp
+        progress_percent = int((current_xp / required_xp) * 100)
 
-            current_xp_formatted = f"{current_xp:,}"
-            required_xp_formatted = f"{required_xp:,}"
+        current_xp_formatted = f"{current_xp:,}"
+        required_xp_formatted = f"{required_xp:,}"
 
-            all_users = list(level_col.find().sort("xp", -1))
-            rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
+        all_users = list(level_col.find().sort("xp", -1))
+        rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
 
     return render_template(
         "profile.html",
@@ -5971,64 +6923,64 @@ def shop():
     coins = 0
     owned_items = set()
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        eco_user = client["Economy"]["Users"].find_one({"_id": user_id}) or {}
-        lvl_doc = client["hayday"]["level"].find_one({"_id": str(user_id)}) or {}
+    client= get_db()
+    eco_user = client["Economy"]["Users"].find_one({"_id": user_id}) or {}
+    lvl_doc = client["hayday"]["level"].find_one({"_id": str(user_id)}) or {}
 
-        coins = int(eco_user.get("coins", 0))
+    coins = int(eco_user.get("coins", 0))
 
-        # Base owned_items (if you ever use this)
-        owned_items = set(eco_user.get("owned_items", []) or [])
+    # Base owned_items (if you ever use this)
+    owned_items = set(eco_user.get("owned_items", []) or [])
 
-        # -------------------------
-        # Daily Upgrade Tier logic
-        # -------------------------
-        daily_tier = int(eco_user.get("daily_upgrade_tier", 0) or 0)
+    # -------------------------
+    # Daily Upgrade Tier logic
+    # -------------------------
+    daily_tier = int(eco_user.get("daily_upgrade_tier", 0) or 0)
 
-        if daily_tier >= 1:
-            owned_items.add("daily_upgrade_t1")
-        if daily_tier >= 2:
-            owned_items.add("daily_upgrade_t2")
-        if daily_tier >= 3:
-            owned_items.add("daily_upgrade_t3")
+    if daily_tier >= 1:
+        owned_items.add("daily_upgrade_t1")
+    if daily_tier >= 2:
+        owned_items.add("daily_upgrade_t2")
+    if daily_tier >= 3:
+        owned_items.add("daily_upgrade_t3")
 
-        # -------------------------
-        # Permanent XP Boost logic
-        # -------------------------
-        perm_tier = int(lvl_doc.get("perm_xp_tier", 0) or 0)
+    # -------------------------
+    # Permanent XP Boost logic
+    # -------------------------
+    perm_tier = int(lvl_doc.get("perm_xp_tier", 0) or 0)
 
-        if perm_tier >= 1:
-            owned_items.add("perm_xp_boost_t1")
-        if perm_tier >= 2:
-            owned_items.add("perm_xp_boost_t2")
-        if perm_tier >= 3:
-            owned_items.add("perm_xp_boost_t3")
+    if perm_tier >= 1:
+        owned_items.add("perm_xp_boost_t1")
+    if perm_tier >= 2:
+        owned_items.add("perm_xp_boost_t2")
+    if perm_tier >= 3:
+        owned_items.add("perm_xp_boost_t3")
 
-        # -------------------------
-        # Prestige Roles (Optional)
-        # -------------------------
-        # Only works if you store flags in DB when purchased
-        if eco_user.get("wealth_flex_owned"):
-            owned_items.add("wealth_flex_role")
+    # -------------------------
+    # Prestige Roles (Optional)
+    # -------------------------
+    # Only works if you store flags in DB when purchased
+    if eco_user.get("wealth_flex_owned"):
+        owned_items.add("wealth_flex_role")
 
-        if eco_user.get("millionaire_owned"):
-            owned_items.add("millionaire_club_role")
+    if eco_user.get("millionaire_owned"):
+        owned_items.add("millionaire_club_role")
 
-        # -------------------------
-        # Passive Message Income Tier logic
-        # -------------------------
-        passive_tier = int(eco_user.get("passive_income_tier", 0) or 0)
+    # -------------------------
+    # Passive Message Income Tier logic
+    # -------------------------
+    passive_tier = int(eco_user.get("passive_income_tier", 0) or 0)
 
-        # Backwards compat (if you previously used passive_income_licenses)
-        if passive_tier <= 0 and eco_user.get("passive_income_licenses"):
-            passive_tier = min(3, int(eco_user.get("passive_income_licenses", 0) or 0))
+    # Backwards compat (if you previously used passive_income_licenses)
+    if passive_tier <= 0 and eco_user.get("passive_income_licenses"):
+        passive_tier = min(3, int(eco_user.get("passive_income_licenses", 0) or 0))
 
-        if passive_tier >= 1:
-            owned_items.add("passive_income_t1")
-        if passive_tier >= 2:
-            owned_items.add("passive_income_t2")
-        if passive_tier >= 3:
-            owned_items.add("passive_income_t3")
+    if passive_tier >= 1:
+        owned_items.add("passive_income_t1")
+    if passive_tier >= 2:
+        owned_items.add("passive_income_t2")
+    if passive_tier >= 3:
+        owned_items.add("passive_income_t3")
 
     sorted_items = _sorted_shop_items(SHOP_ITEMS)
 
@@ -6118,26 +7070,26 @@ def view_purchases():
             {"user_id": {"$regex": query}}
         ]
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        purchases_col = client["Economy"]["Purchases"]
-        user_col = client["Website"]["users"]
+    client= get_db()
+    purchases_col = client["Economy"]["Purchases"]
+    user_col = client["Website"]["users"]
 
-        total = purchases_col.count_documents(filter_)
-        purchases = list(
-            purchases_col.find(filter_)
-            .sort("timestamp", -1)
-            .skip((page - 1) * per_page)
-            .limit(per_page)
-        )
+    total = purchases_col.count_documents(filter_)
+    purchases = list(
+        purchases_col.find(filter_)
+        .sort("timestamp", -1)
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
 
-        user_ids = list({str(p["user_id"]) for p in purchases})
-        users = list(user_col.find({"_id": {"$in": user_ids}}))
-        user_map = {u["_id"]: u for u in users}
+    user_ids = list({str(p["user_id"]) for p in purchases})
+    users = list(user_col.find({"_id": {"$in": user_ids}}))
+    user_map = {u["_id"]: u for u in users}
 
-        for p in purchases:
-            uid = str(p["user_id"])
-            user = user_map.get(uid)
-            p["display_name"] = user.get("display_name") or user.get("username") if user else uid
+    for p in purchases:
+        uid = str(p["user_id"])
+        user = user_map.get(uid)
+        p["display_name"] = user.get("display_name") or user.get("username") if user else uid
 
     return render_template(
         "admin_purchases.html",
@@ -6156,10 +7108,10 @@ def get_star_threshold():
     if not is_admin():
         return jsonify({"error": "Unauthorized"}), 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["starboard"]
-        settings = col.find_one({"config": "starboard_settings"}) or {}
-        threshold = settings.get("star_threshold", 5)
+    client= get_db()
+    col = client["hayday"]["starboard"]
+    settings = col.find_one({"config": "starboard_settings"}) or {}
+    threshold = settings.get("star_threshold", 5)
 
     # Convert Decimal128 or other Mongo types if necessary
     if isinstance(threshold, dict) and "$numberInt" in threshold:
@@ -6174,24 +7126,24 @@ def starboard_data():
     if not is_admin():
         return jsonify({"error": "Unauthorized"}), 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["starboard"]
+    client= get_db()
+    col = client["hayday"]["starboard"]
 
-        settings = col.find_one({"config": "starboard_settings"}) or {}
-        starboard_entries = list(
-            col.find({"starboard_message_id": {"$exists": True}})
-            .sort("star_count", -1)
-        )
+    settings = col.find_one({"config": "starboard_settings"}) or {}
+    starboard_entries = list(
+        col.find({"starboard_message_id": {"$exists": True}})
+        .sort("star_count", -1)
+    )
 
-        for entry in starboard_entries:
-            entry["_id"] = str(entry["_id"])
-            entry["star_count"] = int(entry.get("star_count", 0))
-            entry["original_message_id"] = str(entry.get("original_message_id", ""))
-            entry["starboard_message_id"] = str(entry.get("starboard_message_id", ""))
+    for entry in starboard_entries:
+        entry["_id"] = str(entry["_id"])
+        entry["star_count"] = int(entry.get("star_count", 0))
+        entry["original_message_id"] = str(entry.get("original_message_id", ""))
+        entry["starboard_message_id"] = str(entry.get("starboard_message_id", ""))
 
-            # ✅ Add these two lines:
-            entry["guild_id"] = str(entry.get("guild_id", ""))
-            entry["channel_id"] = str(entry.get("channel_id", ""))
+        # ✅ Add these two lines:
+        entry["guild_id"] = str(entry.get("guild_id", ""))
+        entry["channel_id"] = str(entry.get("channel_id", ""))
 
 
     return jsonify({
@@ -6219,8 +7171,8 @@ def log_interaction():
         "timestamp": datetime.now(timezone.utc)
     }
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        client["Website"]["InteractionLogs"].insert_one(log)
+    client= get_db()
+    client["Website"]["InteractionLogs"].insert_one(log)
 
     return "OK"
 
@@ -6253,69 +7205,69 @@ def view_interaction_logs():
     if anon_only:
         query["username"] = None
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Website"]["InteractionLogs"]
+    client= get_db()
+    col = client["Website"]["InteractionLogs"]
 
-        if export:
-            logs = list(col.find(query).sort("timestamp", -1))
-            response = make_response()
-            response.headers["Content-Disposition"] = "attachment; filename=interaction_logs.csv"
-            response.headers["Content-Type"] = "text/csv"
-            writer = csv.writer(response.stream)
-            writer.writerow(["Timestamp", "Action", "Username", "Discord ID", "Text", "Href", "User Agent"])
-            for log in logs:
-                writer.writerow([
-                    log.get("timestamp"),
-                    log.get("action", ""),
-                    log.get("username", ""),
-                    log.get("discord_id", ""),
-                    log.get("details", {}).get("text", ""),
-                    log.get("details", {}).get("href", ""),
-                    log.get("user_agent", "")
-                ])
-            return response
+    if export:
+        logs = list(col.find(query).sort("timestamp", -1))
+        response = make_response()
+        response.headers["Content-Disposition"] = "attachment; filename=interaction_logs.csv"
+        response.headers["Content-Type"] = "text/csv"
+        writer = csv.writer(response.stream)
+        writer.writerow(["Timestamp", "Action", "Username", "Discord ID", "Text", "Href", "User Agent"])
+        for log in logs:
+            writer.writerow([
+                log.get("timestamp"),
+                log.get("action", ""),
+                log.get("username", ""),
+                log.get("discord_id", ""),
+                log.get("details", {}).get("text", ""),
+                log.get("details", {}).get("href", ""),
+                log.get("user_agent", "")
+            ])
+        return response
 
-        total = col.count_documents(query)
-        logs = list(col.find(query).sort("timestamp", -1).skip(skip).limit(limit))
+    total = col.count_documents(query)
+    logs = list(col.find(query).sort("timestamp", -1).skip(skip).limit(limit))
 
-        # Stats for the normal interaction logs
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        past_week = today - timedelta(days=6)
+    # Stats for the normal interaction logs
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    past_week = today - timedelta(days=6)
 
-        stats = {
-            "today": col.count_documents({"timestamp": {"$gte": today}}),
-            "week": col.count_documents({"timestamp": {"$gte": past_week}}),
-            "anon": col.count_documents({"username": None}),
-            "actions": col.distinct("action")
-        }
+    stats = {
+        "today": col.count_documents({"timestamp": {"$gte": today}}),
+        "week": col.count_documents({"timestamp": {"$gte": past_week}}),
+        "anon": col.count_documents({"username": None}),
+        "actions": col.distinct("action")
+    }
 
-        # ✅ Top pages tracking
-        pv_col = client["Website"]["PageViews"]
+    # ✅ Top pages tracking
+    pv_col = client["Website"]["PageViews"]
 
-        match_real_pages = {
-            "$match": {
-                "_id": {
-                    "$regex": r"^(?!/(?:api|thumb-file|img-proxy|log-interaction|static|assets|webhook|oauth|internal)\b)"
-                            r"(?!.*\.(?:js|css|png|jpe?g|gif|webp|svg|ico|json|xml|map|txt|csv)$)"
-                            r"^(?!/(?:robots\.txt|favicon\.ico|callback)$)"
-                }
+    match_real_pages = {
+        "$match": {
+            "_id": {
+                "$regex": r"^(?!/(?:api|thumb-file|img-proxy|log-interaction|static|assets|webhook|oauth|internal)\b)"
+                        r"(?!.*\.(?:js|css|png|jpe?g|gif|webp|svg|ico|json|xml|map|txt|csv)$)"
+                        r"^(?!/(?:robots\.txt|favicon\.ico|callback)$)"
             }
         }
+    }
 
-        top_pages = list(pv_col.aggregate([
-            match_real_pages,
-            {"$sort": {"count": -1}},
-            {"$limit": 20}
-        ]))
+    top_pages = list(pv_col.aggregate([
+        match_real_pages,
+        {"$sort": {"count": -1}},
+        {"$limit": 20}
+    ]))
 
-        agg = list(pv_col.aggregate([
-            match_real_pages,
-            {"$group": {"_id": None, "total": {"$sum": "$count"}}}
-        ]))
-        total_views = agg[0]["total"] if agg else 0
+    agg = list(pv_col.aggregate([
+        match_real_pages,
+        {"$group": {"_id": None, "total": {"$sum": "$count"}}}
+    ]))
+    total_views = agg[0]["total"] if agg else 0
 
-        for p in top_pages:
-            p["_id"] = str(p.get("_id", ""))
+    for p in top_pages:
+        p["_id"] = str(p.get("_id", ""))
 
             
     return render_template(
@@ -6342,9 +7294,9 @@ def delete_starboard_message():
     data = request.get_json()
     message_id = str(data.get("message_id"))
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["starboard"]
-        result = col.delete_one({"starboard_message_id": message_id})
+    client= get_db()
+    col = client["hayday"]["starboard"]
+    result = col.delete_one({"starboard_message_id": message_id})
 
     if result.deleted_count > 0:
         return jsonify({"message": "✅ Starboard message deleted."})
@@ -6391,64 +7343,64 @@ def auction_dashboard():
     skip_logs = (log_page - 1) * limit
     skip_bans = (ban_page - 1) * limit
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["hayday"]
-        user_col = client["Website"]["usernames"]
-        log_col = client["Website"]["Logs"]
+    client= get_db()
+    db = client["hayday"]
+    user_col = client["Website"]["usernames"]
+    log_col = client["Website"]["Logs"]
 
-        active_auctions_all = list(db["auctions"].find({"status": "active"}))
-        active_auctions_json = fix_ids(active_auctions_all)
-        active_auctions = active_auctions_all[skip_active : skip_active + limit]
+    active_auctions_all = list(db["auctions"].find({"status": "active"}))
+    active_auctions_json = fix_ids(active_auctions_all)
+    active_auctions = active_auctions_all[skip_active : skip_active + limit]
 
-        ended_auctions = list(
-            db["auctions"].find({"status": {"$in": ["ended", "no_bids"]}})
-            .sort("end_time", -1)
-            .skip(skip_ended).limit(limit)
-        )
-        logs = list(
-            log_col.find({"type": {"$regex": "^auction_"}})
-            .sort("timestamp", -1)
-            .skip(skip_logs).limit(limit)
-        )
-        AUCTION_BANNED_ROLE_ID = 1379087489779630121
-        banned_users = list(
-            user_col.find({"roles": AUCTION_BANNED_ROLE_ID})
-            .skip(skip_bans).limit(limit)
-        )
+    ended_auctions = list(
+        db["auctions"].find({"status": {"$in": ["ended", "no_bids"]}})
+        .sort("end_time", -1)
+        .skip(skip_ended).limit(limit)
+    )
+    logs = list(
+        log_col.find({"type": {"$regex": "^auction_"}})
+        .sort("timestamp", -1)
+        .skip(skip_logs).limit(limit)
+    )
+    AUCTION_BANNED_ROLE_ID = 1379087489779630121
+    banned_users = list(
+        user_col.find({"roles": AUCTION_BANNED_ROLE_ID})
+        .skip(skip_bans).limit(limit)
+    )
 
-        # Count total documents
-        active_total = db["auctions"].count_documents({"status": "active"})
-        ended_total = db["auctions"].count_documents({"status": {"$in": ["ended", "no_bids"]}})
-        log_total = log_col.count_documents({"type": {"$regex": "^auction_"}})
-        ban_total = user_col.count_documents({"roles": AUCTION_BANNED_ROLE_ID})
+    # Count total documents
+    active_total = db["auctions"].count_documents({"status": "active"})
+    ended_total = db["auctions"].count_documents({"status": {"$in": ["ended", "no_bids"]}})
+    log_total = log_col.count_documents({"type": {"$regex": "^auction_"}})
+    ban_total = user_col.count_documents({"roles": AUCTION_BANNED_ROLE_ID})
 
-        active_total_pages = max((active_total + limit - 1) // limit, 1)
-        ended_total_pages = max((ended_total + limit - 1) // limit, 1)
-        log_total_pages = max((log_total + limit - 1) // limit, 1)
-        ban_total_pages = max((ban_total + limit - 1) // limit, 1)
+    active_total_pages = max((active_total + limit - 1) // limit, 1)
+    ended_total_pages = max((ended_total + limit - 1) // limit, 1)
+    log_total_pages = max((log_total + limit - 1) // limit, 1)
+    ban_total_pages = max((ban_total + limit - 1) // limit, 1)
 
-        # 🧠 Collect all user IDs
-        user_ids = set()
-        for auc in active_auctions + ended_auctions:
-            user_ids.add(str(auc.get("owner_id")))
-            user_ids.add(str(auc.get("highest_bidder")))
-        for log in logs:
-            if "author" in log and "id" in log["author"]:
-                user_ids.add(str(log["author"]["id"]))
-        for user in banned_users:
-            user_ids.add(user["_id"])
+    # 🧠 Collect all user IDs
+    user_ids = set()
+    for auc in active_auctions + ended_auctions:
+        user_ids.add(str(auc.get("owner_id")))
+        user_ids.add(str(auc.get("highest_bidder")))
+    for log in logs:
+        if "author" in log and "id" in log["author"]:
+            user_ids.add(str(log["author"]["id"]))
+    for user in banned_users:
+        user_ids.add(user["_id"])
 
-        profiles = list(user_col.find({"_id": {"$in": list(user_ids)}}))
-        user_map = {u["_id"]: u for u in profiles}
+    profiles = list(user_col.find({"_id": {"$in": list(user_ids)}}))
+    user_map = {u["_id"]: u for u in profiles}
 
-        for auc in active_auctions + ended_auctions:
-            auc["owner_info"] = user_map.get(str(auc.get("owner_id")), {})
-            auc["bidder_info"] = user_map.get(str(auc.get("highest_bidder")), {})
-        for log in logs:
-            author_id = str(log.get("author", {}).get("id"))
-            log["author_info"] = user_map.get(author_id, {})
-        for user in banned_users:
-            user["display_name"] = user.get("display_name", user.get("username", "Unknown"))
+    for auc in active_auctions + ended_auctions:
+        auc["owner_info"] = user_map.get(str(auc.get("owner_id")), {})
+        auc["bidder_info"] = user_map.get(str(auc.get("highest_bidder")), {})
+    for log in logs:
+        author_id = str(log.get("author", {}).get("id"))
+        log["author_info"] = user_map.get(author_id, {})
+    for user in banned_users:
+        user["display_name"] = user.get("display_name", user.get("username", "Unknown"))
 
     return render_template(
         "auction_dashboard.html",
@@ -6481,13 +7433,13 @@ def cancel_auction():
         return "Missing message_id", 400
 
     # Update auction status to 'cancelled'
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["auctions"]
-        auction = col.find_one({"message_id": int(message_id)})
-        if not auction:
-            return "Auction not found", 404
+    client= get_db()
+    col = client["hayday"]["auctions"]
+    auction = col.find_one({"message_id": int(message_id)})
+    if not auction:
+        return "Auction not found", 404
 
-        col.update_one({"_id": auction["_id"]}, {"$set": {"status": "cancelled"}})
+    col.update_one({"_id": auction["_id"]}, {"$set": {"status": "cancelled"}})
 
     # Notify bot to delete the Discord message and log
     requests.post(
@@ -6496,7 +7448,8 @@ def cancel_auction():
             "message_id": message_id,
             "reason": reason,
         },
-        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+        timeout=5
     )
 
     return redirect("/auction-dashboard")
@@ -6508,31 +7461,31 @@ def get_auction_bids(message_id):
     if not is_staff():
         return "Unauthorized", 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        auction = client["hayday"]["auctions"].find_one({"message_id": int(message_id)})
-        if not auction or "bid_logs" not in auction:
-            return jsonify([])
+    client= get_db()
+    auction = client["hayday"]["auctions"].find_one({"message_id": int(message_id)})
+    if not auction or "bid_logs" not in auction:
+        return jsonify([])
 
-        user_col = client["Website"]["usernames"]
+    user_col = client["Website"]["usernames"]
 
-        output = []
-        user_ids = [str(bid["user_id"]) for bid in auction["bid_logs"]]
-        user_map = {
-            u["_id"]: u for u in user_col.find({"_id": {"$in": user_ids}})
-        }
+    output = []
+    user_ids = [str(bid["user_id"]) for bid in auction["bid_logs"]]
+    user_map = {
+        u["_id"]: u for u in user_col.find({"_id": {"$in": user_ids}})
+    }
 
-        for bid in auction["bid_logs"]:
-            output.append({
-                "user_display": user_map.get(str(bid["user_id"]), {}).get("display_name", str(bid["user_id"])),
-                "user_id": str(bid["user_id"]),  # ← change from int() to str()
-                "amount": bid["amount"],
-                "timestamp": bid["timestamp"],
-            })
+    for bid in auction["bid_logs"]:
+        output.append({
+            "user_display": user_map.get(str(bid["user_id"]), {}).get("display_name", str(bid["user_id"])),
+            "user_id": str(bid["user_id"]),  # ← change from int() to str()
+            "amount": bid["amount"],
+            "timestamp": bid["timestamp"],
+        })
 
 
-        print("FINAL BIDS RETURNED:", output)
+    print("FINAL BIDS RETURNED:", output)
 
-        return jsonify(output)
+    return jsonify(output)
 
     
 
@@ -6551,35 +7504,36 @@ def edit_auction():
         data = request.form.to_dict()
         message_id = int(data.get("message_id"))
 
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            col = client["hayday"]["auctions"]
-            existing = col.find_one({"message_id": message_id})
-            if not existing:
-                return "Auction not found", 404
+        client= get_db()
+        col = client["hayday"]["auctions"]
+        existing = col.find_one({"message_id": message_id})
+        if not existing:
+            return "Auction not found", 404
 
-            update_fields = {}
-            for k, v in data.items():
-                if k == "message_id":
-                    continue
-                if k in ("quantity", "current_bid", "min_increment"):
-                    parsed = safe_int(v)
-                    if parsed is not None:
-                        update_fields[k] = parsed
-                else:
-                    update_fields[k] = v
+        update_fields = {}
+        for k, v in data.items():
+            if k == "message_id":
+                continue
+            if k in ("quantity", "current_bid", "min_increment"):
+                parsed = safe_int(v)
+                if parsed is not None:
+                    update_fields[k] = parsed
+            else:
+                update_fields[k] = v
 
-            image_url = data.get("image_url", "").strip()
-            if not image_url and "image_url" in existing:
-                image_url = existing["image_url"]
-            update_fields["image_url"] = image_url
+        image_url = data.get("image_url", "").strip()
+        if not image_url and "image_url" in existing:
+            image_url = existing["image_url"]
+        update_fields["image_url"] = image_url
 
-            col.update_one({"message_id": message_id}, {"$set": update_fields})
+        col.update_one({"message_id": message_id}, {"$set": update_fields})
 
         # Notify bot
         requests.post(
             os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-auction",
             json={"message_id": message_id},
-            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+            timeout=5
         )
         print("[EDIT] Sent webhook for:", message_id)
         return redirect("/auction-dashboard")
@@ -6598,13 +7552,13 @@ def remove_buyout():
     if not message_id:
         return "Missing message_id", 400
 
-    with MongoClient("MONGO_URI") as client:
-        col = client["Auction"]["auctions"]
-        result = col.update_one(
-            {"message_id": int(message_id)},
-            {"$unset": {"buyout_offer": ""}}
-        )
-        print(f"[BUYOUT REMOVE] message_id={message_id} matched={result.matched_count} modified={result.modified_count}")
+    client= get_db()
+    col = client["Auction"]["auctions"]
+    result = col.update_one(
+        {"message_id": int(message_id)},
+        {"$unset": {"buyout_offer": ""}}
+    )
+    print(f"[BUYOUT REMOVE] message_id={message_id} matched={result.matched_count} modified={result.modified_count}")
 
     # Optionally trigger embed update via webhook
     try:
@@ -6626,13 +7580,13 @@ def remove_auction_image():
         
     message_id = request.form.get("message_id")
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["hayday"]["auctions"]
-        result = db.update_one(
-            {"message_id": int(message_id)},
-            {"$unset": {"image_url": ""}}
-        )
-        print(f"[REMOVE-IMAGE] Result: matched={result.matched_count} modified={result.modified_count}")
+    client= get_db()
+    db = client["hayday"]["auctions"]
+    result = db.update_one(
+        {"message_id": int(message_id)},
+        {"$unset": {"image_url": ""}}
+    )
+    print(f"[REMOVE-IMAGE] Result: matched={result.matched_count} modified={result.modified_count}")
 
     # Optional: refresh bot embed
     try:
@@ -6657,22 +7611,23 @@ def end_auction_now():
     if not message_id:
         return "Missing message_id", 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["hayday"]["auctions"]
-        auction = col.find_one({"message_id": int(message_id)})
-        if not auction:
-            return "Auction not found", 404
+    client= get_db()
+    col = client["hayday"]["auctions"]
+    auction = col.find_one({"message_id": int(message_id)})
+    if not auction:
+        return "Auction not found", 404
 
-        # Force end by making it expired
-        col.update_one({"_id": auction["_id"]}, {
-            "$set": {"end_time": datetime.utcnow() - timedelta(seconds=1)}
-        })
+    # Force end by making it expired
+    col.update_one({"_id": auction["_id"]}, {
+        "$set": {"end_time": datetime.utcnow() - timedelta(seconds=1)}
+    })
 
     # Trigger full auction end logic via bot webhook
     requests.post(
         os.getenv("BOT_WEBHOOK_URL") + "/webhook/end-auction",
         json={"message_id": message_id},
-        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+        timeout=5
     )
 
     return redirect("/auction-dashboard")
@@ -6697,57 +7652,58 @@ def remove_auction_bid(message_id):
 
     print("[REMOVE BID] Target user_id to remove (int):", user_id_int)
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        auctions = client["hayday"]["auctions"]
-        auction = auctions.find_one({"message_id": int(message_id)})
+    client= get_db()
+    auctions = client["hayday"]["auctions"]
+    auction = auctions.find_one({"message_id": int(message_id)})
 
-        if not auction:
-            print("[REMOVE BID] ❌ Auction not found.")
-            return "Auction not found", 404
+    if not auction:
+        print("[REMOVE BID] ❌ Auction not found.")
+        return "Auction not found", 404
 
-        bid_logs = auction.get("bid_logs", [])
-        print(f"[REMOVE BID] Found {len(bid_logs)} bids before removal")
+    bid_logs = auction.get("bid_logs", [])
+    print(f"[REMOVE BID] Found {len(bid_logs)} bids before removal")
 
-        for bid in bid_logs:
-            print(f"[COMPARE] bid.user_id={bid['user_id']} (type: {type(bid['user_id'])}) vs {user_id_int} (type: {type(user_id_int)})")
+    for bid in bid_logs:
+        print(f"[COMPARE] bid.user_id={bid['user_id']} (type: {type(bid['user_id'])}) vs {user_id_int} (type: {type(user_id_int)})")
 
-        updated_logs = [bid for bid in bid_logs if str(bid["user_id"]) != str(user_id_int)]
-        for bid in bid_logs:
-            print(f"[CHECK] str({bid['user_id']}) = {str(bid['user_id'])}, form = {str(user_id_int)}")
+    updated_logs = [bid for bid in bid_logs if str(bid["user_id"]) != str(user_id_int)]
+    for bid in bid_logs:
+        print(f"[CHECK] str({bid['user_id']}) = {str(bid['user_id'])}, form = {str(user_id_int)}")
 
 
-        print(f"[REMOVE BID] Bids after removal: {len(updated_logs)}")
+    print(f"[REMOVE BID] Bids after removal: {len(updated_logs)}")
 
-        if len(updated_logs) == len(bid_logs):
-            print("[REMOVE BID] ⚠ No bid found for this user_id — nothing removed")
+    if len(updated_logs) == len(bid_logs):
+        print("[REMOVE BID] ⚠ No bid found for this user_id — nothing removed")
 
-        # Recalculate highest bid
-        if updated_logs:
-            updated_logs.sort(key=lambda x: x["timestamp"])
-            last = updated_logs[-1]
-            current_bid = last["amount"]
-            highest_bidder = last["user_id"]
-        else:
-            current_bid = auction.get("starting_bid", 0)
-            highest_bidder = None
+    # Recalculate highest bid
+    if updated_logs:
+        updated_logs.sort(key=lambda x: x["timestamp"])
+        last = updated_logs[-1]
+        current_bid = last["amount"]
+        highest_bidder = last["user_id"]
+    else:
+        current_bid = auction.get("starting_bid", 0)
+        highest_bidder = None
 
-        result = auctions.update_one(
-            {"message_id": int(message_id)},
-            {"$set": {
-                "bid_logs": updated_logs,
-                "current_bid": current_bid,
-                "highest_bidder": highest_bidder
-            }}
-        )
+    result = auctions.update_one(
+        {"message_id": int(message_id)},
+        {"$set": {
+            "bid_logs": updated_logs,
+            "current_bid": current_bid,
+            "highest_bidder": highest_bidder
+        }}
+    )
 
-        print(f"[REMOVE BID] Mongo matched: {result.matched_count}, modified: {result.modified_count}")
-        print(f"[REMOVE BID] New highest_bidder: {highest_bidder}, current_bid: {current_bid}")
+    print(f"[REMOVE BID] Mongo matched: {result.matched_count}, modified: {result.modified_count}")
+    print(f"[REMOVE BID] New highest_bidder: {highest_bidder}, current_bid: {current_bid}")
 
     # Trigger refresh
     refresh_resp = requests.post(
         os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-auction",
         json={"message_id": message_id},
-        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
+        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+        timeout=5
     )
 
     print(f"[REMOVE BID] Webhook refresh response: {refresh_resp.status_code}")
@@ -6777,37 +7733,37 @@ def refund_purchase():
     if not purchase_id:
         return "Invalid request", 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        purchases_col = client["Economy"]["Purchases"]
-        eco_col = client["Economy"]["Users"]
+    client= get_db()
+    purchases_col = client["Economy"]["Purchases"]
+    eco_col = client["Economy"]["Users"]
 
-        purchase = purchases_col.find_one({"_id": ObjectId(purchase_id)})
-        if not purchase or purchase.get("refunded"):
-            return "Already refunded or not found", 400
+    purchase = purchases_col.find_one({"_id": ObjectId(purchase_id)})
+    if not purchase or purchase.get("refunded"):
+        return "Already refunded or not found", 400
 
-        # Refund coins
+    # Refund coins
+    eco_col.update_one(
+        {"_id": int(purchase["user_id"])},
+        {"$inc": {"coins": purchase["price"]}}
+    )
+
+    # Revert item usage if tracked
+    item_id = purchase["item"]
+    if item_id in ["mute_other_20m", "ping_storm", "ghost_ping", "lore_post"]:
         eco_col.update_one(
             {"_id": int(purchase["user_id"])},
-            {"$inc": {"coins": purchase["price"]}}
+            {"$inc": {f"{item_id}_used": -1}}
+        )
+    elif item_id in ["trivia_hint", "double_daily", "boosted_trivia", "mute_immunity"]:
+        eco_col.update_one(
+            {"_id": int(purchase["user_id"])},
+            {"$set": {item_id: False}}
         )
 
-        # Revert item usage if tracked
-        item_id = purchase["item"]
-        if item_id in ["mute_other_20m", "ping_storm", "ghost_ping", "lore_post"]:
-            eco_col.update_one(
-                {"_id": int(purchase["user_id"])},
-                {"$inc": {f"{item_id}_used": -1}}
-            )
-        elif item_id in ["trivia_hint", "double_daily", "boosted_trivia", "mute_immunity"]:
-            eco_col.update_one(
-                {"_id": int(purchase["user_id"])},
-                {"$set": {item_id: False}}
-            )
-
-        purchases_col.update_one(
-            {"_id": ObjectId(purchase_id)},
-            {"$set": {"refunded": True, "refunded_at": datetime.utcnow()}}
-        )
+    purchases_col.update_one(
+        {"_id": ObjectId(purchase_id)},
+        {"$set": {"refunded": True, "refunded_at": datetime.utcnow()}}
+    )
 
     flash("✅ Purchase refunded successfully.", "success")
     return redirect(url_for("view_purchases"))
@@ -6842,15 +7798,16 @@ def terms_page():
 
 @app.route("/privacy")
 def privacy_page():
-    year = datetime.now().year
-    return render_template("privacy.html", year=year)
+    resp = make_response(render_template("privacy.html"))
+    resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
 
 
 
 @app.route("/staff")
 def staff_panel():
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        staff = list(client["Website"]["Staff"].find())
+    client= get_db()
+    staff = list(client["Website"]["Staff"].find())
     year = datetime.now(timezone.utc).year
     return render_template("staff.html", staff=staff, year=year)
 
@@ -6859,15 +7816,15 @@ def dashboard():
     if "discord_id" not in session or not is_staff():
         return "Unauthorized", 403
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        settings_col = client["Website"]["bot_settings"]
-        support_col = client["Website"]["Support_settings"]
+    client= get_db()
+    settings_col = client["Website"]["bot_settings"]
+    support_col = client["Website"]["Support_settings"]
 
-        settings = settings_col.find_one({"_id": "settings"}) or {}
-        support_settings = {
-            doc["_id"]: doc["role_id"]
-            for doc in support_col.find()
-        }
+    settings = settings_col.find_one({"_id": "settings"}) or {}
+    support_settings = {
+        doc["_id"]: doc["role_id"]
+        for doc in support_col.find()
+    }
 
     # Available roles for dropdowns
     roles = [
@@ -6919,13 +7876,13 @@ def update_support_role():
     if not ticket_type or not role_id:
         return "Missing ticket type or role ID", 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        support_col = client["Website"]["Support_settings"]
-        support_col.update_one(
-            {"_id": ticket_type.strip()},
-            {"$set": {"role_id": int(role_id)}},
-            upsert=True
-        )
+    client= get_db()
+    support_col = client["Website"]["Support_settings"]
+    support_col.update_one(
+        {"_id": ticket_type.strip()},
+        {"$set": {"role_id": int(role_id)}},
+        upsert=True
+    )
 
     if request.is_json:
         return jsonify({"message": "Updated"}), 200
@@ -6946,9 +7903,9 @@ def update_setting():
     if key != "prefix":
         return jsonify({"error": "Invalid setting"}), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        settings_col = client["Website"]["bot_settings"]
-        settings_col.update_one({"_id": "settings"}, {"$set": {key: value}}, upsert=True)
+    client= get_db()
+    settings_col = client["Website"]["bot_settings"]
+    settings_col.update_one({"_id": "settings"}, {"$set": {key: value}}, upsert=True)
 
     return jsonify({"message": "Prefix updated successfully!"})
 
@@ -7008,33 +7965,33 @@ def get_giveaways():
 
     now_ts = time.time()
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Giveaway"]
-        giveaways = []
+    client= get_db()
+    db = client["Giveaway"]
+    giveaways = []
 
-        for g in db["current_giveaways"].find({"ended": False}):
-            end = g.get("end_time")
-            if not end:
-                continue
-            if end.timestamp() < now_ts:
-                continue
+    for g in db["current_giveaways"].find({"ended": False}):
+        end = g.get("end_time")
+        if not end:
+            continue
+        if end.timestamp() < now_ts:
+            continue
 
-            delta = int(end.timestamp() - now_ts)
-            minutes = (delta % 3600) // 60
-            ends_in = f"{delta // 3600}h {minutes}m"
+        delta = int(end.timestamp() - now_ts)
+        minutes = (delta % 3600) // 60
+        ends_in = f"{delta // 3600}h {minutes}m"
 
-            giveaways.append({
-                "prize": g.get("prize", "N/A"),
-                "winners": g.get("winners_count", 1),
-                "message_id": str(g.get("message_id")),
-                "entry_count": sum(g.get("participants", {}).values()),
-                "participant_count": len(g.get("participants", {})),
-                "ends_in": ends_in,
-                "host_id": g.get("host_id"),
-                "required_role_id": g.get("required_role_id"),
-                "required_role_name": role_mapping.get(str(g.get("required_role_id")), {}).get("name") if g.get("required_role_id") else None,
-                "color": g.get("color")
-            })
+        giveaways.append({
+            "prize": g.get("prize", "N/A"),
+            "winners": g.get("winners_count", 1),
+            "message_id": str(g.get("message_id")),
+            "entry_count": sum(g.get("participants", {}).values()),
+            "participant_count": len(g.get("participants", {})),
+            "ends_in": ends_in,
+            "host_id": g.get("host_id"),
+            "required_role_id": g.get("required_role_id"),
+            "required_role_name": role_mapping.get(str(g.get("required_role_id")), {}).get("name") if g.get("required_role_id") else None,
+            "color": g.get("color")
+        })
 
         # ✅ This part must be OUTSIDE the loop
         recently_ended = list(
@@ -7068,46 +8025,46 @@ def recent_giveaways():
     skip = int(request.args.get("skip", 0))
     limit = int(request.args.get("limit", 9))
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Giveaway"]
-        userdb = client["Website"]["usernames"]
+    client= get_db()
+    db = client["Giveaway"]
+    userdb = client["Website"]["usernames"]
 
-        ended = list(db["current_giveaways"]
-                     .find({"ended": True})
-                     .sort("end_time", -1)
-                     .skip(skip)
-                     .limit(limit))
+    ended = list(db["current_giveaways"]
+                    .find({"ended": True})
+                    .sort("end_time", -1)
+                    .skip(skip)
+                    .limit(limit))
 
-        # Collect host + winner IDs
-        host_ids = [str(g.get("host_id")) for g in ended if g.get("host_id")]
-        winner_ids = [str(uid) for g in ended for uid in g.get("winners", [])]
+    # Collect host + winner IDs
+    host_ids = [str(g.get("host_id")) for g in ended if g.get("host_id")]
+    winner_ids = [str(uid) for g in ended for uid in g.get("winners", [])]
 
-        # Fetch profiles in one batch
-        user_profiles = userdb.find({"_id": {"$in": list(set(host_ids + winner_ids))}})
-        user_map = {u["_id"]: u for u in user_profiles}
+    # Fetch profiles in one batch
+    user_profiles = userdb.find({"_id": {"$in": list(set(host_ids + winner_ids))}})
+    user_map = {u["_id"]: u for u in user_profiles}
 
-        results = []
-        for g in ended:
-            host_id = str(g.get("host_id"))
-            host = user_map.get(host_id, {})
-            
-            winner_buttons = []
-            for uid in g.get("winners", []):
-                u = user_map.get(str(uid))
-                winner_buttons.append({
-                    "id": str(uid),
-                    "name": u.get("display_name") or u.get("username") if u else f"User {uid}"
-                })
-
-            results.append({
-                "prize": g.get("prize", "N/A"),
-                "winners": g.get("winners_count", 1),
-                "message_id": str(g.get("message_id")),
-                "ended_at": g.get("end_time").strftime("%Y-%m-%d %H:%M"),
-                "host_name": host.get("display_name", f"<@{host_id}>"),
-                "host_avatar": host.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png"),
-                "winner_buttons": winner_buttons,
+    results = []
+    for g in ended:
+        host_id = str(g.get("host_id"))
+        host = user_map.get(host_id, {})
+        
+        winner_buttons = []
+        for uid in g.get("winners", []):
+            u = user_map.get(str(uid))
+            winner_buttons.append({
+                "id": str(uid),
+                "name": u.get("display_name") or u.get("username") if u else f"User {uid}"
             })
+
+        results.append({
+            "prize": g.get("prize", "N/A"),
+            "winners": g.get("winners_count", 1),
+            "message_id": str(g.get("message_id")),
+            "ended_at": g.get("end_time").strftime("%Y-%m-%d %H:%M"),
+            "host_name": host.get("display_name", f"<@{host_id}>"),
+            "host_avatar": host.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png"),
+            "winner_buttons": winner_buttons,
+        })
 
     return jsonify(results)
 
@@ -7139,30 +8096,30 @@ def end_giveaway(message_id):
 @app.route("/api/giveaways/winners/<message_id>")
 def get_winners(message_id):
     try:
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            db = client["Giveaway"]
-            g = db["current_giveaways"].find_one({"message_id": int(message_id)})
-            if not g or "winners" not in g or not g["winners"]:
-                return jsonify([])
+        client= get_db()
+        db = client["Giveaway"]
+        g = db["current_giveaways"].find_one({"message_id": int(message_id)})
+        if not g or "winners" not in g or not g["winners"]:
+            return jsonify([])
 
-            user_ids = g["winners"]
+        user_ids = g["winners"]
 
-            # ✅ Use the usernames collection (not hayday.level)
-            user_db = client["Website"]["usernames"]
-            found_users = list(user_db.find({"_id": {"$in": [str(uid) for uid in user_ids]}}))
-            user_map = {str(u["_id"]): u for u in found_users}
+        # ✅ Use the usernames collection (not hayday.level)
+        user_db = client["Website"]["usernames"]
+        found_users = list(user_db.find({"_id": {"$in": [str(uid) for uid in user_ids]}}))
+        user_map = {str(u["_id"]): u for u in found_users}
 
-            # ✅ Build result with avatar + display name fallback
-            result = []
-            for uid in user_ids:
-                user = user_map.get(str(uid))
-                result.append({
-                    "id": str(uid),
-                    "username": user.get("display_name", f"<@{uid}>") if user else f"<@{uid}>",
-                    "avatar": user.get("avatar") if user else None
-                })
+        # ✅ Build result with avatar + display name fallback
+        result = []
+        for uid in user_ids:
+            user = user_map.get(str(uid))
+            result.append({
+                "id": str(uid),
+                "username": user.get("display_name", f"<@{uid}>") if user else f"<@{uid}>",
+                "avatar": user.get("avatar") if user else None
+            })
 
-            return jsonify(result)
+        return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -7181,29 +8138,29 @@ def delete_giveaway():
         return jsonify({"error": "Missing message ID"}), 400
 
     try:
-        with MongoClient(os.getenv("MONGO_URI")) as client:
-            collection = client["Giveaway"]["current_giveaways"]
-            giveaway = collection.find_one({"message_id": message_id})
+        client= get_db()
+        collection = client["Giveaway"]["current_giveaways"]
+        giveaway = collection.find_one({"message_id": message_id})
 
-            if not giveaway:
-                return jsonify({"error": "Giveaway not found"}), 404
+        if not giveaway:
+            return jsonify({"error": "Giveaway not found"}), 404
 
-            # Delete from Discord
-            bot_token = os.getenv("DISCORD_BOT_TOKEN")
-            headers = {"Authorization": f"Bot {bot_token}"}
-            channel_id = giveaway.get("channel_id")
-            if channel_id:
-                try:
-                    requests.delete(
-                        f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}",
-                        headers=headers
-                    )
-                except Exception as e:
-                    print(f"[Force Delete] Discord message delete failed: {e}")
+        # Delete from Discord
+        bot_token = os.getenv("DISCORD_BOT_TOKEN")
+        headers = {"Authorization": f"Bot {bot_token}"}
+        channel_id = giveaway.get("channel_id")
+        if channel_id:
+            try:
+                requests.delete(
+                    f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}",
+                    headers=headers
+                )
+            except Exception as e:
+                print(f"[Force Delete] Discord message delete failed: {e}")
 
-            # Delete from DB
-            collection.delete_one({"message_id": message_id})
-            return jsonify({"message": "Giveaway deleted successfully."})
+        # Delete from DB
+        collection.delete_one({"message_id": message_id})
+        return jsonify({"message": "Giveaway deleted successfully."})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -7279,81 +8236,82 @@ def join_giveaway_web():
     user_roles = [int(r) for r in (session.get("roles") or [])]
     booster_role_id = 975188431636418681
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Giveaway"]["current_giveaways"]
-        try:
-            mid = int(message_id)
-        except (TypeError, ValueError):
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({"error": "Invalid message id"}), 400
-            flash("❌ Invalid giveaway link.")
-            return redirect("/giveaways")
-
-        giveaway = col.find_one({"message_id": mid})
-
-        if not giveaway or giveaway.get("ended"):
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({"error": "Giveaway ended or not found"}), 400
-            flash("❌ Giveaway not found or has ended.")
-            return redirect("/giveaways")
-
-        # Support list of required role IDs (OR) with legacy fallback
-        required_ids_raw = list(giveaway.get("required_role_ids") or [])
-        legacy = giveaway.get("required_role_id")
-        if legacy not in (None, "", 0):
-            required_ids_raw.append(legacy)
-
-        # compare as ints to match your current session role ints
-        required_ids = [int(x) for x in required_ids_raw if x not in (None, "", 0)]
-
-        # Eligibility (OR)
-        has_required = (len(required_ids) == 0) or any(rid in user_roles for rid in required_ids)
-        has_booster = booster_role_id in user_roles
-
-        boosters_bypass = bool(giveaway.get("boosters_bypass", True))
-        can_booster_bypass = has_booster and boosters_bypass
-
-        # Require confirm only when using booster bypass (i.e., lacking all required but boosters can bypass)
-        requires_confirm = (len(required_ids) > 0) and (not has_required) and can_booster_bypass
-        if requires_confirm and request.form.get("confirm") != "on":
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({"error": "Please confirm you understand the extra requirements."}), 400
-            flash("⚠️ Please confirm you understand the extra requirements.")
-            return redirect("/giveaways")
-
-        # Final eligibility
-        if not (has_required or can_booster_bypass):
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({"error": "You don’t have the required role"}), 403
-            flash("❌ You don’t have the required role to enter this giveaway.")
-            return redirect("/giveaways")
-
-        participants = giveaway.get("participants", {})
-        if discord_id in participants:
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({"error": "Already entered"}), 409
-            flash("❌ You are already entered in this giveaway.")
-            return redirect("/giveaways")
-
-        extra_entries = 2 if has_booster else 1
-        participants[discord_id] = extra_entries
-
-        col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
-
-        try:
-            requests.post(
-                os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-giveaway",
-                json={"message_id": mid},
-                headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
-            )
-        except Exception as e:
-            print(f"⚠️ Failed to sync with bot: {e}")
-
+    client= get_db()
+    col = client["Giveaway"]["current_giveaways"]
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"status": "joined", "entries": extra_entries})
-
-        flash("✅ You have joined the giveaway.")
+            return jsonify({"error": "Invalid message id"}), 400
+        flash("❌ Invalid giveaway link.")
         return redirect("/giveaways")
+
+    giveaway = col.find_one({"message_id": mid})
+
+    if not giveaway or giveaway.get("ended"):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "Giveaway ended or not found"}), 400
+        flash("❌ Giveaway not found or has ended.")
+        return redirect("/giveaways")
+
+    # Support list of required role IDs (OR) with legacy fallback
+    required_ids_raw = list(giveaway.get("required_role_ids") or [])
+    legacy = giveaway.get("required_role_id")
+    if legacy not in (None, "", 0):
+        required_ids_raw.append(legacy)
+
+    # compare as ints to match your current session role ints
+    required_ids = [int(x) for x in required_ids_raw if x not in (None, "", 0)]
+
+    # Eligibility (OR)
+    has_required = (len(required_ids) == 0) or any(rid in user_roles for rid in required_ids)
+    has_booster = booster_role_id in user_roles
+
+    boosters_bypass = bool(giveaway.get("boosters_bypass", True))
+    can_booster_bypass = has_booster and boosters_bypass
+
+    # Require confirm only when using booster bypass (i.e., lacking all required but boosters can bypass)
+    requires_confirm = (len(required_ids) > 0) and (not has_required) and can_booster_bypass
+    if requires_confirm and request.form.get("confirm") != "on":
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "Please confirm you understand the extra requirements."}), 400
+        flash("⚠️ Please confirm you understand the extra requirements.")
+        return redirect("/giveaways")
+
+    # Final eligibility
+    if not (has_required or can_booster_bypass):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "You don’t have the required role"}), 403
+        flash("❌ You don’t have the required role to enter this giveaway.")
+        return redirect("/giveaways")
+
+    participants = giveaway.get("participants", {})
+    if discord_id in participants:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": "Already entered"}), 409
+        flash("❌ You are already entered in this giveaway.")
+        return redirect("/giveaways")
+
+    extra_entries = 2 if has_booster else 1
+    participants[discord_id] = extra_entries
+
+    col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
+
+    try:
+        requests.post(
+            os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-giveaway",
+            json={"message_id": mid},
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+            timeout=5
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to sync with bot: {e}")
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"status": "joined", "entries": extra_entries})
+
+    flash("✅ You have joined the giveaway.")
+    return redirect("/giveaways")
 
 @csrf.exempt
 @app.route("/giveaway/leave", methods=["POST"])
@@ -7364,36 +8322,37 @@ def leave_giveaway_web():
     message_id = request.form.get("message_id")
     discord_id = str(session["discord_id"])
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        col = client["Giveaway"]["current_giveaways"]
+    client= get_db()
+    col = client["Giveaway"]["current_giveaways"]
 
-        try:
-            mid = int(message_id)
-        except (TypeError, ValueError):
-            return jsonify({"error": "Invalid message id"}), 400
+    try:
+        mid = int(message_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid message id"}), 400
 
-        giveaway = col.find_one({"message_id": mid})
+    giveaway = col.find_one({"message_id": mid})
 
-        if not giveaway or giveaway.get("ended"):
-            return jsonify({"error": "Giveaway not found or ended"}), 400
+    if not giveaway or giveaway.get("ended"):
+        return jsonify({"error": "Giveaway not found or ended"}), 400
 
-        participants = giveaway.get("participants", {})
-        if discord_id not in participants:
-            return jsonify({"error": "You’re not in this giveaway."}), 400
+    participants = giveaway.get("participants", {})
+    if discord_id not in participants:
+        return jsonify({"error": "You’re not in this giveaway."}), 400
 
-        del participants[discord_id]
-        col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
+    del participants[discord_id]
+    col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
 
-        try:
-            requests.post(
-                os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-giveaway",
-                json={"message_id": mid},
-                headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")}
-            )
-        except Exception as e:
-            print(f"⚠️ Failed to sync with bot: {e}")
+    try:
+        requests.post(
+            os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-giveaway",
+            json={"message_id": mid},
+            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
+            timeout=5
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to sync with bot: {e}")
 
-        return jsonify({"success": True})
+    return jsonify({"success": True})
 
 
 @app.route("/api/giveaways/reroll", methods=["POST"])
@@ -7441,19 +8400,19 @@ def competition_home():
     theme = _theme_for(comp_id)       # <- explicit object if you want to pass it    
     cal = _comp_strings_for(comp_id, submit_end_day=25)
     # Use your preferred inline client pattern
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Website"]
-        entries_col = db["CompEntries"]
+    client= get_db()
+    db = client["Website"]
+    entries_col = db["CompEntries"]
 
-        q = {"comp_id": comp_id}
+    q = {"comp_id": comp_id}
 
-        # Pull a handful for the hero (latest first)
-        cursor = (
-            entries_col.find(q)
-            .sort("created_at", -1)
-            .limit(12)
-        )
-        docs = list(cursor)
+    # Pull a handful for the hero (latest first)
+    cursor = (
+        entries_col.find(q)
+        .sort("created_at", -1)
+        .limit(12)
+    )
+    docs = list(cursor)
 
     # --- normalize fields for template (handles different key names)
     def _img_url(d):
@@ -7516,96 +8475,96 @@ def competition_gallery():
     except ValueError:
         page = 1
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Website"]
-        entries_col = db["CompEntries"]
-        votes_col = db["CompVotes"]
+    client= get_db()
+    db = client["Website"]
+    entries_col = db["CompEntries"]
+    votes_col = db["CompVotes"]
 
-        q_entries = {"comp_id": comp_id}
-        total = entries_col.count_documents(q_entries)
+    q_entries = {"comp_id": comp_id}
+    total = entries_col.count_documents(q_entries)
 
-        # --- build vote counts (all keys as strings) ---
-        pipeline = [
+    # --- build vote counts (all keys as strings) ---
+    pipeline = [
+        {"$match": {"comp_id": comp_id}},
+        {"$group": {"_id": "$entry_id", "count": {"$sum": 1}}},
+    ]
+    counts = {}
+    for doc in votes_col.aggregate(pipeline):
+        counts[str(doc["_id"])] = doc["count"]
+
+    # ensure zeros
+    for _e in entries_col.find(q_entries, {"_id": 1}):
+        k = str(_e["_id"])
+        if k not in counts:
+            counts[k] = 0
+
+    # --- fetch entries per your sort ---
+    if phase == "voting" and sort_mode == "top":
+        # existing TOP logic (unchanged)
+        rank_pipeline = [
             {"$match": {"comp_id": comp_id}},
-            {"$group": {"_id": "$entry_id", "count": {"$sum": 1}}},
+            {"$group": {"_id": "$entry_id", "votes": {"$sum": 1}}},
+            {"$sort": {"votes": -1, "_id": 1}},
+            {"$skip": (page - 1) * PER_PAGE},
+            {"$limit": PER_PAGE},
         ]
-        counts = {}
-        for doc in votes_col.aggregate(pipeline):
-            counts[str(doc["_id"])] = doc["count"]
+        ranked = list(votes_col.aggregate(rank_pipeline))
+        ranked_ids = [ObjectId(r["_id"]) for r in ranked if ObjectId.is_valid(str(r["_id"]))]
 
-        # ensure zeros
-        for _e in entries_col.find(q_entries, {"_id": 1}):
-            k = str(_e["_id"])
-            if k not in counts:
-                counts[k] = 0
+        if len(ranked_ids) < PER_PAGE:
+            have = set(ranked_ids)
+            zeros_cursor = entries_col.find(
+                {"comp_id": comp_id, "_id": {"$nin": list(have)}}
+            ).sort("created_at", -1)
+            for e in zeros_cursor:
+                ranked_ids.append(e["_id"])
+                if len(ranked_ids) >= PER_PAGE:
+                    break
 
-        # --- fetch entries per your sort ---
-        if phase == "voting" and sort_mode == "top":
-            # existing TOP logic (unchanged)
-            rank_pipeline = [
-                {"$match": {"comp_id": comp_id}},
-                {"$group": {"_id": "$entry_id", "votes": {"$sum": 1}}},
-                {"$sort": {"votes": -1, "_id": 1}},
-                {"$skip": (page - 1) * PER_PAGE},
-                {"$limit": PER_PAGE},
-            ]
-            ranked = list(votes_col.aggregate(rank_pipeline))
-            ranked_ids = [ObjectId(r["_id"]) for r in ranked if ObjectId.is_valid(str(r["_id"]))]
+        docs = list(entries_col.find({"_id": {"$in": ranked_ids}}))
+        idx = {rid: i for i, rid in enumerate(ranked_ids)}
+        entries = sorted(docs, key=lambda d: idx[d["_id"]])
 
-            if len(ranked_ids) < PER_PAGE:
-                have = set(ranked_ids)
-                zeros_cursor = entries_col.find(
-                    {"comp_id": comp_id, "_id": {"$nin": list(have)}}
-                ).sort("created_at", -1)
-                for e in zeros_cursor:
-                    ranked_ids.append(e["_id"])
-                    if len(ranked_ids) >= PER_PAGE:
-                        break
+    elif sort_mode == "newest":
+        # newest with normal pagination
+        entries = list(
+            entries_col.find(q_entries)
+            .sort("created_at", -1)
+            .skip((page - 1) * PER_PAGE)
+            .limit(PER_PAGE)
+        )
 
-            docs = list(entries_col.find({"_id": {"$in": ranked_ids}}))
-            idx = {rid: i for i, rid in enumerate(ranked_ids)}
-            entries = sorted(docs, key=lambda d: idx[d["_id"]])
+    else:
+        # --- RANDOM (default during voting) ---
+        # Stable per day (Copenhagen time handled by _phase_today())
+        seed_str = f"{comp_id}-{date.today().isoformat()}"
+        seed_bytes = seed_str.encode("utf-8")
 
-        elif sort_mode == "newest":
-            # newest with normal pagination
-            entries = list(
-                entries_col.find(q_entries)
-                .sort("created_at", -1)
-                .skip((page - 1) * PER_PAGE)
-                .limit(PER_PAGE)
-            )
+        # Get just IDs to avoid pulling all fields
+        id_list = [doc["_id"] for doc in entries_col.find(q_entries, {"_id": 1})]
 
-        else:
-            # --- RANDOM (default during voting) ---
-            # Stable per day (Copenhagen time handled by _phase_today())
-            seed_str = f"{comp_id}-{date.today().isoformat()}"
-            seed_bytes = seed_str.encode("utf-8")
+        # Deterministic hash score per _id for the day
+        def rand_score(oid):
+            h = hashlib.sha1(seed_bytes + str(oid).encode("utf-8")).digest()
+            # use first 8 bytes as big-endian int for sorting
+            return int.from_bytes(h[:8], "big")
 
-            # Get just IDs to avoid pulling all fields
-            id_list = [doc["_id"] for doc in entries_col.find(q_entries, {"_id": 1})]
+        id_list.sort(key=rand_score)  # ascending is fine; it's "randomized"
 
-            # Deterministic hash score per _id for the day
-            def rand_score(oid):
-                h = hashlib.sha1(seed_bytes + str(oid).encode("utf-8")).digest()
-                # use first 8 bytes as big-endian int for sorting
-                return int.from_bytes(h[:8], "big")
+        # paginate IDs, then fetch full docs for this page
+        start = (page - 1) * PER_PAGE
+        end = start + PER_PAGE
+        page_ids = id_list[start:end]
+        docs = list(entries_col.find({"_id": {"$in": page_ids}}))
+        pos = {rid: i for i, rid in enumerate(page_ids)}
+        entries = sorted(docs, key=lambda d: pos[d["_id"]])
 
-            id_list.sort(key=rand_score)  # ascending is fine; it's "randomized"
-
-            # paginate IDs, then fetch full docs for this page
-            start = (page - 1) * PER_PAGE
-            end = start + PER_PAGE
-            page_ids = id_list[start:end]
-            docs = list(entries_col.find({"_id": {"$in": page_ids}}))
-            pos = {rid: i for i, rid in enumerate(page_ids)}
-            entries = sorted(docs, key=lambda d: pos[d["_id"]])
-
-        # --- my current vote, normalized ---
-        my_vote = None
-        if viewer_id:
-            my_vote = votes_col.find_one({"comp_id": comp_id, "voter_id": str(viewer_id)})
-            if my_vote and isinstance(my_vote.get("entry_id"), ObjectId):
-                my_vote["entry_id"] = str(my_vote["entry_id"])
+    # --- my current vote, normalized ---
+    my_vote = None
+    if viewer_id:
+        my_vote = votes_col.find_one({"comp_id": comp_id, "voter_id": str(viewer_id)})
+        if my_vote and isinstance(my_vote.get("entry_id"), ObjectId):
+            my_vote["entry_id"] = str(my_vote["entry_id"])
 
     return render_template(
         "competition_gallery.html",
@@ -7632,7 +8591,7 @@ def competition_gallery():
 def competition_submit():
     phase, comp_id = _phase_today()
 
-    client = get_mongo_client()
+    client = get_db()
     db = client["Website"]
     entries_col = db["CompEntries"]
     votes_col   = db["CompVotes"]  # <-- for "Your vote" tile
@@ -7640,10 +8599,11 @@ def competition_submit():
     # --- Work out submit_status for the UI ---
     discord_id = session.get("discord_id")
     roles = [str(r) for r in (session.get("roles") or [])]
+    is_member = bool(session.get("is_member", False))
 
     if not discord_id:
         submit_status = "not_logged_in"
-    elif str(MEMBER_ROLE_ID) not in roles:
+    elif not is_member:
         submit_status = "not_in_guild"
     elif str(UNVERIFIED_ROLE_ID) in roles:
         submit_status = "not_verified"
@@ -7751,6 +8711,10 @@ def competition_submit():
         }},
         upsert=True
     )
+    # clear cached results for this competition month
+    for k in list(COMP_RESULTS_CACHE.keys()):
+        if f":{comp_id}:" in k or k.startswith(f"results:{comp_id}:"):
+            COMP_RESULTS_CACHE.pop(k, None)
 
     flash("Submission saved!", "success")
     # nicer loop: land back on Submit so they see their card (and later their vote)
@@ -7777,32 +8741,48 @@ def competition_results():
     g.comp_id_for_theme = display_comp_id
     theme = _theme_for(display_comp_id)
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
+    cache_key = f"results:{display_comp_id}:{phase}:{comp_id}"
+    cached = COMP_RESULTS_CACHE.get(cache_key)
+    now_ts = time.time()
+
+    if cached and cached["expires"] > now_ts:
+        entries = cached["entries"]
+        counts = cached["counts"]
+        month_options = cached["month_options"]
+    else:
+        client= get_db()
         db = client["Website"]
         entries_col = db["CompEntries"]
-        usernames_col = db["usernames"]  # or "super_trusted" if that's where display names live
+        usernames_col = db["usernames"]
 
         entries = list(entries_col.find({"comp_id": display_comp_id}))
 
-        # Build a lookup: { discord_id: display_name }
-        username_map = {
-            str(u["_id"]): u.get("display_name") or u.get("username")
-            for u in usernames_col.find({}, {"_id": 1, "display_name": 1, "username": 1})
-        }
+        needed_user_ids = list({
+            str(e.get("user_id"))
+            for e in entries
+            if e.get("user_id")
+        })
 
-        # Attach display_name to entries
+        username_map = {}
+        if needed_user_ids:
+            username_map = {
+                str(u["_id"]): (u.get("display_name") or u.get("username") or "Anonymous")
+                for u in usernames_col.find(
+                    {"_id": {"$in": needed_user_ids}},
+                    {"_id": 1, "display_name": 1, "username": 1}
+                )
+            }
+
         for e in entries:
-            e["display_name"] = username_map.get(str(e.get("user_id")), e.get("username") or "Anonymous")
+            e["display_name"] = username_map.get(
+                str(e.get("user_id")),
+                e.get("username") or "Anonymous"
+            )
 
         counts = _vote_counts_for(display_comp_id, client)
 
-        comp_ids = sorted(
-            entries_col.distinct("comp_id"),
-            reverse=True  # newest first
-        )
+        comp_ids = sorted(entries_col.distinct("comp_id"), reverse=True)
 
-        # 🔒 Hide the *ongoing* competition month (current comp_id)
-        # while we're still in submit/voting for that month.
         if phase != "results":
             comp_ids = [cid for cid in comp_ids if cid != comp_id]
 
@@ -7810,10 +8790,17 @@ def competition_results():
         for cid in comp_ids:
             try:
                 y, m = map(int, cid.split("-"))
-                label = datetime(y, m, 1).strftime("%B %Y")  # "October 2025"
+                label = datetime(y, m, 1).strftime("%B %Y")
             except Exception:
                 label = cid
             month_options.append({"comp_id": cid, "label": label})
+
+        COMP_RESULTS_CACHE[cache_key] = {
+            "expires": now_ts + COMP_RESULTS_CACHE_TTL,
+            "entries": entries,
+            "counts": counts,
+            "month_options": month_options,
+        }
 
     def tie_ts(e) -> float:
         """Return a UTC timestamp for deterministic tie-breaks."""
@@ -7923,10 +8910,12 @@ def competition_delete():
         flash("Edits are locked during voting/results.", "error")
         return redirect(url_for("competition_submit"))
 
-    client = get_mongo_client()
+    client = get_db()
     db = client["Website"]
     db["CompEntries"].delete_one({"comp_id": comp_id, "user_id": str(discord_id)})
-
+    for k in list(COMP_RESULTS_CACHE.keys()):
+        if f":{comp_id}:" in k or k.startswith(f"results:{comp_id}:"):
+            COMP_RESULTS_CACHE.pop(k, None)
     flash("Submission deleted.", "success")
     return redirect(url_for("competition_submit"))
 
@@ -7935,7 +8924,7 @@ def admin_competition_votes(entry_id):
     if not is_staff(): 
         return "Unauthorized", 403
 
-    client = get_mongo_client()
+    client = get_db()
     db = client["Website"]
     try:
         oid = ObjectId(entry_id)
@@ -7964,7 +8953,7 @@ def admin_competition_votes(entry_id):
 def admin_competition_vote_delete(entry_id, vote_id):
     if not is_staff(): 
         return "Unauthorized", 403
-    client = get_mongo_client()
+    client = get_db()
     db = client["Website"]
     try:
         vo = ObjectId(vote_id)
@@ -7988,7 +8977,7 @@ def competition_update_caption():
 
     new_caption = (request.form.get("caption") or "").strip()[:35]
 
-    client = get_mongo_client()
+    client = get_db()
     db = client["Website"]
 
     # only allow editing *your own* entry for the current comp
@@ -8008,7 +8997,7 @@ def competition_update_caption():
 def admin_competition_vote_delete_all(entry_id):
     if not is_staff(): 
         return "Unauthorized", 403
-    client = get_mongo_client()
+    client = get_db()
     db = client["Website"]
     # ensure entry exists
     try:
@@ -8045,63 +9034,63 @@ def competition_vote():
     except Exception:
         return jsonify({"ok": False, "error": "Invalid entry_id."}), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as client:
-        db = client["Website"]
-        entries = db["CompEntries"]
-        votes = db["CompVotes"]
-        votes.create_index([("comp_id", 1), ("voter_id", 1)], unique=True)
+    client= get_db()
+    db = client["Website"]
+    entries = db["CompEntries"]
+    votes = db["CompVotes"]
+    votes.create_index([("comp_id", 1), ("voter_id", 1)], unique=True)
 
-        e = entries.find_one({"_id": oid, "comp_id": comp_id})
-        if not e:
-            return jsonify({"ok": False, "error": "Entry not found for this competition."}), 404
+    e = entries.find_one({"_id": oid, "comp_id": comp_id})
+    if not e:
+        return jsonify({"ok": False, "error": "Entry not found for this competition."}), 404
 
-        if str(e.get("user_id")) == str(voter_id):
-            return jsonify({"ok": False, "error": "You cannot vote for your own entry."}), 403
+    if str(e.get("user_id")) == str(voter_id):
+        return jsonify({"ok": False, "error": "You cannot vote for your own entry."}), 403
 
-        existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
+    existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
 
-        def _as_str(x):
-            try:
-                if isinstance(x, ObjectId):
-                    return str(x)
-            except Exception:
-                pass
-            return str(x) if x is not None else None
+    def _as_str(x):
+        try:
+            if isinstance(x, ObjectId):
+                return str(x)
+        except Exception:
+            pass
+        return str(x) if x is not None else None
 
-        new_entry_id = str(e["_id"])
-        existing_entry_id = _as_str(existing["entry_id"]) if existing else None
+    new_entry_id = str(e["_id"])
+    existing_entry_id = _as_str(existing["entry_id"]) if existing else None
 
-        if not existing:
-            try:
-                votes.insert_one({
-                    "comp_id": comp_id,
-                    "voter_id": str(voter_id),
-                    "entry_id": new_entry_id,
-                    "created_at": datetime.now(timezone.utc),
-                })
-                # ⬇️ was changed: False
-                return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
-            except DuplicateKeyError:
-                # another request inserted first — re-fetch and continue below
-                existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
-                existing_entry_id = _as_str(existing["entry_id"]) if existing else None
+    if not existing:
+        try:
+            votes.insert_one({
+                "comp_id": comp_id,
+                "voter_id": str(voter_id),
+                "entry_id": new_entry_id,
+                "created_at": datetime.now(timezone.utc),
+            })
+            # ⬇️ was changed: False
+            return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
+        except DuplicateKeyError:
+            # another request inserted first — re-fetch and continue below
+            existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
+            existing_entry_id = _as_str(existing["entry_id"]) if existing else None
 
-        if existing_entry_id == new_entry_id:
-            return jsonify({"ok": True, "entry_id": new_entry_id, "changed": False})
+    if existing_entry_id == new_entry_id:
+        return jsonify({"ok": True, "entry_id": new_entry_id, "changed": False})
 
-        if not overwrite:
-            return jsonify({
-                "ok": False,
-                "error": "Already voted for another entry.",
-                "conflict": True,
-                "current_entry_id": existing_entry_id,
-            }), 409
+    if not overwrite:
+        return jsonify({
+            "ok": False,
+            "error": "Already voted for another entry.",
+            "conflict": True,
+            "current_entry_id": existing_entry_id,
+        }), 409
 
-        votes.update_one(
-            {"comp_id": comp_id, "voter_id": str(voter_id)},
-            {"$set": {"entry_id": new_entry_id, "created_at": datetime.now(timezone.utc)}}
-        )
-        return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
+    votes.update_one(
+        {"comp_id": comp_id, "voter_id": str(voter_id)},
+        {"$set": {"entry_id": new_entry_id, "created_at": datetime.now(timezone.utc)}}
+    )
+    return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
 
 @app.get("/api/competition/phase")
 def api_competition_phase():
@@ -8144,32 +9133,32 @@ def api_competition_submit_from_bot():
     image_url = r2_put_object(buf, object_key, content_type)
 
     # Store entry (+names) and upsert usernames cache
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        db = c["Website"]
+    c= get_db()
+    db = c["Website"]
 
-        db["CompEntries"].update_one(
-            {"comp_id": comp_id, "user_id": str(discord_id)},
-            {"$set": {
-                "user_id": str(discord_id),
-                "image_url": image_url,
-                "caption": caption,
-                "display_name": display_name or username_tag,  # ✅ prefer display name
-                "username": username_tag,                      # ✅ keep legacy tag too
-                "created_at": datetime.now(timezone.utc),
-                "ip": request.remote_addr,
-            }},
-            upsert=True
-        )
+    db["CompEntries"].update_one(
+        {"comp_id": comp_id, "user_id": str(discord_id)},
+        {"$set": {
+            "user_id": str(discord_id),
+            "image_url": image_url,
+            "caption": caption,
+            "display_name": display_name or username_tag,  # ✅ prefer display name
+            "username": username_tag,                      # ✅ keep legacy tag too
+            "created_at": datetime.now(timezone.utc),
+            "ip": request.remote_addr,
+        }},
+        upsert=True
+    )
 
-        db["usernames"].update_one(  # ✅ handy for joins/backfills elsewhere
-            {"_id": str(discord_id)},
-            {"$set": {
-                "display_name": display_name or username_tag,
-                "username": username_tag,
-                "updated_at": datetime.now(timezone.utc),
-            }},
-            upsert=True
-        )
+    db["usernames"].update_one(  # ✅ handy for joins/backfills elsewhere
+        {"_id": str(discord_id)},
+        {"$set": {
+            "display_name": display_name or username_tag,
+            "username": username_tag,
+            "updated_at": datetime.now(timezone.utc),
+        }},
+        upsert=True
+    )
 
     return jsonify(ok=True, comp_id=comp_id, image_url=image_url, caption=caption)
 
@@ -8189,12 +9178,11 @@ def api_competition_edit_caption_from_bot():
     if not discord_id:
         return jsonify(ok=False, error="Missing discord_id"), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        db = c["Website"]
-        entry = db["CompEntries"].find_one({"comp_id": comp_id, "user_id": str(discord_id)})
-        if not entry:
-            return jsonify(ok=False, error="No submission found"), 404
-        db["CompEntries"].update_one({"_id": entry["_id"]}, {"$set": {"caption": caption}})
+    db = get_db("Website")
+    entry = db["CompEntries"].find_one({"comp_id": comp_id, "user_id": str(discord_id)})
+    if not entry:
+        return jsonify(ok=False, error="No submission found"), 404
+    db["CompEntries"].update_one({"_id": entry["_id"]}, {"$set": {"caption": caption}})
 
     return jsonify(ok=True, caption=caption)
 
@@ -8212,25 +9200,27 @@ def api_competition_delete_from_bot():
     if not discord_id:
         return jsonify(ok=False, error="Missing discord_id"), 400
 
-    with MongoClient(os.getenv("MONGO_URI")) as c:
-        db = c["Website"]
-        db["CompEntries"].delete_one({"comp_id": comp_id, "user_id": str(discord_id)})
+    db = get_db("Website")
+    db["CompEntries"].delete_one({"comp_id": comp_id, "user_id": str(discord_id)})
 
     return jsonify(ok=True, deleted=True)
 
-# Start prewarm (sync or async based on env flag)
-if os.getenv("WARM_THUMBS_SYNC", "0") == "1":
-    # ✅ block until all thumbs are cached; fastest first paint
-    prewarm_thumbs(size=THUMB_SIZE_DEFAULT, max_workers=12)
-else:
-    # background warm (still fine once app is “hot”)
+# Optional thumbnail prewarm
+if os.getenv("WARM_THUMBS", "0") == "1":
     try:
-        threading.Thread(target=lambda: prewarm_thumbs(size=THUMB_SIZE_DEFAULT, max_workers=12),
-                         daemon=True).start()
+        threading.Thread(
+            target=lambda: prewarm_thumbs(size=THUMB_SIZE_DEFAULT, max_workers=12),
+            daemon=True
+        ).start()
         print("[thumbs] background prewarm thread started")
     except Exception as e:
         print("[thumbs] failed to start prewarm thread:", e)
 
+try:
+    threading.Thread(target=flush_pageview_buffer, daemon=True).start()
+    print("[pageviews] flush thread started")
+except Exception as e:
+    print("[pageviews] failed to start:", e)
 
 
 if __name__ == "__main__":
@@ -8238,8 +9228,6 @@ if __name__ == "__main__":
     env = os.getenv("FLASK_ENV", "prod")
 
     if env == "dev":
-        # Local dev with livereload
-
         logging.getLogger("livereload").setLevel(logging.WARNING)
 
         server = Server(app)
@@ -8247,6 +9235,4 @@ if __name__ == "__main__":
         server.watch('static/')
         server.serve(host='127.0.0.1', port=port)
     else:
-        # Production for Fly.io
         app.run(host="0.0.0.0", port=port, threaded=True)
-

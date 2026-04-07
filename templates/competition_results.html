@@ -412,7 +412,7 @@ body:not(.dark) .month-chip {
       <article class="podium-card second">
         <div class="podium-badge"><span class="medal">🥈</span><span>#2</span><span class="badge-soft">{{ v }} votes</span></div>
         <div class="image-wrap">
-          <img src="{{ second.image_url }}" alt="Second place" loading="lazy" referrerpolicy="no-referrer">
+          <img src="{{ second.thumb_url or second.image_url }}" alt="Second place" loading="lazy" referrerpolicy="no-referrer">
         </div>
         <div class="podium-body">
           <div class="podium-user"><span>{{ second.display_name or second.username or second.user or 'Anonymous' }}</span></div>
@@ -426,7 +426,7 @@ body:not(.dark) .month-chip {
       <article class="podium-card first">
         <div class="podium-badge"><span class="medal">🥇</span><span>#1</span><span class="badge-soft">{{ v }} votes</span></div>
         <div class="image-wrap">
-          <img src="{{ first.image_url }}" alt="First place" loading="lazy" referrerpolicy="no-referrer">
+          <img src="{{ first.thumb_url or first.image_url }}" alt="First place" loading="lazy" referrerpolicy="no-referrer">
         </div>
         <div class="podium-body">
           <div class="podium-user"><span>{{ first.display_name  or first.username  or first.user  or 'Anonymous' }}</span></div>
@@ -440,7 +440,7 @@ body:not(.dark) .month-chip {
       <article class="podium-card third">
         <div class="podium-badge"><span class="medal">🥉</span><span>#3</span><span class="badge-soft">{{ v }} votes</span></div>
         <div class="image-wrap">
-          <img src="{{ third.image_url }}" alt="Third place" loading="lazy" referrerpolicy="no-referrer">
+          <img src="{{ third.thumb_url or third.image_url }}"  alt="Third place" loading="lazy" referrerpolicy="no-referrer">
         </div>
         <div class="podium-body">
           <div class="podium-user"><span>{{ third.display_name  or third.username  or third.user  or 'Anonymous' }}</span></div>

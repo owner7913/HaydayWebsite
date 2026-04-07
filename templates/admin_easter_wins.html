@@ -331,7 +331,59 @@
     font-weight:900;
   }
 
+  .wins-filter-bar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:0 0 16px;
+  }
 
+  .wins-filter-btn{
+    appearance:none;
+    border:none;
+    border-radius:14px;
+    padding:10px 14px;
+    font-weight:900;
+    cursor:pointer;
+    background:rgba(255,255,255,.06);
+    color:#e7f3e8;
+    border:1px solid rgba(255,255,255,.08);
+  }
+
+  .wins-filter-btn.active{
+    background:linear-gradient(180deg, #8fe06a, #5ebe45);
+    color:#fff;
+  }
+
+  .delivery-block{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    align-items:flex-start;
+  }
+
+  .delivered-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 12px;
+    border-radius:14px;
+    background:linear-gradient(180deg, rgba(226,249,210,.98), rgba(168,225,128,.95));
+    color:#255c1f;
+    border:1px solid rgba(72,147,50,.22);
+    font-weight:900;
+  }
+
+  .delivered-meta{
+    color:#bfd0c1;
+    font-size:.9rem;
+    line-height:1.5;
+  }
+
+  .mark-delivered-btn[disabled]{
+    opacity:.7;
+    cursor:wait;
+  }
 </style>
 {% endblock %}
 
@@ -480,9 +532,15 @@
 
           <div class="tab-panel" data-panel="wins">
             {% if wins %}
+              <div class="wins-filter-bar">
+                <button class="wins-filter-btn active" type="button" data-wins-filter="all">All</button>
+                <button class="wins-filter-btn" type="button" data-wins-filter="pending">Needs delivery</button>
+                <button class="wins-filter-btn" type="button" data-wins-filter="delivered">Delivered</button>
+              </div>
+
               <div class="wins-grid">
                 {% for win in wins %}
-                  <div class="win-card">
+                  <div class="win-card" data-delivered="{{ 'true' if win.delivered else 'false' }}">
                     <div class="winner-main">
                       <div class="winner-name">
                         {{ win.display_name or win.username or "Unknown user" }}
@@ -505,12 +563,32 @@
                       Egg {{ win.egg_id }}
                     </div>
 
-                    <div class="time-block">
-                      <strong>Opened at</strong>
-                      {% if win.opened_at %}
-                        {{ win.opened_at.strftime('%Y-%m-%d %H:%M UTC') if win.opened_at.strftime is defined else win.opened_at }}
+                    <div class="delivery-block">
+                      <div class="time-block">
+                        <strong>Opened at</strong>
+                        {% if win.opened_at %}
+                          {{ win.opened_at.strftime('%Y-%m-%d %H:%M UTC') if win.opened_at.strftime is defined else win.opened_at }}
+                        {% else %}
+                          Unknown time
+                        {% endif %}
+                      </div>
+
+                      {% if win.delivered %}
+                        <div class="delivered-badge">Delivered ✓</div>
+                        <div class="delivered-meta">
+                          By {{ win.delivered_by_name or win.delivered_by or "Unknown" }}<br>
+                          {% if win.delivered_at %}
+                            {{ win.delivered_at.strftime('%Y-%m-%d %H:%M UTC') if win.delivered_at.strftime is defined else win.delivered_at }}
+                          {% endif %}
+                        </div>
                       {% else %}
-                        Unknown time
+                        <button
+                          class="admin-btn primary mark-delivered-btn"
+                          type="button"
+                          data-win-id="{{ win._id }}"
+                        >
+                          Mark delivered
+                        </button>
                       {% endif %}
                     </div>
                   </div>
@@ -550,6 +628,89 @@ document.addEventListener("DOMContentLoaded", () => {
           meta: name
         }).toString()
       }).catch(() => {});
+    });
+  });
+
+  const filterButtons = document.querySelectorAll(".wins-filter-btn");
+  const winCards = document.querySelectorAll('.tab-panel[data-panel="wins"] .win-card');
+
+  filterButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const filter = btn.dataset.winsFilter;
+
+      filterButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      winCards.forEach(card => {
+        const delivered = card.dataset.delivered === "true";
+
+        if (filter === "all") {
+          card.style.display = "grid";
+        } else if (filter === "pending") {
+          card.style.display = delivered ? "none" : "grid";
+        } else if (filter === "delivered") {
+          card.style.display = delivered ? "grid" : "none";
+        }
+      });
+    });
+  });
+
+  document.querySelectorAll(".mark-delivered-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const winId = btn.dataset.winId;
+      if (!winId) return;
+
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Marking...";
+
+      try {
+        const res = await fetch("/admin/easter-wins/mark-delivered", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ win_id: winId })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          btn.disabled = false;
+          btn.textContent = "Error";
+          setTimeout(() => {
+            btn.textContent = originalText;
+          }, 1500);
+          return;
+        }
+
+        const card = btn.closest(".win-card");
+        if (card) {
+          card.dataset.delivered = "true";
+        }
+
+        const deliveryBlock = btn.closest(".delivery-block");
+        if (deliveryBlock) {
+          btn.remove();
+
+          const badge = document.createElement("div");
+          badge.className = "delivered-badge";
+          badge.textContent = "Delivered ✓";
+
+          const meta = document.createElement("div");
+          meta.className = "delivered-meta";
+          meta.innerHTML = `By ${data.delivered_by || "Unknown"}<br>${data.delivered_at || ""}`;
+
+          deliveryBlock.appendChild(badge);
+          deliveryBlock.appendChild(meta);
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Error";
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1500);
+      }
     });
   });
 

@@ -26,4 +26,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # --- Gunicorn ---
-CMD ["gunicorn","-w","2","-k","gthread","--threads","8","--timeout","60","--preload","--log-level","debug","--access-logfile","-","--error-logfile","-","-b","0.0.0.0:8080","app:app"]
+CMD ["gunicorn","-w","3","-k","gthread","--threads","8","--timeout","60","--log-level","info","--access-logfile","-","--error-logfile","-","-b","0.0.0.0:8080","app:app"]

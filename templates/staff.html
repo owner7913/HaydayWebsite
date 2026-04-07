@@ -1,348 +1,822 @@
 {% extends 'base.html' %}
 {% block title %}Verified Staff - HayDay 🍀{% endblock %}
-{% block head_extra %}
 
-  <style>
-  .profile-container {
-    margin-top: 100px;
-    padding: 0 5vw;
+{% block head_extra %}
+<style>
+  .staff-page {
+    --surface: rgba(255, 255, 255, 0.82);
+    --surface-strong: rgba(255, 255, 255, 0.94);
+    --border: rgba(32, 45, 76, 0.10);
+    --text-soft: #64748b;
+    --text-main: #14213d;
+    --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.12);
+    --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.10);
+    --hero-grad: radial-gradient(circle at top left, rgba(103, 232, 249, 0.28), transparent 32%),
+                 radial-gradient(circle at top right, rgba(167, 139, 250, 0.22), transparent 28%),
+                 linear-gradient(180deg, #f8fbff 0%, #eef6ff 52%, #f7fbf6 100%);
+    color: var(--text-main);
+    padding: 104px 5vw 56px;
+    min-height: 100vh;
+    background: var(--hero-grad);
   }
 
-  .staff-list h2 {
-    font-size: 20px;
-    margin-top: 40px;
-    margin-bottom: 12px;
-    border-bottom: 1px solid #444;
-    padding-bottom: 4px;
-    color: inherit;
-    display: flex;
+  body.dark .staff-page {
+    --surface: rgba(17, 24, 39, 0.78);
+    --surface-strong: rgba(17, 24, 39, 0.92);
+    --border: rgba(148, 163, 184, 0.16);
+    --text-soft: #94a3b8;
+    --text-main: #f8fafc;
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.28);
+    --hero-grad: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 32%),
+                 radial-gradient(circle at top right, rgba(168, 85, 247, 0.15), transparent 26%),
+                 linear-gradient(180deg, #09111f 0%, #0f172a 48%, #101827 100%);
+  }
+
+  .staff-shell {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .staff-hero {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    padding: 32px;
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    margin-bottom: 28px;
+  }
+
+  .staff-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(34,197,94,0.08), rgba(59,130,246,0.05), rgba(168,85,247,0.08));
+    pointer-events: none;
+  }
+
+  .staff-hero-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+    gap: 24px;
+    align-items: end;
+  }
+
+  .eyebrow {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.56);
+    border: 1px solid rgba(255,255,255,0.45);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    margin-bottom: 16px;
+  }
+
+  body.dark .eyebrow {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  .staff-title {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3.4rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+
+  .staff-subtitle {
+    margin: 14px 0 0;
+    max-width: 760px;
+    font-size: 1.02rem;
+    line-height: 1.7;
+    color: var(--text-soft);
+  }
+
+  .hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.75);
+    border: 1px solid rgba(255,255,255,0.48);
+    color: var(--text-main);
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  body.dark .hero-badge {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  .hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .metric-card {
+    background: var(--surface-strong);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .metric-value {
+    font-size: clamp(1.5rem, 3vw, 2.15rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .metric-label {
+    margin-top: 8px;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+  }
+
+  .staff-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    margin-bottom: 22px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    font-size: clamp(1.1rem, 2vw, 1.45rem);
+  }
+
+  .role-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(59,130,246,0.16));
+    font-size: 1.15rem;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
+  }
+
+  body.dark .role-icon {
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  .section-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+  }
+
+  .role-pill {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(34,197,94,0.12);
+    color: #15803d;
+    font-weight: 700;
+    font-size: 0.86rem;
+  }
+
+  body.dark .role-pill {
+    background: rgba(34,197,94,0.14);
+    color: #86efac;
   }
 
   .staff-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
-    margin-bottom: 40px;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 18px;
   }
 
-  .member {
-    background: #fff;
-    padding: 12px 14px;
-    border-radius: 10px;
+  .member-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 18px;
+    border-radius: 24px;
+    background: var(--surface-strong);
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    cursor: pointer;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  }
+
+  .member-card::before {
+    content: "";
+    position: absolute;
+    inset: auto -20% -60% auto;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59,130,246,0.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  .member-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+    border-color: rgba(59,130,246,0.22);
+  }
+
+  body.dark .member-card:hover {
+    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.32);
+    border-color: rgba(96,165,250,0.24);
+  }
+
+  .avatar-wrap {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .avatar-ring {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    padding: 2px;
+    background: linear-gradient(135deg, #22c55e, #3b82f6, #a855f7);
+    box-shadow: 0 10px 18px rgba(59,130,246,0.16);
+  }
+
+  .avatar {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #dbeafe;
+    border: 3px solid rgba(255,255,255,0.85);
+  }
+
+  body.dark .avatar {
+    border-color: rgba(15,23,42,0.92);
+  }
+
+  .presence-dot {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.9);
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.05);
+  }
+
+  body.dark .presence-dot {
+    border-color: rgba(15,23,42,0.95);
+  }
+
+  .presence-dot.online { background: #22c55e; }
+  .presence-dot.idle { background: #f59e0b; }
+  .presence-dot.dnd { background: #ef4444; }
+  .presence-dot.offline { background: #94a3b8; }
+
+  .member-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .member-name-row {
     display: flex;
     align-items: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    transition: background-color 0.3s ease, color 0.3s ease;
-    min-height: 64px;
-    cursor: pointer;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
   }
 
-  .avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    margin-right: 12px;
-    object-fit: cover;
-    border: 2px solid #ccc;
+  .member-name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .info {
+  .boost-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(236,72,153,0.12);
+    color: #be185d;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  body.dark .boost-chip {
+    background: rgba(244,114,182,0.14);
+    color: #f9a8d4;
+  }
+
+  .member-tag {
+    color: var(--text-soft);
+    font-size: 0.92rem;
+    margin-bottom: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .member-meta {
     display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .name {
-    font-weight: 600;
-    font-size: 15px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .tag {
-    font-size: 13px;
-    color: #666;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* Dark mode compatibility */
-  body.dark .member {
-    background-color: #1e1e1e;
-    color: #ddd;
-  }
-  body.dark .tag {
-    color: #aaa;
-  }
-  body.dark .avatar {
-    border-color: #333;
-  }
-  .member:hover {
-    background-color: #f1f1f1;
-  }
-  body.dark .member:hover {
-    background-color: #2a2a2a;
-  }
-  body.dark .staff-list h2 {
-    border-color: #333;
-  }
-  .status-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-/* Color mappings */
-.status-dot.online {
-  background-color: #43b581;
-}
-.status-dot.idle {
-  background-color: #faa61a;
-}
-.status-dot.dnd {
-  background-color: #f04747;
-}
-.status-dot.offline {
-  background-color: #747f8d;
-}
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.modal-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-  position: relative;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-
-.modal-avatar {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  margin-bottom: 16px;
-  object-fit: cover;
-}
-
-.staff-button {
-  margin-top: 20px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  background-color: #7289DA;
-  color: white;
-  border: none;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.status-dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-.status-dot.online { background-color: #43b581; }
-.status-dot.idle { background-color: #faa61a; }
-.status-dot.dnd { background-color: #f04747; }
-.status-dot.offline { background-color: #747f8d; }
-
-.boost-rocket {
-  display: inline-block;
-  animation: pulseBoost 1.4s infinite ease-in-out;
-  margin-right: 6px;
-  color: #f47fff; /* Discord pink */
-}
-
-@keyframes pulseBoost {
-  0%, 100% {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.2) translateY(-3px);
-    opacity: 0.7;
-  }
-}
-body.dark .modal-card {
-  background-color: #1e1e1e;
-  color: #e0e0e0;
-}
-
-body.dark .staff-button {
-  background-color: #5865f2;  /* Discord blurple */
-  color: white;
-}
-
-body.dark .boost-rocket {
-  color: #ff73fa; /* brighter pink for dark mode */
-}
-
-body.dark .modal-overlay {
-  background-color: rgba(0, 0, 0, 0.85);
-}
-@media (max-width: 600px) {
-  .profile-container {
-    padding: 0 16px;
-    margin-top: 80px;
-  }
-
-  .staff-list h2 {
-    font-size: 18px;
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
-    margin-top: 32px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(148,163,184,0.12);
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 700;
   }
 
-  .staff-grid {
-    grid-template-columns: 1fr;
+  .status-text {
+    text-transform: capitalize;
   }
 
-  .member {
-    flex-direction: row;
-    padding: 10px;
-    min-height: unset;
+  .empty-state {
+    text-align: center;
+    color: var(--text-soft);
+    padding: 28px 16px;
   }
 
-  .avatar {
-    width: 40px;
-    height: 40px;
-    margin-right: 10px;
+  .staff-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 9999;
   }
 
-  .name {
-    font-size: 14px;
+  .staff-modal-card {
+    position: relative;
+    overflow: hidden;
+    width: min(460px, 100%);
+    border-radius: 28px;
+    padding: 28px;
+    background: var(--surface-strong);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
   }
 
-  .tag {
-    font-size: 12px;
+  .staff-modal-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 112px;
+    background: linear-gradient(135deg, rgba(34,197,94,0.18), rgba(59,130,246,0.15), rgba(168,85,247,0.18));
+    pointer-events: none;
   }
 
-  .modal-card {
-    padding: 16px;
-    max-width: 90%;
+  .modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.68);
+    color: #0f172a;
+    font-size: 1.15rem;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  body.dark .modal-close {
+    background: rgba(255,255,255,0.08);
+    color: #f8fafc;
+  }
+
+  .modal-avatar-ring {
+    position: relative;
+    z-index: 1;
+    width: 106px;
+    height: 106px;
+    margin: 34px auto 14px;
+    padding: 3px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #22c55e, #3b82f6, #a855f7);
   }
 
   .modal-avatar {
-    width: 80px;
-    height: 80px;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid rgba(255,255,255,0.88);
+    background: #dbeafe;
+  }
+
+  body.dark .modal-avatar {
+    border-color: rgba(15,23,42,0.95);
+  }
+
+  .modal-name {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 900;
+    line-height: 1.1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .modal-tag {
+    margin: 8px 0 14px;
+    color: var(--text-soft);
+    position: relative;
+    z-index: 1;
+  }
+
+  .modal-presence {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(148,163,184,0.12);
+    color: var(--text-soft);
+    font-weight: 700;
+    font-size: 0.9rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .modal-presence .presence-dot {
+    position: static;
+    width: 12px;
+    height: 12px;
+    border-width: 0;
+    box-shadow: none;
+  }
+
+  .modal-details {
+    margin-top: 18px;
+    display: grid;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .modal-detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 13px 14px;
+    border-radius: 16px;
+    background: rgba(148,163,184,0.10);
+    text-align: left;
+  }
+
+  .modal-detail-label {
+    color: var(--text-soft);
+    font-size: 0.88rem;
+  }
+
+  .modal-detail-value {
+    font-weight: 800;
+    text-align: right;
   }
 
   .staff-button {
+    margin-top: 18px;
     width: 100%;
-    font-size: 14px;
-    padding: 10px;
+    border: none;
+    border-radius: 16px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #22c55e, #3b82f6);
+    color: #fff;
+    font-size: 0.98rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 18px 30px rgba(59,130,246,0.24);
   }
-}
 
-  </style>
+  .staff-button:hover {
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 980px) {
+    .staff-hero-inner {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .staff-page {
+      padding: 92px 16px 32px;
+    }
+
+    .staff-hero,
+    .staff-section {
+      border-radius: 24px;
+      padding: 20px;
+    }
+
+    .hero-metrics {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .staff-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .member-card {
+      border-radius: 20px;
+      padding: 16px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .hero-metrics {
+      grid-template-columns: 1fr;
+    }
+
+    .section-header {
+      align-items: flex-start;
+    }
+
+    .modal-detail {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .modal-detail-value {
+      text-align: left;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-  <div class="profile-container" style="margin-top: 100px;">
-    <h1>👥 Verified Staff Members</h1>
-    <div class="staff-list">
+<div class="staff-page">
+  <div class="staff-shell">
     {% set grouped_staff = {} %}
     {% for member in staff %}
       {% set _ = grouped_staff.setdefault(member.role, []).append(member) %}
     {% endfor %}
 
-      {% set role_order = [
-        "Owner", "Co-Owner", "Head Admin", "Moderator", "Trial Moderator", "Verifier", "Giveaway Staff"
-      ] %}
-      {% for role in role_order %}
-        {% if grouped_staff.get(role) %}
-          {% set role_icons = {
-            "Owner": "🛡️",
-            "Co-Owner": "👑",
-            "Head Admin": "⚙️",
-            "Moderator": "🔧",
-            "Trial Moderator": "🧪",
-            "Verifier": "🔍",
-            "Giveaway Staff": "🎁"
-          } %}
+    {% set role_order = [
+      "Owner", "Co-Owner", "Head Admin", "Moderator", "Trial Moderator", "Verifier", "Giveaway Staff"
+    ] %}
 
-          <h2>{{ role_icons.get(role, '👥') }} {{ role }}</h2>
+    {% set role_icons = {
+      "Owner": "🛡️",
+      "Co-Owner": "👑",
+      "Head Admin": "⚙️",
+      "Moderator": "🔧",
+      "Trial Moderator": "🧪",
+      "Verifier": "🔍",
+      "Giveaway Staff": "🎁"
+    } %}
+
+    {% set total_staff = staff|length %}
+    {% set counts = namespace(online=0, boosters=0) %}
+    {% for member in staff %}
+      {% if member.status and member.status|lower in ['online', 'idle', 'dnd'] %}
+        {% set counts.online = counts.online + 1 %}
+      {% endif %}
+      {% if member.boosting %}
+        {% set counts.boosters = counts.boosters + 1 %}
+      {% endif %}
+    {% endfor %}
+
+    <section class="staff-hero">
+      <div class="staff-hero-inner">
+        <div>
+          <div class="eyebrow">Community team directory</div>
+          <h1 class="staff-title">Meet the HayDay staff team</h1>
+          <p class="staff-subtitle">
+            A cleaner public directory for your moderators, verifiers, and event staff. Cards are grouped by role,
+            show live-style presence status, and open a polished member detail modal when clicked.
+          </p>
+
+          <div class="hero-badges">
+            <div class="hero-badge">✨ Role-based sections</div>
+            <div class="hero-badge">🟢 Status indicators</div>
+            <div class="hero-badge">🚀 Boosting highlight</div>
+          </div>
+        </div>
+
+        <div class="hero-metrics">
+          <div class="metric-card">
+            <div class="metric-value">{{ total_staff }}</div>
+            <div class="metric-label">Staff members</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value">{{ role_order|length }}</div>
+            <div class="metric-label">Role groups</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value">{{ counts.online }}</div>
+            <div class="metric-label">Currently active</div>
+          </div>
+          <div class="metric-card">
+              <div class="metric-value">{{ counts.boosters }}</div>
+              <div class="metric-label">Server boosters</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% for role in role_order %}
+      {% if grouped_staff.get(role) %}
+        <section class="staff-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <span class="role-icon">{{ role_icons.get(role, '👥') }}</span>
+              <span>{{ role }}</span>
+            </h2>
+
+            <div class="section-meta">
+              <span class="role-pill">{{ grouped_staff[role]|length }} member{% if grouped_staff[role]|length != 1 %}s{% endif %}</span>
+            </div>
+          </div>
+
           <div class="staff-grid">
             {% for member in grouped_staff[role] %}
-              <div class="member" onclick='showProfileModal(JSON.parse(this.dataset.member))' data-member='{{ member | tojson | escape }}'>
-                <img src="{{ member.avatar }}" class="avatar" alt="avatar">
-                <div class="info">
-                  <div class="name">{{ member.name }}</div>
-                  <div class="tag">
-                    {{ member.tag }}
-                    <span class="status-dot {{ member.status | lower }}" title="{{ member.status }}"></span>
+              <article
+                class="member-card"
+                onclick='showProfileModal(JSON.parse(this.dataset.member))'
+                data-member='{{ member | tojson | escape }}'>
+                <div class="avatar-wrap">
+                  <div class="avatar-ring">
+                    <img src="{{ member.avatar }}" class="avatar" alt="{{ member.name }} avatar">
+                  </div>
+                  <span class="presence-dot {{ (member.status or 'offline') | lower }}"></span>
+                </div>
+
+                <div class="member-info">
+                  <div class="member-name-row">
+                    <h3 class="member-name">{{ member.name }}</h3>
+                    {% if member.boosting %}
+                      <span class="boost-chip">🚀 Boosting</span>
+                    {% endif %}
+                  </div>
+
+                  <div class="member-tag">{{ member.tag }}</div>
+
+                  <div class="member-meta">
+                    <span class="meta-chip">
+                      <span class="presence-dot {{ (member.status or 'offline') | lower }}" style="position:static;width:10px;height:10px;border-width:0;box-shadow:none;"></span>
+                      <span class="status-text">{{ member.status or 'Offline' }}</span>
+                    </span>
+                    <span class="meta-chip">{{ role }}</span>
                   </div>
                 </div>
-              </div>
+              </article>
             {% endfor %}
           </div>
-        {% endif %}
-      {% endfor %}
-    </div>
+        </section>
+      {% endif %}
+    {% endfor %}
+
+    {% if not staff %}
+      <section class="staff-section">
+        <div class="empty-state">No staff members were found.</div>
+      </section>
+    {% endif %}
   </div>
-<div id="profileModal" class="modal-overlay" style="display: none;" onclick="closeProfileModal(event)">
-  <div class="modal-card">
-    <img id="modalAvatar" src="" alt="avatar" class="modal-avatar">
-    <h2 id="modalName"></h2>
-    <p id="modalTag"></p>
-    <div id="modalStatus" class="status-dot"></div>
-    <p id="modalJoin"></p>
-    <p id="modalBoost"></p>
-    <button id="modalButton" class="staff-button" target="_blank">Open Discord Profile</button>
+</div>
+
+<div id="profileModal" class="staff-modal" onclick="closeProfileModal(event)">
+  <div class="staff-modal-card">
+    <button class="modal-close" onclick="hideProfileModal()">×</button>
+
+    <div class="modal-avatar-ring">
+      <img id="modalAvatar" src="" alt="avatar" class="modal-avatar">
+    </div>
+
+    <h2 id="modalName" class="modal-name"></h2>
+    <p id="modalTag" class="modal-tag"></p>
+
+    <div id="modalPresence" class="modal-presence">
+      <span id="modalStatusDot" class="presence-dot offline"></span>
+      <span id="modalStatusText">Offline</span>
+    </div>
+
+    <div class="modal-details">
+      <div class="modal-detail">
+        <div class="modal-detail-label">Role</div>
+        <div id="modalRole" class="modal-detail-value">Unknown</div>
+      </div>
+      <div class="modal-detail">
+        <div class="modal-detail-label">Joined</div>
+        <div id="modalJoin" class="modal-detail-value">Unknown</div>
+      </div>
+      <div class="modal-detail">
+        <div class="modal-detail-label">Server boost</div>
+        <div id="modalBoost" class="modal-detail-value">Not boosting</div>
+      </div>
+    </div>
+
+    <button id="modalButton" class="staff-button" type="button">Open Discord Profile</button>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-  <script>
-function openDiscordProfile(userId) {
-  const link = `https://discord.com/users/${userId}`;
-  window.open(link, '_blank');
-}
-</script>
 <script>
-function showProfileModal(member) {
-  document.getElementById("profileModal").style.display = "flex";
-  document.getElementById("modalAvatar").src = member.avatar;
-  document.getElementById("modalName").textContent = member.name;
-  document.getElementById("modalTag").textContent = member.tag;
-  document.getElementById("modalStatus").className = "status-dot " + (member.status || "offline").toLowerCase();
-  document.getElementById("modalJoin").textContent = member.joined_at
-    ? "Joined: " + new Date(member.joined_at).toLocaleDateString()
-    : "Join date unknown";
-  document.getElementById("modalBoost").innerHTML = member.boosting
-    ? `<span class="boost-rocket">🚀</span> Boosting the server`
-    : `Not boosting`;
+  function showProfileModal(member) {
+    const modal = document.getElementById("profileModal");
+    const status = (member.status || "offline").toLowerCase();
 
-  const btn = document.getElementById("modalButton");
-  btn.onclick = () => window.open(`https://discord.com/users/${member._id}`, '_blank');
-}
+    document.getElementById("modalAvatar").src = member.avatar || "";
+    document.getElementById("modalName").textContent = member.name || "Unknown";
+    document.getElementById("modalTag").textContent = member.tag || "No tag available";
+    document.getElementById("modalRole").textContent = member.role || "Unknown";
 
-function closeProfileModal(e) {
-  if (e.target.id === "profileModal") {
-    document.getElementById("profileModal").style.display = "none";
+    const statusDot = document.getElementById("modalStatusDot");
+    statusDot.className = "presence-dot " + status;
+    document.getElementById("modalStatusText").textContent = status.charAt(0).toUpperCase() + status.slice(1);
+
+    document.getElementById("modalJoin").textContent = member.joined_at
+      ? new Date(member.joined_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+      : "Join date unknown";
+
+    document.getElementById("modalBoost").textContent = member.boosting ? "Active server booster" : "Not boosting";
+
+    const btn = document.getElementById("modalButton");
+    btn.onclick = () => window.open(`https://discord.com/users/${member._id}`, "_blank");
+
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
   }
-}
-</script>
 
+  function hideProfileModal() {
+    document.getElementById("profileModal").style.display = "none";
+    document.body.style.overflow = "";
+  }
+
+  function closeProfileModal(event) {
+    if (event.target.id === "profileModal") {
+      hideProfileModal();
+    }
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideProfileModal();
+    }
+  });
+</script>
 {% endblock %}
