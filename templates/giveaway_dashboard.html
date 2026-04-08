@@ -268,40 +268,42 @@ button {
 
     try {
       const res = await fetch("/api/giveaways", { credentials: "include" });
+      if (!res.ok) {
+        throw new Error(`Failed to load giveaways: ${res.status}`);
+      }
+
       const data = await res.json();
+      const active = Array.isArray(data?.active) ? data.active : [];
+      const ended = Array.isArray(data?.ended) ? data.ended : [];
 
-    // === ACTIVE ===
-    const active = data.active || [];
-    activeContainer.innerHTML = "";
-    if (!active.length) {
-      activeContainer.innerHTML = "<p>No active giveaways found.</p>";
-    } else {
-      active.forEach(g => {
-        const messageId = String(g.message_id);
-        const box = document.createElement("div");
-        const participantCount = g.participants ? Object.keys(g.participants).length : 0;
-        const totalEntries = g.participants ? Object.values(g.participants).reduce((a, b) => a + b, 0) : 0;
+      // === ACTIVE ===
+      activeContainer.innerHTML = "";
+      if (!active.length) {
+        activeContainer.innerHTML = "<p>No active giveaways found.</p>";
+      } else {
+        active.forEach(g => {
+          const messageId = String(g.message_id);
+          const box = document.createElement("div");
 
-        box.className = "giveaway-box";
-        box.innerHTML = `
-          <strong>${g.prize}</strong><br>
-          🧍 ${g.winners} winner(s)<br>
-          ⏳ Ends in ${g.ends_in}<br>
-          <p><strong>Participants:</strong> ${g.participant_count}</p>
-          <p><strong>Total Entries:</strong> ${g.entry_count}</p>
-          <div class="giveaway-controls">
-            <button onclick="endGiveaway('${messageId}', this)">✅ End</button>
-            <button onclick='openEditModal(${JSON.stringify(g)})'>✏️ Edit</button>
-            <button style="background-color: crimson; color: white;" onclick="deleteGiveaway('${g.message_id}')">❌ Force Delete</button>
-          </div>
-        `;
-        activeContainer.appendChild(box);
-      });
-    }
+          box.className = "giveaway-box";
+          box.innerHTML = `
+            <strong>${g.prize}</strong><br>
+            🧍 ${g.winners} winner(s)<br>
+            ⏳ Ends in ${g.ends_in}<br>
+            <p><strong>Participants:</strong> ${g.participant_count}</p>
+            <p><strong>Total Entries:</strong> ${g.entry_count}</p>
+            <div class="giveaway-controls">
+              <button onclick="endGiveaway('${messageId}', this)">✅ End</button>
+              <button onclick='openEditModal(${JSON.stringify(g)})'>✏️ Edit</button>
+              <button style="background-color: crimson; color: white;" onclick="deleteGiveaway('${g.message_id}')">❌ Force Delete</button>
+            </div>
+          `;
+          activeContainer.appendChild(box);
+        });
+      }
 
 
       // === ENDED ===
-      const ended = data.ended || [];
       endedContainer.innerHTML = "";
       if (!ended.length) {
         endedContainer.innerHTML = "<p>No recently ended giveaways.</p>";

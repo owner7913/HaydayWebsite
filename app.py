@@ -8028,8 +8028,30 @@ def _parse_verification_message(content):
     }
 
 
+def _canonical_verification_status(status):
+    normalized = (status or "pending").strip().lower()
+    aliases = {
+        "approve": "approved",
+        "approved": "approved",
+        "verified": "approved",
+        "verified_manual": "approved",
+        "deny": "denied",
+        "denied": "denied",
+        "tag_not_found": "tag_not_found",
+        "farmtag_not_found": "tag_not_found",
+        "no_tag": "no_tag",
+        "no_pfp": "no_pfp",
+        "pending": "pending",
+        "expired": "expired",
+        "left": "left",
+        "banned": "banned",
+    }
+    return aliases.get(normalized, normalized)
+
+
 def _format_verification_doc(doc):
     parsed = _parse_verification_message(doc.get("Message content", ""))
+    status = _canonical_verification_status(doc.get("status", "pending"))
     guild_id = GUILD_ID
     verify_channel_id = 1274074702712934410
     discord_message_id = doc.get("discord_message_id")
@@ -8045,7 +8067,8 @@ def _format_verification_doc(doc):
         "_id": str(doc.get("_id", "")),
         "user_name": doc.get("User Name"),
         "user_id": doc.get("id"),
-        "status": doc.get("status", "pending"),
+        "status": status,
+        "raw_status": doc.get("status", "pending"),
         "submitted_at": doc.get("submitted_at"),
         "reviewed_at": doc.get("reviewed_at"),
         "reviewed_by": doc.get("reviewed_by"),
@@ -8076,7 +8099,15 @@ def verification_dashboard():
 
     query = {}
     if active_status != "all":
-        query["status"] = active_status
+        status_aliases = {
+            "pending": ["pending"],
+            "approved": ["approved", "approve", "verified", "verified_manual"],
+            "denied": ["denied", "deny"],
+            "tag_not_found": ["tag_not_found", "farmtag_not_found"],
+            "no_tag": ["no_tag"],
+            "no_pfp": ["no_pfp"],
+        }
+        query["status"] = {"$in": status_aliases.get(active_status, [active_status])}
 
     if search_query:
         search_filters = [
@@ -8106,10 +8137,10 @@ def verification_dashboard():
 
     entries = [_format_verification_doc(doc) for doc in docs]
     counts = {
-        "pending": verify_col.count_documents({"status": "pending"}),
-        "approved": verify_col.count_documents({"status": "approved"}),
-        "denied": verify_col.count_documents({"status": "denied"}),
-        "tag_not_found": verify_col.count_documents({"status": "tag_not_found"}),
+        "pending": verify_col.count_documents({"status": {"$in": ["pending"]}}),
+        "approved": verify_col.count_documents({"status": {"$in": ["approved", "approve", "verified", "verified_manual"]}}),
+        "denied": verify_col.count_documents({"status": {"$in": ["denied", "deny"]}}),
+        "tag_not_found": verify_col.count_documents({"status": {"$in": ["tag_not_found", "farmtag_not_found"]}}),
         "all": verify_col.count_documents({}),
     }
 
@@ -8318,7 +8349,7 @@ def edit_giveaway(message_id):
 @app.route("/api/giveaways", methods=["GET"])
 def get_giveaways():
     if "discord_id" not in session:
-        return jsonify([])
+        return jsonify({"active": [], "ended": []})
     guild_id = "959220051427340379"  # your server ID
     try:
         role_mapping = fetch_role_mapping(guild_id)
@@ -8332,6 +8363,7 @@ def get_giveaways():
     client= get_db()
     db = client["Giveaway"]
     giveaways = []
+    ended_giveaways = []
 
     for g in db["current_giveaways"].find({"ended": False}):
         end = g.get("end_time")
@@ -8343,13 +8375,14 @@ def get_giveaways():
         delta = int(end.timestamp() - now_ts)
         minutes = (delta % 3600) // 60
         ends_in = f"{delta // 3600}h {minutes}m"
+        participants = g.get("participants") or {}
 
         giveaways.append({
             "prize": g.get("prize", "N/A"),
             "winners": g.get("winners_count", 1),
             "message_id": str(g.get("message_id")),
-            "entry_count": sum(g.get("participants", {}).values()),
-            "participant_count": len(g.get("participants", {})),
+            "entry_count": sum(participants.values()),
+            "participant_count": len(participants),
             "ends_in": ends_in,
             "host_id": g.get("host_id"),
             "required_role_id": g.get("required_role_id"),
@@ -8357,22 +8390,24 @@ def get_giveaways():
             "color": g.get("color")
         })
 
-        # ✅ This part must be OUTSIDE the loop
-        recently_ended = list(
-            db["current_giveaways"]
-            .find({"ended": True})
-            .sort("end_time", -1)
-            .limit(10)
-        )
+    recently_ended = list(
+        db["current_giveaways"]
+        .find({"ended": True})
+        .sort("end_time", -1)
+        .limit(10)
+    )
 
-        ended_giveaways = []
-        for g in recently_ended:
-            ended_giveaways.append({
-                "prize": g.get("prize", "N/A"),
-                "winners": g.get("winners_count", 1),
-                "message_id": str(g.get("message_id")),
-                "ended_at": g.get("end_time").strftime("%Y-%m-%d %H:%M")
-            })
+    for g in recently_ended:
+        end_time = g.get("end_time")
+        if not end_time:
+            continue
+
+        ended_giveaways.append({
+            "prize": g.get("prize", "N/A"),
+            "winners": g.get("winners_count", 1),
+            "message_id": str(g.get("message_id")),
+            "ended_at": end_time.strftime("%Y-%m-%d %H:%M")
+        })
 
     return jsonify({
         "active": giveaways,

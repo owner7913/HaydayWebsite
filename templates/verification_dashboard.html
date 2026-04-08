@@ -178,6 +178,7 @@ body.dark .entry-image {
   height: 100%;
   object-fit: cover;
   display: block;
+  cursor: zoom-in;
 }
 
 .entry-image .empty {
@@ -227,6 +228,8 @@ body.dark .entry-subtitle {
 .status-approved { background: #dff7e8; color: #13653b; }
 .status-denied { background: #ffe0e0; color: #8d1f1f; }
 .status-tag-not-found { background: #e7ebff; color: #3247a8; }
+.status-no-tag { background: #e7ebff; color: #3247a8; }
+.status-no-pfp { background: #fff1de; color: #9a5417; }
 
 .detail-grid {
   display: grid;
@@ -238,6 +241,17 @@ body.dark .entry-subtitle {
   background: rgba(148, 163, 184, 0.10);
   border-radius: 12px;
   padding: 11px 12px;
+}
+
+.detail.copyable {
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.detail.copyable:hover {
+  background: rgba(96, 165, 250, 0.14);
+  transform: translateY(-1px);
 }
 
 body.dark .detail {
@@ -256,6 +270,13 @@ body.dark .detail {
   font-size: 14px;
   font-weight: 700;
   word-break: break-word;
+}
+
+.copy-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #60a5fa;
+  font-weight: 700;
 }
 
 .flag-row,
@@ -331,6 +352,50 @@ body.dark .empty-state {
   color: #93a0b5;
 }
 
+.image-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.86);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  z-index: 1200;
+}
+
+.image-modal.open {
+  display: flex;
+}
+
+.image-modal-dialog {
+  position: relative;
+  max-width: min(1100px, 96vw);
+  max-height: 92vh;
+  width: 100%;
+}
+
+.image-modal img {
+  width: 100%;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 18px;
+  background: #0b1020;
+}
+
+.image-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  background: rgba(15, 23, 42, 0.75);
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+}
+
 @media (max-width: 980px) {
   .dashboard-wrapper {
     flex-direction: column;
@@ -342,6 +407,51 @@ body.dark .empty-state {
 
   .toolbar,
   .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .entries-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-content {
+    padding: 12px;
+  }
+
+  .hero-card {
+    padding: 18px;
+  }
+
+  .hero-card h1 {
+    font-size: 26px;
+  }
+
+  .search-form input,
+  .search-form select,
+  .button {
+    width: 100%;
+  }
+
+  .entry-top {
+    flex-direction: column;
+  }
+
+  .action-row {
     grid-template-columns: 1fr;
   }
 }
@@ -364,6 +474,8 @@ body.dark .empty-state {
             <option value="approved" {% if active_status == "approved" %}selected{% endif %}>Approved</option>
             <option value="denied" {% if active_status == "denied" %}selected{% endif %}>Denied</option>
             <option value="tag_not_found" {% if active_status == "tag_not_found" %}selected{% endif %}>Tag Not Found</option>
+            <option value="no_tag" {% if active_status == "no_tag" %}selected{% endif %}>No Tag</option>
+            <option value="no_pfp" {% if active_status == "no_pfp" %}selected{% endif %}>No PFP</option>
             <option value="all" {% if active_status == "all" %}selected{% endif %}>All statuses</option>
           </select>
           <input type="text" name="q" value="{{ search_query }}" placeholder="Search tag, farm, user ID, or message ID">
@@ -401,7 +513,10 @@ body.dark .empty-state {
       <article class="entry-card" id="entry-{{ entry.discord_message_id }}">
         <div class="entry-image">
           {% if entry.screenshot_url %}
-          <img src="{{ entry.screenshot_url }}" alt="Verification screenshot for {{ entry.farm_name or entry.user_name }}">
+          <img
+            src="{{ entry.screenshot_url }}"
+            alt="Verification screenshot for {{ entry.farm_name or entry.user_name }}"
+            onclick="openImageModal('{{ entry.screenshot_url }}', '{{ entry.farm_name or entry.user_name or 'Verification screenshot' }}')">
           {% else %}
           <div class="empty">No screenshot attached</div>
           {% endif %}
@@ -417,19 +532,22 @@ body.dark .empty-state {
           </div>
 
           <div class="detail-grid">
-            <div class="detail">
+            <div class="detail copyable" onclick="copyField(this, '{{ entry.hayday_id or 'Unknown' }}')">
               <div class="detail-label">Hay Day Tag</div>
               <div class="detail-value">{{ entry.hayday_id or "Unknown" }}</div>
+              <div class="copy-hint">Tap to copy</div>
             </div>
-            <div class="detail">
+            <div class="detail copyable" onclick="copyField(this, '{{ entry.level or 'Unknown' }}')">
               <div class="detail-label">Level</div>
               <div class="detail-value">{{ entry.level or "Unknown" }}</div>
+              <div class="copy-hint">Tap to copy</div>
             </div>
-            <div class="detail">
+            <div class="detail copyable" onclick="copyField(this, '{{ entry.one_piece or 'Not answered' }}')">
               <div class="detail-label">One Piece</div>
               <div class="detail-value">{{ entry.one_piece or "Not answered" }}</div>
+              <div class="copy-hint">Tap to copy</div>
             </div>
-            <div class="detail">
+            <div class="detail copyable" onclick="copyField(this, this.dataset.copyValue)" data-copy-value="{% if entry.submitted_at %}{{ entry.submitted_at[:19].replace('T', ' ') }} UTC{% else %}Unknown{% endif %}">
               <div class="detail-label">Submitted</div>
               <div class="detail-value">
                 {% if entry.submitted_at %}
@@ -438,6 +556,7 @@ body.dark .empty-state {
                 Unknown
                 {% endif %}
               </div>
+              <div class="copy-hint">Tap to copy</div>
             </div>
           </div>
 
@@ -458,13 +577,14 @@ body.dark .empty-state {
           </div>
 
           {% if entry.reviewed_by or entry.review_reason %}
-          <div class="detail">
+          <div class="detail copyable" onclick="copyField(this, this.dataset.copyValue)" data-copy-value="{% if entry.reviewed_by %}By {{ entry.reviewed_by }}{% endif %}{% if entry.reviewed_at %} | {{ entry.reviewed_at[:19].replace('T', ' ') }} UTC{% endif %}{% if entry.review_reason %} | {{ entry.review_reason }}{% endif %}">
             <div class="detail-label">Review Notes</div>
             <div class="detail-value">
               {% if entry.reviewed_by %}By {{ entry.reviewed_by }}{% endif %}
               {% if entry.reviewed_at %} · {{ entry.reviewed_at[:19].replace("T", " ") }} UTC{% endif %}
               {% if entry.review_reason %}<br>{{ entry.review_reason }}{% endif %}
             </div>
+            <div class="copy-hint">Tap to copy</div>
           </div>
           {% endif %}
 
@@ -514,10 +634,58 @@ body.dark .empty-state {
     {% endif %}
   </main>
 </div>
+
+<div class="image-modal" id="imageModal" onclick="closeImageModal(event)">
+  <div class="image-modal-dialog">
+    <button class="image-modal-close" type="button" onclick="closeImageModal()">×</button>
+    <img id="imageModalImg" src="" alt="">
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+async function copyField(element, value) {
+  try {
+    await navigator.clipboard.writeText(String(value ?? ""));
+    const hint = element.querySelector(".copy-hint");
+    if (!hint) return;
+    const previous = hint.textContent;
+    hint.textContent = "Copied";
+    setTimeout(() => {
+      hint.textContent = previous;
+    }, 1200);
+  } catch (e) {
+    alert("Could not copy field.");
+  }
+}
+
+function openImageModal(src, alt) {
+  const modal = document.getElementById("imageModal");
+  const img = document.getElementById("imageModalImg");
+  img.src = src;
+  img.alt = alt || "Verification screenshot";
+  modal.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeImageModal(event) {
+  if (event && event.target && event.currentTarget && event.target !== event.currentTarget) {
+    return;
+  }
+  const modal = document.getElementById("imageModal");
+  const img = document.getElementById("imageModalImg");
+  modal.classList.remove("open");
+  img.src = "";
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeImageModal();
+  }
+});
+
 async function runVerificationAction(messageId, userId, action, askReason = false) {
   const labels = {
     approve: "approve",
@@ -544,8 +712,8 @@ async function runVerificationAction(messageId, userId, action, askReason = fals
     },
     credentials: "include",
     body: JSON.stringify({
-      message_id: Number(messageId),
-      user_id: Number(userId),
+      message_id: String(messageId),
+      user_id: String(userId),
       action,
       reason
     })
@@ -581,7 +749,7 @@ async function deleteVerificationRecord(messageId) {
     },
     credentials: "include",
     body: JSON.stringify({
-      message_id: Number(messageId)
+      message_id: String(messageId)
     })
   });
 
