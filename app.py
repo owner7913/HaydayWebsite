@@ -5646,37 +5646,62 @@ def pet_shop_buy():
     item_data = PETSHOP_ITEMS[item_key]
     item_type = item_data["type"]
     price = int(item_data["price"])
-
-    if item_type == "boost" and item_key in pet.get("owned_boosts", []):
-        flash("❌ You already own that boost.", "error")
-        return _pet_flash_redirect()
-    if item_type == "cosmetic" and item_key in pet.get("owned_cosmetics", []):
-        flash("❌ You already own that cosmetic.", "error")
-        return _pet_flash_redirect()
-    if item_type == "consumable":
-        current_amount = list(pet.get("owned_consumables", [])).count(item_key)
-        max_allowed = CONSUMABLE_CAPS.get(item_key, 10)
-        if current_amount >= max_allowed:
-            flash(f"❌ You already hold the max amount of {item_data['name']}.", "error")
-            return _pet_flash_redirect()
-
-    result = _pet_users_col().update_one(
-        {"_id": discord_id, "coins": {"$gte": price}},
-        {"$inc": {"coins": -price}},
-        upsert=False,
-    )
-    if result.modified_count != 1:
-        flash("❌ You do not have enough coins.", "error")
-        return _pet_flash_redirect()
+    purchase_query = {
+        "_id": discord_id,
+        "pet": {"$exists": True},
+        "coins": {"$gte": price},
+    }
+    purchase_update = {"$inc": {"coins": -price}}
 
     if item_type == "boost":
-        pet["owned_boosts"] = list(pet.get("owned_boosts", [])) + [item_key]
+        purchase_query["pet.owned_boosts"] = {"$ne": item_key}
+        purchase_update["$addToSet"] = {"pet.owned_boosts": item_key}
     elif item_type == "cosmetic":
-        pet["owned_cosmetics"] = list(pet.get("owned_cosmetics", [])) + [item_key]
+        purchase_query["pet.owned_cosmetics"] = {"$ne": item_key}
+        purchase_update["$addToSet"] = {"pet.owned_cosmetics": item_key}
     elif item_type == "consumable":
-        pet["owned_consumables"] = list(pet.get("owned_consumables", [])) + [item_key]
+        max_allowed = CONSUMABLE_CAPS.get(item_key, 10)
+        purchase_query["$expr"] = {
+            "$lt": [
+                {
+                    "$size": {
+                        "$filter": {
+                            "input": {"$ifNull": ["$pet.owned_consumables", []]},
+                            "as": "owned_item",
+                            "cond": {"$eq": ["$$owned_item", item_key]},
+                        }
+                    }
+                },
+                max_allowed,
+            ]
+        }
+        purchase_update["$push"] = {"pet.owned_consumables": item_key}
 
-    _pet_save(discord_id, pet)
+    result = _pet_users_col().update_one(purchase_query, purchase_update, upsert=False)
+    if result.modified_count != 1:
+        latest_user_doc = _pet_load_user(discord_id)
+        latest_pet = latest_user_doc.get("pet")
+        if not latest_pet:
+            flash("❌ Adopt a pet first.", "error")
+            return _pet_flash_redirect()
+        if item_type == "boost" and item_key in latest_pet.get("owned_boosts", []):
+            flash("❌ You already own that boost.", "error")
+            return _pet_flash_redirect()
+        if item_type == "cosmetic" and item_key in latest_pet.get("owned_cosmetics", []):
+            flash("❌ You already own that cosmetic.", "error")
+            return _pet_flash_redirect()
+        if item_type == "consumable":
+            current_amount = list(latest_pet.get("owned_consumables", [])).count(item_key)
+            max_allowed = CONSUMABLE_CAPS.get(item_key, 10)
+            if current_amount >= max_allowed:
+                flash(f"❌ You already hold the max amount of {item_data['name']}.", "error")
+                return _pet_flash_redirect()
+        if int(latest_user_doc.get("coins", 0)) < price:
+            flash("❌ You do not have enough coins.", "error")
+            return _pet_flash_redirect()
+        flash("❌ Purchase could not be completed. Please try again.", "error")
+        return _pet_flash_redirect()
+
     _pet_log_purchase(discord_id, item_key, price)
     flash(f"✅ Bought {item_data['name']} for {price:,} coins.", "success")
     return _pet_flash_redirect()

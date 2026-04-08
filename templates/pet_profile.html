@@ -648,10 +648,10 @@
         <img class="pet-owner-avatar" src="{{ avatar_url }}" alt="{{ display_name }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
         <div>
           <p class="pet-kicker">{{ display_name }}'s Farm Friend</p>
-          <h1 class="pet-title">{% if pet %}Pet Studio{% else %}Adopt a Pet{% endif %}</h1>
+          <h1 class="pet-title">{% if pet %}Your Pet{% else %}Adopt a Pet{% endif %}</h1>
           <p class="pet-subtitle">
             {% if pet %}
-              Cute, customizable, and synced with your pet data.
+              Care for your companion, style their look, and watch them grow with you.
             {% else %}
               Choose your starter and bring a little farm buddy to your profile.
             {% endif %}
@@ -755,7 +755,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Choose Your Starter</h2>
-              <p class="pet-card-subtitle">The web page will use the same underlying pet data as your bot.</p>
+              <p class="pet-card-subtitle">Pick the companion that feels right for your profile.</p>
             </div>
           </div>
           <div class="pet-adopt-grid">
@@ -783,7 +783,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Care Actions</h2>
-              <p class="pet-card-subtitle">These follow the bot cooldowns and stat gains you shared.</p>
+              <p class="pet-card-subtitle">Keep {{ pet.name }} fed, happy, and fresh throughout the day.</p>
             </div>
           </div>
           <div class="pet-actions primary-actions">
@@ -875,7 +875,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Rewards</h2>
-              <p class="pet-card-subtitle">Compact progress info instead of giant utility cards.</p>
+              <p class="pet-card-subtitle">See what your pet has earned and what is coming up next.</p>
             </div>
           </div>
           <div class="pet-utility-grid">
@@ -923,7 +923,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Customize</h2>
-              <p class="pet-card-subtitle">Rename your pet, change its page accent, and equip owned cosmetics.</p>
+              <p class="pet-card-subtitle">Update your pet's name, style, and favorite accessories.</p>
             </div>
           </div>
 
@@ -999,7 +999,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Inventory</h2>
-              <p class="pet-card-subtitle">Use consumables and manage your boosts here.</p>
+              <p class="pet-card-subtitle">Use the items you own and choose the boost you want active.</p>
             </div>
           </div>
 
@@ -1073,7 +1073,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Pet Shop</h2>
-              <p class="pet-card-subtitle">Same item lineup as the bot, with web customization on top.</p>
+              <p class="pet-card-subtitle">Spend your coins on treats, boosts, and fresh new looks. Purchases need a confirmation click.</p>
             </div>
             <div class="pet-mood-pill">🪙 {{ coins | format }} coins</div>
           </div>
@@ -1089,7 +1089,7 @@
               {% for key, item in pet_items.items() %}
                 {% if item.type == category %}
                   {% set is_owned = (category == 'boost' and pet and key in pet.owned_boosts) or (category == 'cosmetic' and pet and key in pet.owned_cosmetics) %}
-                  <form method="POST" action="{{ url_for('pet_shop_buy') }}">
+                  <form method="POST" action="{{ url_for('pet_shop_buy') }}" class="pet-shop-form" data-item-name="{{ item.name }}" data-item-price="{{ item.price | format }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="item_key" value="{{ key }}">
                     <div class="pet-shop-card">
@@ -1104,7 +1104,13 @@
                       </div>
                       <p class="pet-item-desc">{{ item.description }}</p>
                       <p class="pet-item-meta" style="margin-top: 10px;">{{ item.price | format }} coins</p>
-                      <button class="pet-button {% if is_owned %}ghost{% endif %}" type="submit" {% if is_owned %}disabled{% endif %}>
+                      <button
+                        class="pet-button {% if is_owned %}ghost{% endif %}"
+                        type="submit"
+                        data-default-label="{% if is_owned %}Owned{% else %}Buy{% endif %}"
+                        data-confirm-label="Confirm Purchase"
+                        {% if is_owned %}disabled{% endif %}
+                      >
                         {% if is_owned %}Owned{% else %}Buy{% endif %}
                       </button>
                     </div>
@@ -1118,4 +1124,56 @@
     </section>
   </div>
 </div>
+<script>
+  (function () {
+    const shopForms = document.querySelectorAll(".pet-shop-form");
+    if (!shopForms.length) return;
+
+    const resetButton = (button) => {
+      if (!button) return;
+      button.dataset.confirmed = "false";
+      button.textContent = button.dataset.defaultLabel || "Buy";
+    };
+
+    shopForms.forEach((form) => {
+      const button = form.querySelector('button[type="submit"]');
+      if (!button || button.disabled) return;
+
+      button.dataset.confirmed = "false";
+
+      form.addEventListener("submit", (event) => {
+        if (button.dataset.confirmed === "true") return;
+
+        event.preventDefault();
+
+        shopForms.forEach((otherForm) => {
+          if (otherForm !== form) {
+            resetButton(otherForm.querySelector('button[type="submit"]'));
+          }
+        });
+
+        button.dataset.confirmed = "true";
+        button.textContent = button.dataset.confirmLabel || "Confirm Purchase";
+
+        const itemName = form.dataset.itemName || "this item";
+        const itemPrice = form.dataset.itemPrice || "";
+        const priceText = itemPrice ? ` for ${itemPrice} coins` : "";
+        button.setAttribute("aria-label", `Confirm purchase of ${itemName}${priceText}`);
+      });
+
+      button.addEventListener("blur", () => {
+        window.setTimeout(() => {
+          if (document.activeElement !== button) {
+            resetButton(button);
+          }
+        }, 150);
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (event.target.closest(".pet-shop-form")) return;
+      shopForms.forEach((form) => resetButton(form.querySelector('button[type="submit"]')));
+    });
+  })();
+</script>
 {% endblock %}
