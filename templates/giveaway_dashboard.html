@@ -1,270 +1,730 @@
 {% extends 'base.html' %}
-{% block title %}Giveaway Dashboard - HayDay 🍀{% endblock %}
+{% block title %}Giveaway Dashboard - HayDay{% endblock %}
+
 {% block head_extra %}
+<style>
+  :root {
+    --gd-bg: #eef4ec;
+    --gd-panel: rgba(255, 255, 255, 0.92);
+    --gd-panel-strong: rgba(255, 255, 255, 0.98);
+    --gd-text: #1d2c1f;
+    --gd-muted: #5d715f;
+    --gd-line: rgba(43, 82, 46, 0.14);
+    --gd-accent: #2d7a46;
+    --gd-accent-strong: #1f5f34;
+    --gd-warn: #b55b1f;
+    --gd-danger: #b23a33;
+    --gd-shadow: 0 24px 50px rgba(31, 52, 34, 0.12);
+  }
 
-  <style>
-.dashboard-wrapper {
-  display: flex;
-  min-height: 100vh;
-  margin-top: 60px;
-  flex-direction: row;
-}
-
-.sidebar {
-  width: 240px;
-  background-color: #222;
-  color: white;
-  padding: 20px;
-  font-family: sans-serif;
-}
-
-.sidebar h2 {
-  font-size: 20px;
-  margin-bottom: 16px;
-}
-
-.sidebar a {
-  display: block;
-  color: white;
-  text-decoration: none;
-  margin: 8px 0;
-  padding: 8px 12px;
-  border-radius: 6px;
-  transition: background 0.2s;
-}
-
-.sidebar a:hover {
-  background-color: #333;
-}
-
-.dashboard-content {
-  flex-grow: 1;
-  padding: 40px;
-  background-color: #f4f4f4;
-}
-
-body.dark .dashboard-content {
-  background-color: #1e1e1e;
-}
-
-.card {
-  background: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  margin-bottom: 24px;
-}
-
-body.dark .card {
-  background: #2b2b2b;
-  color: white;
-}
-
-.giveaway-box {
-  margin-bottom: 12px;
-  padding: 12px;
-  background-color: #eee;
-  border-radius: 8px;
-}
-
-body.dark .giveaway-box {
-  background-color: #1a1a1a;
-}
-
-.giveaway-box strong {
-  font-size: 16px;
-}
-
-.giveaway-controls {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.giveaway-controls button {
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  border: none;
-}
-
-.card .grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.75);
-  display: none;
-  z-index: 1000;
-  overflow-y: auto;
-  padding: 20px;
-  box-sizing: border-box;
-}
-
-.modal-content {
-  background: white;
-  padding: 30px;
-  margin: auto;
-  border-radius: 12px;
-  max-width: 600px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-body.dark .modal-content {
-  background: #1f1f1f;
-  color: #eee;
-}
-
-#reroll-user-list button {
-  display: block;
-  padding: 8px 12px;
-  margin: 6px 0;
-  width: 100%;
-  text-align: left;
-}
-
-input[type="text"],
-input[type="number"] {
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-button {
-  font-size: 14px;
-}
-
-@media (max-width: 768px) {
   .dashboard-wrapper {
-    flex-direction: column;
-  }
-
-  .sidebar {
-    width: 100%;
-    padding: 16px;
-    text-align: center;
-  }
-
-  .sidebar a {
-    display: inline-block;
-    margin: 6px;
+    display: flex;
+    min-height: 100vh;
+    margin-top: 60px;
   }
 
   .dashboard-content {
+    flex: 1;
+    padding: 32px;
+    background:
+      radial-gradient(circle at top left, rgba(138, 181, 126, 0.22), transparent 28%),
+      linear-gradient(180deg, #f6fbf2 0%, var(--gd-bg) 100%);
+  }
+
+  .dashboard-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    display: grid;
+    gap: 22px;
+  }
+
+  .overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+    gap: 18px;
+  }
+
+  .panel {
+    background: var(--gd-panel);
+    border: 1px solid var(--gd-line);
+    border-radius: 24px;
+    box-shadow: var(--gd-shadow);
+    backdrop-filter: blur(12px);
+  }
+
+  .hero-panel {
+    padding: 28px;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--gd-accent);
+  }
+
+  .hero-title {
+    margin: 12px 0 10px;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    line-height: 0.96;
+    color: var(--gd-text);
+  }
+
+  .hero-subtitle {
+    max-width: 56ch;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--gd-muted);
+  }
+
+  .hero-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 22px;
+  }
+
+  .hero-stat {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(45, 122, 70, 0.07);
+    border: 1px solid rgba(45, 122, 70, 0.1);
+  }
+
+  .hero-stat-label {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gd-muted);
+  }
+
+  .hero-stat-value {
+    display: block;
+    margin-top: 6px;
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--gd-text);
+  }
+
+  .status-panel {
+    padding: 24px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    width: fit-content;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(45, 122, 70, 0.11);
+    color: var(--gd-accent-strong);
+    font-weight: 700;
+    font-size: 0.92rem;
+  }
+
+  .status-copy {
+    margin: 0;
+    color: var(--gd-muted);
+    line-height: 1.6;
+  }
+
+  .section-panel {
+    padding: 24px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 18px;
+  }
+
+  .section-title {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--gd-text);
+  }
+
+  .section-sub {
+    margin: 6px 0 0;
+    color: var(--gd-muted);
+  }
+
+  .section-note {
+    font-size: 0.92rem;
+    color: var(--gd-muted);
+  }
+
+  .giveaway-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 16px;
+  }
+
+  .giveaway-card {
     padding: 20px;
+    border-radius: 22px;
+    background: var(--gd-panel-strong);
+    border: 1px solid var(--gd-line);
+    display: grid;
+    gap: 16px;
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: 1.14rem;
+    line-height: 1.3;
+    color: var(--gd-text);
+  }
+
+  .badge {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    background: rgba(45, 122, 70, 0.1);
+    color: var(--gd-accent-strong);
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .meta-item {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(20, 36, 23, 0.04);
+    border: 1px solid rgba(43, 82, 46, 0.08);
+  }
+
+  .meta-label {
+    display: block;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gd-muted);
+  }
+
+  .meta-value {
+    display: block;
+    margin-top: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--gd-text);
+    word-break: break-word;
+  }
+
+  .host-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(45, 122, 70, 0.06);
+  }
+
+  .host-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .host-name {
+    font-weight: 600;
+    color: var(--gd-text);
+  }
+
+  .host-meta {
+    font-size: 0.88rem;
+    color: var(--gd-muted);
   }
 
   .giveaway-controls {
-    flex-direction: column;
-    align-items: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .action-btn,
+  .pagination-btn,
+  #reroll-user-list button {
+    border: none;
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+
+  .action-btn:hover,
+  .pagination-btn:hover,
+  #reroll-user-list button:hover {
+    transform: translateY(-1px);
+  }
+
+  .action-btn.primary {
+    background: var(--gd-accent);
+    color: #fff;
+  }
+
+  .action-btn.secondary,
+  .pagination-btn {
+    background: rgba(45, 122, 70, 0.1);
+    color: var(--gd-accent-strong);
+  }
+
+  .action-btn.warn {
+    background: rgba(181, 91, 31, 0.12);
+    color: var(--gd-warn);
+  }
+
+  .action-btn.danger {
+    background: rgba(178, 58, 51, 0.12);
+    color: var(--gd-danger);
+  }
+
+  .winner-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .winner-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(20, 36, 23, 0.06);
+    color: var(--gd-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .pagination-bar {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .pagination-btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .pagination-label {
+    font-size: 0.92rem;
+    color: var(--gd-muted);
+  }
+
+  .empty-state,
+  .error-state {
+    padding: 24px;
+    border-radius: 18px;
+    text-align: center;
+    color: var(--gd-muted);
+    background: rgba(20, 36, 23, 0.04);
+    border: 1px dashed rgba(43, 82, 46, 0.16);
+  }
+
+  .error-state {
+    color: var(--gd-danger);
+    background: rgba(178, 58, 51, 0.06);
+    border-style: solid;
+    border-color: rgba(178, 58, 51, 0.14);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    z-index: 1000;
+    background: rgba(10, 18, 12, 0.72);
+    backdrop-filter: blur(8px);
+    overflow-y: auto;
+    padding: 28px;
+    box-sizing: border-box;
   }
 
   .modal-content {
-    margin-top: 10%;
-    padding: 20px;
+    width: 100%;
+    max-width: 620px;
+    margin: 5vh auto;
+    padding: 28px;
+    border-radius: 24px;
+    background: var(--gd-panel-strong);
+    border: 1px solid var(--gd-line);
+    box-shadow: var(--gd-shadow);
+    color: var(--gd-text);
   }
 
-  .card h2, .card h3 {
-    font-size: 1.2rem;
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
   }
 
-  .giveaway-box strong {
-    font-size: 15px;
+  .field-stack {
+    display: grid;
+    gap: 14px;
   }
 
-  .card .grid {
-    flex-direction: column;
+  .field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--gd-text);
   }
-}
 
+  input[type="text"],
+  input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(43, 82, 46, 0.14);
+    background: rgba(255, 255, 255, 0.9);
+  }
 
-  </style>
+  body.dark {
+    --gd-panel: rgba(18, 27, 20, 0.9);
+    --gd-panel-strong: rgba(16, 22, 18, 0.96);
+    --gd-text: #eef7ee;
+    --gd-muted: #9eb2a1;
+    --gd-line: rgba(175, 214, 178, 0.12);
+    --gd-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
+  }
+
+  body.dark .dashboard-content {
+    background:
+      radial-gradient(circle at top left, rgba(90, 140, 101, 0.18), transparent 28%),
+      linear-gradient(180deg, #152019 0%, #101712 100%);
+  }
+
+  body.dark .meta-item,
+  body.dark .winner-chip,
+  body.dark .empty-state {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  body.dark input[type="text"],
+  body.dark input[type="number"] {
+    color: var(--gd-text);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  @media (max-width: 980px) {
+    .overview {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-wrapper {
+      flex-direction: column;
+    }
+
+    .dashboard-content {
+      padding: 18px;
+    }
+
+    .hero-strip,
+    .meta-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .section-head,
+    .card-top {
+      flex-direction: column;
+      align-items: start;
+    }
+
+    .giveaway-controls,
+    .modal-actions,
+    .pagination-bar {
+      flex-direction: column;
+    }
+
+    .action-btn,
+    .pagination-btn {
+      width: 100%;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-
 <div class="dashboard-wrapper">
   {% include 'sidepanel.html' %}
 
-    <main class="dashboard-content">
-      <div class="card">
-        <h2>🎁 Active Giveaways</h2>
-        <div id="giveaway-list" class="grid">
-        <p>Loading giveaways...</p>
+  <main class="dashboard-content">
+    <div class="dashboard-shell">
+      <section class="overview">
+        <div class="panel hero-panel">
+          <div class="eyebrow">Giveaway staff workspace</div>
+          <h1 class="hero-title">Manage live entries and rerolls without the clutter.</h1>
+          <p class="hero-subtitle">
+            Active giveaways stay focused on operations, while recently ended giveaways keep their winner actions visible and easy to scan.
+          </p>
+          <div class="hero-strip">
+            <div class="hero-stat">
+              <span class="hero-stat-label">Live Queue</span>
+              <span class="hero-stat-value" id="active-count">-</span>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label">Ended Page</span>
+              <span class="hero-stat-value" id="ended-count">-</span>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label">Current Page</span>
+              <span class="hero-stat-value" id="ended-page">1</span>
+            </div>
+          </div>
         </div>
 
+        <aside class="panel status-panel">
+          <span class="status-pill">Staff controls online</span>
+          <p class="status-copy">
+            End, edit, delete, inspect winners, and reroll from one place. The ended list below is now fed only by the richer paginated endpoint so its controls stay intact.
+          </p>
+        </aside>
+      </section>
 
-      </div>
-        <div class="card">
-        <h2>🕒 Recently Ended Giveaways</h2>
-        <div id="recent-giveaway-list" class="grid"></div>
-        <div style="text-align:center; margin-top: 10px;">
-        <button onclick="prevPage()">⬅ Prev</button>
-        <button onclick="nextPage()">Next ➡</button>
+      <section class="panel section-panel">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Active Giveaways</h2>
+            <p class="section-sub">Current giveaways with fast moderation actions and live counts.</p>
+          </div>
+          <div class="section-note" id="active-summary">Loading active giveaways...</div>
         </div>
+        <div id="giveaway-list" class="giveaway-grid">
+          <div class="empty-state">Loading giveaways...</div>
         </div>
+      </section>
+
+      <section class="panel section-panel">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Recently Ended Giveaways</h2>
+            <p class="section-sub">Winner chips, reroll actions, and host context stay attached to each result.</p>
+          </div>
+          <div class="section-note" id="ended-summary">Loading ended giveaways...</div>
+        </div>
+        <div id="recent-giveaway-list" class="giveaway-grid">
+          <div class="empty-state">Loading ended giveaways...</div>
+        </div>
+        <div class="pagination-bar">
+          <button type="button" class="pagination-btn" id="prev-page-btn" onclick="prevPage()">Previous</button>
+          <span class="pagination-label" id="page-label">Page 1</span>
+          <button type="button" class="pagination-btn" id="next-page-btn" onclick="nextPage()">Next</button>
+        </div>
+      </section>
+    </div>
 
     <div id="editModal" class="modal-overlay">
       <div class="modal-content">
         <h2>Edit Giveaway</h2>
         <form id="editForm">
-          <label>🎁 Prize:</label><br>
-          <input type="text" id="editPrize" required style="width: 100%;"><br><br>
-
-          <label>🏆 Winners:</label><br>
-          <input type="number" id="editWinners" required style="width: 100%;"><br><br>
-
-          <label>👤 Host ID:</label><br>
-          <input type="text" id="editHost" required style="width: 100%;"><br><br>
-
-          <label>🎯 Required Role ID:</label><br>
-          <input type="text" id="editRole" style="width: 100%;"><br><br>
-
-          <label>🎨 Embed Color (Hex):</label><br>
-          <input type="text" id="editColor" placeholder="#FF69B4" style="width: 100%;"><br><br>
-
+          <div class="field-stack">
+            <div>
+              <label class="field-label" for="editPrize">Prize</label>
+              <input type="text" id="editPrize" required>
+            </div>
+            <div>
+              <label class="field-label" for="editWinners">Winner count</label>
+              <input type="number" id="editWinners" required>
+            </div>
+            <div>
+              <label class="field-label" for="editHost">Host ID</label>
+              <input type="text" id="editHost" required>
+            </div>
+            <div>
+              <label class="field-label" for="editRole">Required role ID</label>
+              <input type="text" id="editRole">
+            </div>
+            <div>
+              <label class="field-label" for="editColor">Embed color</label>
+              <input type="text" id="editColor" placeholder="#FF69B4">
+            </div>
+          </div>
           <input type="hidden" id="editMessageId">
-          <div style="text-align: right;">
-            <button type="submit">💾 Save</button>
-            <button type="button" onclick="closeEditModal()">Cancel</button>
+          <div class="modal-actions">
+            <button type="button" class="action-btn secondary" onclick="closeEditModal()">Cancel</button>
+            <button type="submit" class="action-btn primary">Save changes</button>
           </div>
         </form>
       </div>
     </div>
-    </main>
-  </div>
+  </main>
+</div>
+
 <div id="rerollModal" class="modal-overlay">
   <div class="modal-content">
     <h2>Select a user to reroll</h2>
     <div id="reroll-user-list"><p>Loading winners...</p></div>
-    <button onclick="closeRerollModal()">Cancel</button>
+    <div class="modal-actions">
+      <button type="button" class="action-btn secondary" onclick="closeRerollModal()">Cancel</button>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 <script>
   let currentPage = 1;
+  const endedLimit = 9;
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function createEmptyState(message, isError = false) {
+    const className = isError ? "error-state" : "empty-state";
+    return `<div class="${className}">${escapeHtml(message)}</div>`;
+  }
+
+  function updateOverview({ activeCount = 0, endedCount = 0, page = currentPage } = {}) {
+    document.getElementById("active-count").textContent = String(activeCount);
+    document.getElementById("ended-count").textContent = String(endedCount);
+    document.getElementById("ended-page").textContent = String(page);
+    document.getElementById("page-label").textContent = `Page ${page}`;
+  }
+
+  function setPaginationState(page, itemCount) {
+    document.getElementById("prev-page-btn").disabled = page <= 1;
+    document.getElementById("next-page-btn").disabled = itemCount < endedLimit;
+  }
+
+  function renderActiveCard(g) {
+    const messageId = String(g.message_id);
+    return `
+      <article class="giveaway-card">
+        <div class="card-top">
+          <h3 class="card-title">${escapeHtml(g.prize)}</h3>
+          <div class="badge">${escapeHtml(g.winners)} winner(s)</div>
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Ends in</span>
+            <span class="meta-value">${escapeHtml(g.ends_in)}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Message ID</span>
+            <span class="meta-value">${escapeHtml(messageId)}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Participants</span>
+            <span class="meta-value">${escapeHtml(g.participant_count)}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Total entries</span>
+            <span class="meta-value">${escapeHtml(g.entry_count)}</span>
+          </div>
+        </div>
+        <div class="giveaway-controls">
+          <button type="button" class="action-btn warn" onclick="endGiveaway('${messageId}', this)">End giveaway</button>
+          <button type="button" class="action-btn secondary" onclick='openEditModal(${JSON.stringify(g)})'>Edit</button>
+          <button type="button" class="action-btn danger" onclick="deleteGiveaway('${messageId}')">Force delete</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderWinnerButtons(messageId, winners) {
+    if (!Array.isArray(winners) || !winners.length) {
+      return '<div class="winner-list"><span class="winner-chip">No stored winners</span></div>';
+    }
+
+    return `
+      <div class="winner-list">
+        ${winners.map((winner) => `
+          <button
+            type="button"
+            class="action-btn secondary"
+            onclick="rerollWithUser('${String(messageId).replace(/'/g, "\\'")}', '${String(winner.id).replace(/'/g, "\\'")}')"
+          >
+            Reroll ${escapeHtml(winner.name)}
+          </button>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderEndedCard(g) {
+    const messageId = String(g.message_id);
+    const hostAvatar = escapeHtml(g.host_avatar || "https://cdn.discordapp.com/embed/avatars/0.png");
+    return `
+      <article class="giveaway-card">
+        <div class="card-top">
+          <h3 class="card-title">${escapeHtml(g.prize)}</h3>
+          <div class="badge">${escapeHtml(g.winners)} winner(s)</div>
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Ended at</span>
+            <span class="meta-value">${escapeHtml(g.ended_at)}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Message ID</span>
+            <span class="meta-value">${escapeHtml(messageId)}</span>
+          </div>
+        </div>
+        <div class="host-row">
+          <img class="host-avatar" src="${hostAvatar}" alt="">
+          <div>
+            <div class="host-name">${escapeHtml(g.host_name || "Unknown host")}</div>
+            <div class="host-meta">Host account</div>
+          </div>
+        </div>
+        ${renderWinnerButtons(messageId, g.winner_buttons)}
+        <div class="giveaway-controls">
+          <button type="button" class="action-btn primary" onclick="showRerollModal('${messageId}')">View winners</button>
+          <button type="button" class="action-btn secondary" onclick="rerollGiveaway('${messageId}')">Quick reroll</button>
+        </div>
+      </article>
+    `;
+  }
 
   document.addEventListener("DOMContentLoaded", () => {
     loadGiveaways();
     loadRecentGiveaways(currentPage);
   });
+
   async function loadGiveaways() {
     const activeContainer = document.getElementById("giveaway-list");
-    const endedContainer = document.getElementById("recent-giveaway-list");
 
     try {
       const res = await fetch("/api/giveaways", { credentials: "include" });
@@ -274,77 +734,38 @@ button {
 
       const data = await res.json();
       const active = Array.isArray(data?.active) ? data.active : [];
-      const ended = Array.isArray(data?.ended) ? data.ended : [];
 
-      // === ACTIVE ===
-      activeContainer.innerHTML = "";
+      updateOverview({ activeCount: active.length, endedCount: Number(document.getElementById("ended-count").textContent) || 0, page: currentPage });
+      document.getElementById("active-summary").textContent = `${active.length} active giveaway${active.length === 1 ? "" : "s"} loaded`;
+
       if (!active.length) {
-        activeContainer.innerHTML = "<p>No active giveaways found.</p>";
-      } else {
-        active.forEach(g => {
-          const messageId = String(g.message_id);
-          const box = document.createElement("div");
-
-          box.className = "giveaway-box";
-          box.innerHTML = `
-            <strong>${g.prize}</strong><br>
-            🧍 ${g.winners} winner(s)<br>
-            ⏳ Ends in ${g.ends_in}<br>
-            <p><strong>Participants:</strong> ${g.participant_count}</p>
-            <p><strong>Total Entries:</strong> ${g.entry_count}</p>
-            <div class="giveaway-controls">
-              <button onclick="endGiveaway('${messageId}', this)">✅ End</button>
-              <button onclick='openEditModal(${JSON.stringify(g)})'>✏️ Edit</button>
-              <button style="background-color: crimson; color: white;" onclick="deleteGiveaway('${g.message_id}')">❌ Force Delete</button>
-            </div>
-          `;
-          activeContainer.appendChild(box);
-        });
+        activeContainer.innerHTML = createEmptyState("No active giveaways found.");
+        return;
       }
 
-
-      // === ENDED ===
-      endedContainer.innerHTML = "";
-      if (!ended.length) {
-        endedContainer.innerHTML = "<p>No recently ended giveaways.</p>";
-      } else {
-        ended.forEach(g => {
-          const messageId = String(g.message_id);
-          const box = document.createElement("div");
-          box.className = "giveaway-box";
-          box.innerHTML = `
-            <strong>${g.prize}</strong><br>
-            🧍 ${g.winners} winners<br>
-            🆔 ID: ${g.message_id}<br>
-            🕓 Ended at ${g.ended_at}
-            <div class="giveaway-controls" id="controls-${g.message_id}"></div>
-          `;          
-          endedContainer.appendChild(box);
-        });
-      }
-
+      activeContainer.innerHTML = active.map(renderActiveCard).join("");
     } catch (err) {
-      activeContainer.innerHTML = "<p>Error loading giveaways.</p>";
-      endedContainer.innerHTML = "<p>Error loading ended giveaways.</p>";
+      activeContainer.innerHTML = createEmptyState("Error loading giveaways.", true);
+      document.getElementById("active-summary").textContent = "Could not load active giveaways";
     }
   }
 
   async function rerollGiveaway(id) {
-    console.log("Rerolling giveaway ID:", id, typeof id);
     if (!confirm("Reroll this giveaway?")) return;
+
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const res = await fetch(`/api/giveaways/reroll/${id}`, {
       method: "POST",
-      headers: {"X-CSRFToken": csrfToken},
+      headers: { "X-CSRFToken": csrfToken },
       credentials: "include"
     });
     const result = await res.json();
 
     if (res.ok) {
-      alert("🔁 Rerolled.");
+      alert("Rerolled.");
+      loadRecentGiveaways(currentPage);
     } else {
-      alert("❌ " + (result?.error || "Unknown error"));
-      console.error("Reroll error:", result);
+      alert(result?.error || "Unknown reroll error");
     }
   }
 
@@ -353,227 +774,210 @@ button {
 
     button.disabled = true;
     const originalText = button.innerText;
-    button.innerText = "⏳ Ending...";
+    button.innerText = "Ending...";
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
     fetch(`/api/giveaways/end/${messageId}`, {
       method: "POST",
-      headers: {"X-CSRFToken": csrfToken},
+      headers: { "X-CSRFToken": csrfToken },
       credentials: "include"
     })
-
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.message) {
-          alert("✅ Giveaway ended.");
+          alert("Giveaway ended.");
           location.reload();
         } else {
-          alert("❌ Error: " + data.error);
+          alert(`Error: ${data.error}`);
           button.disabled = false;
           button.innerText = originalText;
         }
       })
-      .catch(err => {
-        alert("❌ Failed to contact bot.");
+      .catch((err) => {
         console.error(err);
+        alert("Failed to contact bot.");
         button.disabled = false;
         button.innerText = originalText;
       });
   }
-  
 
   async function loadRecentGiveaways(page = 1) {
     const container = document.getElementById("recent-giveaway-list");
-    const limit = 9;
-    const skip = (page - 1) * limit;
+    const skip = (page - 1) * endedLimit;
 
     try {
-      const res = await fetch(`/api/giveaways/recent?skip=${skip}&limit=${limit}`, {
+      const res = await fetch(`/api/giveaways/recent?skip=${skip}&limit=${endedLimit}`, {
         credentials: "include"
       });
+      if (!res.ok) {
+        throw new Error(`Failed to load ended giveaways: ${res.status}`);
+      }
 
       const data = await res.json();
-      container.innerHTML = "";
+      const ended = Array.isArray(data) ? data : [];
 
-      if (!data.length) {
-        container.innerHTML = "<p>No ended giveaways found.</p>";
+      updateOverview({
+        activeCount: Number(document.getElementById("active-count").textContent) || 0,
+        endedCount: ended.length,
+        page
+      });
+      setPaginationState(page, ended.length);
+      document.getElementById("ended-summary").textContent = `${ended.length} ended giveaway${ended.length === 1 ? "" : "s"} on this page`;
+
+      if (!ended.length) {
+        container.innerHTML = createEmptyState("No ended giveaways found.");
         return;
       }
 
-      data.forEach(g => {
-        const messageId = String(g.message_id);
-        const box = document.createElement("div");
-        box.className = "giveaway-box";
-        box.innerHTML = `
-          <strong>${g.prize}</strong><br>
-          🧍 ${g.winners} winners<br>
-          🆔 ID: ${g.message_id}<br>
-          🕓 Ended at ${g.ended_at}<br>
-          <img src="${g.host_avatar}" width="28" height="28" style="border-radius: 50%; vertical-align: middle; margin-top: 4px;"> 
-          Host: ${g.host_name}<br>
-          <div class="giveaway-controls" id="controls-${g.message_id}" style="margin-top: 8px;"></div>
-        `;
-        const controls = box.querySelector(`#controls-${g.message_id}`);
-        if (Array.isArray(g.winner_buttons)) {
-          g.winner_buttons.forEach(winner => {
-            const btn = document.createElement("button");
-            btn.innerHTML = `🔁 Reroll ${winner.name}`;
-            btn.onclick = () => rerollWithUser(g.message_id, winner.id);
-            controls.appendChild(btn);
-          });
-        }
-        container.appendChild(box);
-      });
-
+      container.innerHTML = ended.map(renderEndedCard).join("");
     } catch (err) {
-      container.innerHTML = "<p>Error loading ended giveaways.</p>";
+      container.innerHTML = createEmptyState("Error loading ended giveaways.", true);
+      setPaginationState(page, 0);
+      document.getElementById("ended-summary").textContent = "Could not load ended giveaways";
     }
   }
 
   function nextPage() {
-    currentPage++;
+    currentPage += 1;
     loadRecentGiveaways(currentPage);
   }
 
   function prevPage() {
     if (currentPage > 1) {
-      currentPage--;
+      currentPage -= 1;
       loadRecentGiveaways(currentPage);
     }
   }
 
-function openEditModal(giveaway) {
-  document.getElementById("editPrize").value = giveaway.prize;
-  document.getElementById("editWinners").value = giveaway.winners;
-  document.getElementById("editHost").value = giveaway.host_id || "";
-  document.getElementById("editRole").value = giveaway.required_role_id || "";
-  document.getElementById("editColor").value = giveaway.color ? `#${giveaway.color.toString(16)}` : "#FF69B4";
-  document.getElementById("editMessageId").value = giveaway.message_id;
-  document.getElementById("editModal").style.display = "block";
-}
+  function openEditModal(giveaway) {
+    document.getElementById("editPrize").value = giveaway.prize;
+    document.getElementById("editWinners").value = giveaway.winners;
+    document.getElementById("editHost").value = giveaway.host_id || "";
+    document.getElementById("editRole").value = giveaway.required_role_id || "";
+    document.getElementById("editColor").value = giveaway.color ? `#${giveaway.color.toString(16)}` : "#FF69B4";
+    document.getElementById("editMessageId").value = giveaway.message_id;
+    document.getElementById("editModal").style.display = "block";
+  }
 
-function closeEditModal() {
-  document.getElementById("editModal").style.display = "none";
-}
+  function closeEditModal() {
+    document.getElementById("editModal").style.display = "none";
+  }
 
-document.getElementById("editForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
+  document.getElementById("editForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-  const messageId = document.getElementById("editMessageId").value;
-  const data = {
-    prize: document.getElementById("editPrize").value,
-    winners: document.getElementById("editWinners").value,
-    host_id: document.getElementById("editHost").value,
-    required_role_id: document.getElementById("editRole").value || "",  // force blank if empty
-    color: document.getElementById("editColor").value
-  };
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  const res = await fetch(`/api/giveaways/edit/${messageId}`, {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "X-CSRFToken": csrfToken 
-    },
-    credentials: "include",
-    body: JSON.stringify(data)
+    const messageId = document.getElementById("editMessageId").value;
+    const data = {
+      prize: document.getElementById("editPrize").value,
+      winners: document.getElementById("editWinners").value,
+      host_id: document.getElementById("editHost").value,
+      required_role_id: document.getElementById("editRole").value || "",
+      color: document.getElementById("editColor").value
+    };
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const res = await fetch(`/api/giveaways/edit/${messageId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken
+      },
+      credentials: "include",
+      body: JSON.stringify(data)
+    });
+
+    const result = await res.json();
+
+    if (res.ok) {
+      alert("Giveaway updated.");
+      closeEditModal();
+      location.reload();
+    } else {
+      alert(`Error: ${result.error}`);
+    }
   });
 
-  const result = await res.json();
+  async function showRerollModal(messageId) {
+    document.getElementById("rerollModal").style.display = "block";
+    const rerollUserList = document.getElementById("reroll-user-list");
+    rerollUserList.innerHTML = "<p>Loading winners...</p>";
 
-  if (res.ok) {
-    alert("✅ Giveaway updated.");
-    closeEditModal();
-    location.reload();
-  } else {
-    alert("❌ Error: " + result.error);
-  }
-});
+    try {
+      const res = await fetch(`/api/giveaways/winners/${messageId}`);
+      const winners = await res.json();
 
-</script>
-<script>
-async function showRerollModal(messageId) {
-  document.getElementById("rerollModal").style.display = "block";
-  const rerollUserList = document.getElementById("reroll-user-list");
-  rerollUserList.innerHTML = "<p>Loading winners...</p>";
+      rerollUserList.innerHTML = "";
 
-  try {
-    const res = await fetch(`/api/giveaways/winners/${messageId}`);
-    const winners = await res.json();
+      if (!Array.isArray(winners) || !winners.length) {
+        rerollUserList.innerHTML = "<p>No winners found.</p>";
+        return;
+      }
 
-    rerollUserList.innerHTML = "";
-
-    if (!winners.length) {
-      rerollUserList.innerHTML = "<p>No winners found.</p>";
-      return;
+      winners.forEach((winner) => {
+        const btn = document.createElement("button");
+        btn.innerHTML = `
+          <img src="${winner.avatar || '/static/img/default.png'}" width="28" height="28" style="border-radius:50%; vertical-align:middle; margin-right:8px;">
+          ${escapeHtml(winner.username)} (${escapeHtml(winner.id)})
+        `;
+        btn.onclick = () => rerollWithUser(messageId, winner.id);
+        rerollUserList.appendChild(btn);
+      });
+    } catch (err) {
+      console.error(err);
+      rerollUserList.innerHTML = "<p>Error loading winners.</p>";
     }
-
-    winners.forEach(w => {
-      const btn = document.createElement("button");
-      btn.innerHTML = `
-        <img src="${w.avatar || '/static/img/default.png'}" width="28" height="28" style="border-radius:50%; vertical-align:middle; margin-right:8px;">
-        ${w.username} (${w.id})
-      `;
-      btn.onclick = () => rerollWithUser(messageId, w.id);
-      rerollUserList.appendChild(btn);
-    });
-
-  } catch (err) {
-    rerollUserList.innerHTML = "<p>Error loading winners.</p>";
-    console.error(err);
   }
-}
 
-function closeRerollModal() {
-  document.getElementById("rerollModal").style.display = "none";
-}
+  function closeRerollModal() {
+    document.getElementById("rerollModal").style.display = "none";
+  }
 
-function rerollWithUser(messageId, userId) {
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  fetch("/api/giveaways/reroll-specific", {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "X-CSRFToken": csrfToken 
-    },
-    credentials: "include",
-    body: JSON.stringify({ message_id: messageId, user_id: userId })
-  })
-    .then(res => res.json())
-    .then(result => {
-      alert(result.message || "🔁 Rerolled.");
-      closeRerollModal();
-    })
-    .catch(() => {
-      alert("❌ Failed to reroll.");
-      closeRerollModal();
-    });
-}
-
-async function deleteGiveaway(messageId) {
-  if (!confirm("Are you sure you want to permanently delete this giveaway?")) return;
-
-  try {
+  function rerollWithUser(messageId, userId) {
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-    const res = await fetch("/api/giveaways/delete", {
+    fetch("/api/giveaways/reroll-specific", {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "X-CSRFToken": csrfToken 
+        "X-CSRFToken": csrfToken
       },
-      body: JSON.stringify({ message_id: messageId })
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      alert("✅ Giveaway deleted successfully.");
-      location.reload(); // Optional: refresh the page to reflect change
-    } else {
-      alert("❌ Error: " + data.error);
-    }
-  } catch (err) {
-    alert("❌ Request failed: " + err.message);
+      credentials: "include",
+      body: JSON.stringify({ message_id: messageId, user_id: userId })
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        alert(result.message || "Rerolled.");
+        closeRerollModal();
+        loadRecentGiveaways(currentPage);
+      })
+      .catch(() => {
+        alert("Failed to reroll.");
+        closeRerollModal();
+      });
   }
-}
 
+  async function deleteGiveaway(messageId) {
+    if (!confirm("Are you sure you want to permanently delete this giveaway?")) return;
+
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      const res = await fetch("/api/giveaways/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify({ message_id: messageId })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert("Giveaway deleted successfully.");
+        location.reload();
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`Request failed: ${err.message}`);
+    }
+  }
 </script>
-
 {% endblock %}

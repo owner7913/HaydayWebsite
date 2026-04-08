@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block title %}Leaderboard - HayDay 🍀{% endblock %}
 
@@ -266,6 +266,7 @@
   <a href="/leaderboard?type=hosted" class="{{ 'active' if type == 'hosted' else '' }}">Giveaways Hosted</a>
   <a href="/leaderboard?type=wins" class="{{ 'active' if type == 'wins' else '' }}">Giveaway Wins</a>
   <a href="/leaderboard?type=coins" class="{{ 'active' if type == 'coins' else '' }}">Coins</a>
+  <a href="/leaderboard?type=pet_xp" class="{{ 'active' if type == 'pet_xp' else '' }}">Pet XP</a>
   <a href="/leaderboard?type=streak" class="{{ 'active' if type == 'streak' else '' }}">Daily Streak</a>
   <a href="/leaderboard?type=trivia" class="{{ 'active' if type == 'trivia' else '' }}">Trivia Accuracy</a>
   {% if is_staff %}
@@ -283,11 +284,11 @@
       {% if viewer_rank %}
         <button class="jump-me-btn" type="button" onclick="jumpToMe()">Jump to me</button>
       {% else %}
-        <button class="jump-me-btn" type="button" disabled title="You’re not on this leaderboard (yet).">
+        <button class="jump-me-btn" type="button" disabled title="You're not on this leaderboard yet.">
           Not ranked
         </button>
         <div style="text-align:center; opacity:.75; margin-top:6px; font-size:.9rem;">
-          You’re not on this leaderboard yet — earn some stats and you’ll appear.
+          You're not on this leaderboard yet - earn some stats and you'll appear.
         </div>
       {% endif %}
     </div>
@@ -313,6 +314,9 @@
     <div class="level">Mentions</div>
   {% elif type == "coins" %}
     <div class="level">Coins</div>
+  {% elif type == "pet_xp" %}
+    <div class="level">Pet Level</div>
+    <div class="xp">Pet XP</div>
   {% elif type == "trivia" %}
     <div class="level" style="min-width: 180px;">Accuracy</div>
   {% elif type == "verifications" %}
@@ -361,6 +365,9 @@
     <div class="level">{{ user.mention_count | format }}</div>
   {% elif type == "coins" %}
     <div class="level">{{ user.coins | format }}</div>    
+  {% elif type == "pet_xp" %}
+    <div class="level">Level {{ user.pet_level }}</div>
+    <div class="xp">{{ user.pet_xp | format }}</div>
   {% elif type == "verifications" %}
     <div class="level">{{ user.verifications | format }}</div>
   {% else %}
@@ -402,7 +409,7 @@ function jumpToMe(){
   // Otherwise scroll on this page
   const el = document.getElementById("me-row");
   if (!el) {
-    alert("You’re not on this leaderboard yet.");
+    alert("You're not on this leaderboard yet.");
     return;
   }
   el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -455,3 +462,4 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 </script>
 {% endblock %}
+

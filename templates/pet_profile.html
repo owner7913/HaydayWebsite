@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block title %}Pet Profile - HayDay 🍀{% endblock %}
 
@@ -202,11 +202,6 @@
   .pet-cat .accessory-farmer_hat { top: -10px; width: 140px; }
   .pet-cat .accessory-flower_crown { top: -8px; width: 126px; }
   .pet-cat .accessory-scholar_glasses { top: 44px; width: 132px; }
-  .pet-cat .accessory-golden_collar { top: 156px; width: 112px; }
-  .pet-cat .accessory-royal_crown { top: -34px; width: 126px; z-index: -1; }
-  .pet-cat .accessory-bunny_ears { top: -26px; width: 136px; }
-  .pet-cat .accessory-bee_wings { top: 62px; width: 336px; z-index: -1; opacity: .96; }
-  .pet-cat .accessory-cloud_bed { bottom: -6px; width: 236px; z-index: 1; opacity: .96; }
 
   .pet-dog .accessory-head { top: 4px; width: 138px; }
   .pet-dog .accessory-face { top: 98px; width: 112px; }
@@ -368,6 +363,56 @@
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
+  .pet-actions.primary-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pet-utility-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .pet-summary-card {
+    border-radius: 18px;
+    padding: 18px;
+    border: 1px solid rgba(112,85,47,.14);
+    background: rgba(255,255,255,.45);
+  }
+
+  body.dark .pet-summary-card {
+    background: rgba(255,255,255,.03);
+    border-color: rgba(255,255,255,.08);
+  }
+
+  .pet-summary-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .pet-summary-title {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .pet-summary-copy {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: #7a6445;
+  }
+
+  body.dark .pet-summary-copy {
+    color: #ccb79a;
+  }
+
+  .pet-summary-stack {
+    display: grid;
+    gap: 8px;
+  }
+
   .pet-adopt-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
@@ -437,6 +482,10 @@
   body.dark .pet-item-meta,
   body.dark .pet-item-desc {
     color: #ccb79a;
+  }
+
+  .pet-multiline {
+    white-space: pre-line;
   }
 
   .pet-form,
@@ -582,6 +631,11 @@
       position: relative;
       top: auto;
     }
+
+    .pet-actions.primary-actions,
+    .pet-utility-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 {% endblock %}
@@ -683,6 +737,10 @@
           <div class="pet-badge">✨ {{ pet.owned_boosts|length }} boosts</div>
           <div class="pet-badge">🧺 {{ pet.owned_consumables|length }} consumables</div>
         </div>
+        <div class="pet-badges">
+          <div class="pet-badge">🧼 Clean Tray: {% if clean_tray_is_ready %}Ready{% elif clean_tray_ready_at %}On cooldown{% else %}Ready{% endif %}</div>
+          <div class="pet-badge">🎁 Auto level-up rewards enabled</div>
+        </div>
       {% else %}
         <div class="pet-empty">
           <p style="font-size: 56px; margin: 0 0 10px;">🐣</p>
@@ -728,7 +786,7 @@
               <p class="pet-card-subtitle">These follow the bot cooldowns and stat gains you shared.</p>
             </div>
           </div>
-          <div class="pet-actions">
+          <div class="pet-actions primary-actions">
             <form method="POST" action="{{ url_for('pet_care') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="action" value="feed">
@@ -809,6 +867,55 @@
                 </button>
               </div>
             </form>
+
+          </div>
+        </article>
+
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Rewards</h2>
+              <p class="pet-card-subtitle">Compact progress info instead of giant utility cards.</p>
+            </div>
+          </div>
+          <div class="pet-utility-grid">
+            <form method="POST" action="{{ url_for('pet_clean_tray') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="pet-summary-card">
+                <div class="pet-summary-top">
+                  <div class="pet-item-icon">🧼</div>
+                  <div>
+                    <h3 class="pet-summary-title">Clean Tray</h3>
+                    <p class="pet-item-meta">{{ clean_tray_status_label }}</p>
+                  </div>
+                </div>
+                <div class="pet-summary-stack">
+                  <p class="pet-summary-copy">Claim +{{ clean_tray_rewards.coins }} coins and +{{ clean_tray_rewards.server_xp }} server XP.</p>
+                  <p class="pet-summary-copy">Requires {{ clean_tray_requirement }}%+ average condition.</p>
+                </div>
+                <button class="pet-button secondary" type="submit" style="margin-top: 14px;" {% if not clean_tray_is_ready %}disabled{% endif %}>
+                  {% if clean_tray_is_ready %}
+                    Collect Rewards
+                  {% else %}
+                    Not Ready
+                  {% endif %}
+                </button>
+              </div>
+            </form>
+
+            <div class="pet-summary-card">
+              <div class="pet-summary-top">
+                <div class="pet-item-icon">🎁</div>
+                <div>
+                  <h3 class="pet-summary-title">Next Level-Up</h3>
+                  <p class="pet-item-meta">Level {{ pet.level + 1 if pet.level < 20 else 20 }} reward preview</p>
+                </div>
+              </div>
+              <div class="pet-summary-stack">
+                <p class="pet-summary-copy">Next reward gives +{{ next_level_reward.coins }} coins and +{{ next_level_reward.server_xp }} server XP.</p>
+                <p class="pet-summary-copy">Rewards are granted automatically whenever your pet levels up.</p>
+              </div>
+            </div>
           </div>
         </article>
 

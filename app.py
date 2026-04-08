@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages,send_file, flash, Response, make_response, abort, stream_with_context
+﻿from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify, get_flashed_messages,send_file, flash, Response, make_response, abort, stream_with_context
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, HiddenField
 from wtforms.validators import DataRequired
@@ -79,7 +79,7 @@ if os.getenv("FORCE_IPV4", "0") == "1":
         only4 = [r for r in res if r[0] == socket.AF_INET]
         return only4 or res
     socket.getaddrinfo = _getaddrinfo_ipv4_only
-    print("✅ IPv4-only mode enabled (FORCE_IPV4=1)")
+    print("鉁?IPv4-only mode enabled (FORCE_IPV4=1)")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
@@ -134,7 +134,7 @@ UPLOAD_ROOT = os.path.join(app.root_path, "static", "uploads")  # served by Flas
 
 THEMES = {
     1:  {"title": "Winter Warmth",     "desc": "Cozy up your farm with fireplaces, snowmen, and frosty barns."},
-    2:  {"title": "Valentine’s Farm",  "desc": "Hearts, roses, and love-filled decorations everywhere."},
+    2:  {"title": "Valentine鈥檚 Farm",  "desc": "Hearts, roses, and love-filled decorations everywhere."},
     3:  {"title": "Spring Awakening",  "desc": "Flowers, sprouts, and colorful renewal after winter."},
     4:  {"title": "Easter Garden",     "desc": "Eggs, bunnies, and pastel farm vibes."},
     5:  {"title": "Flower Festival",   "desc": "Transform your farm into a field of color."},
@@ -260,7 +260,7 @@ def flush_pageview_buffer():
 
 def page_meta(title=None, description=None, image=None, url=None):
     return {
-        "title": title or "HayDay 🍀 — Community Tools & Competitions",
+        "title": title or "HayDay 馃崁 鈥?Community Tools & Competitions",
         "description": description or "Join events, verify accounts, and explore community tools for Hay Day.",
         "image": image or url_for("static", filename="img/share.jpg", _external=True),
         "url": url or "https://hayday.info/",
@@ -272,8 +272,8 @@ def _phase_today():
     y, m, d = now.year, now.month, now.day
     last_day = monthrange(y, m)[1]
 
-    # Submissions: day 1–25
-    # Voting: day 26–(last_day - 1)
+    # Submissions: day 1鈥?5
+    # Voting: day 26鈥?last_day - 1)
     # Results: last_day (end-of-month)
     if 1 <= d <= 25:
         phase = "submit"
@@ -451,10 +451,10 @@ def clean_key(k: str) -> str:
 
 def _clean_name(name: str) -> str:
     s = (name or "").strip()
-    # remove "(...)" chunks like (COMPLETED ☑️)
+    # remove "(...)" chunks like (COMPLETED 鈽戯笍)
     s = re.sub(r"\([^)]*\)", "", s).strip()
     # remove stray checkmarks
-    s = s.replace("☑️", "").replace("✅", "").strip()
+    s = s.replace("鈽戯笍", "").replace("鉁?", "").strip()
     # remove trailing tokens like "ea"
     s = re.sub(r"\b(ea|each|completed|complete|done)\b", "", s, flags=re.I).strip()
     # collapse spaces
@@ -542,9 +542,9 @@ def _comp_strings_for(comp_id: str, submit_end_day: int = 25, tz: str = "Europe/
     # Nice label like "October 2025"
     month_label = datetime(y, m, 1).strftime("%B %Y")
 
-    # Range strings like "Oct 01–Oct 25, 2025"
-    submit_range_str = f"{d1.strftime('%b %d')}–{d_submit_end_date.strftime('%b %d, %Y')}"
-    voting_range_str = f"{d_vote_start_date.strftime('%b %d')}–{d_end_date.strftime('%b %d, %Y')}"
+    # Range strings like "Oct 01鈥揙ct 25, 2025"
+    submit_range_str = f"{d1.strftime('%b %d')} - {d_submit_end_date.strftime('%b %d, %Y')}"
+    voting_range_str = f"{d_vote_start_date.strftime('%b %d')} - {d_end_date.strftime('%b %d, %Y')}"
 
     # Countdown helper (local time; shows h/m if under 1 day)
     now = datetime.now(tzinfo)
@@ -607,7 +607,7 @@ def fetch_goods_titles(force: bool = False) -> list[str]:
     soup = BeautifulSoup(html, "html.parser")
     titles = set()
 
-    # Find the big goods table(s). They’re usually 'wikitable' or 'article-table'.
+    # Find the big goods table(s). They鈥檙e usually 'wikitable' or 'article-table'.
     for tbl in soup.select("table.wikitable, table.article-table"):
         # Expect header includes 'Name'
         headers = [th.get_text(strip=True).lower() for th in tbl.select("thead th, tr th")]
@@ -822,7 +822,7 @@ def contains_identifying_text(text: str, display_name: str | None, username_tag:
 
     # 6) Generic tag patterns like "Name #1234" or "Name - 1234"
     if username_base:
-        if re.search(rf"\b{re.escape(username_base.lower())}\s*[#\-–]\s*\d{{3,5}}\b", low):
+        if re.search(rf"\b{re.escape(username_base.lower())}\s*[#\-鈥揮\s*\d{{3,5}}\b", low):
             return True
 
     return False
@@ -949,26 +949,26 @@ EASTER_EVENT = {
     },
 
     "soft_loss_rewards": [
-        "No prize this time — but the egg was cute 🐣",
-        "Nothing inside… just spring vibes 🌼",
-        "Empty egg — better luck on the next one!",
-        "No reward found — this one was a dud 🥚",
-        "Just a shell this time… try another egg!",
-        "No win — but you’re still in the hunt 🍀",
-        "Nothing here — the good stuff is hiding elsewhere 👀",
-        "No prize — this egg was just for fun 🎁",
-        "Unlucky! This one had no reward 😅",
-        "No jackpot — but the next one might have it 💎",
-        "Empty egg — the rare ones are still out there!",
-        "No reward — this one was a miss 🌸",
-        "Just a normal egg — no prize this time",
-        "No win — but the hunt continues 🐰",
-        "Nothing inside — the big rewards are still hiding!",
-        "No reward — try again on the next egg 🥚",
-        "This egg was empty — unlucky!",
-        "No prize here — keep cracking eggs 🔨",
-        "Nothing found — maybe the next one 👀",
-        "No win — but you’re getting closer 🍀",
+        "No prize this time 鈥?but the egg was cute 馃悾",
+        "Nothing inside鈥?just spring vibes 馃尲",
+        "Empty egg 鈥?better luck on the next one!",
+        "No reward found 鈥?this one was a dud 馃",
+        "Just a shell this time鈥?try another egg!",
+        "No win 鈥?but you鈥檙e still in the hunt 馃崁",
+        "Nothing here 鈥?the good stuff is hiding elsewhere 馃憖",
+        "No prize 鈥?this egg was just for fun 馃巵",
+        "Unlucky! This one had no reward 馃槄",
+        "No jackpot 鈥?but the next one might have it 馃拵",
+        "Empty egg 鈥?the rare ones are still out there!",
+        "No reward 鈥?this one was a miss 馃尭",
+        "Just a normal egg 鈥?no prize this time",
+        "No win 鈥?but the hunt continues 馃惏",
+        "Nothing inside 鈥?the big rewards are still hiding!",
+        "No reward 鈥?try again on the next egg 馃",
+        "This egg was empty 鈥?unlucky!",
+        "No prize here 鈥?keep cracking eggs 馃敤",
+        "Nothing found 鈥?maybe the next one 馃憖",
+        "No win 鈥?but you鈥檙e getting closer 馃崁",
     ],
 }
 
@@ -1754,7 +1754,7 @@ def fetch_role_mapping(guild_id, ttl=300):
     return mapping
 
 WIKI_API = "https://hayday.fandom.com/api.php"
-WIKI_USER_AGENT = "HayDay🍀/wiki-products (contact: your-email@example.com)"
+WIKI_USER_AGENT = "HayDay馃崁/wiki-products (contact: your-email@example.com)"
 WIKI_CACHE_ID = "wiki_products_v1"
 WIKI_TTL = 60 * 60 * 24  # 24h
 
@@ -1765,7 +1765,7 @@ def _mongo():
 
 
 
-# Any template that contains “Infobox” and is not a navbox/template cruft counts as an item page
+# Any template that contains 鈥淚nfobox鈥?and is not a navbox/template cruft counts as an item page
 def looks_like_item_templates(templates: list[str]) -> bool:
     t = " ".join(templates).lower()
     if "infobox" not in t:
@@ -2020,7 +2020,7 @@ def _title_to_key(title):
 def _build_wiki_products(depth=2):
     """
     depth=1 => Products only
-    depth=2 => Products + important subcats (e.g., Materials, Crops) – tweak as needed
+    depth=2 => Products + important subcats (e.g., Materials, Crops) 鈥?tweak as needed
     """
     categories = ["Products"]
     if depth >= 2:
@@ -2089,93 +2089,93 @@ def _cache_key_for_url(url: str) -> Path:
 def calculate_achievements(xp, message_count, coins, streak, auctions_won=0, top_bidder_count=0, mentions=0):
     achievements = []
 
-    # 📬 Message Milestones
+    # 馃摤 Message Milestones
     if message_count >= 10:
-        achievements.append({"label": "💬 10 Messages", "tooltip": "Send 10 messages in the server"})
+        achievements.append({"label": "馃挰 10 Messages", "tooltip": "Send 10 messages in the server"})
     if message_count >= 100:
-        achievements.append({"label": "💬 100 Messages", "tooltip": "Send 100 messages in the server"})
+        achievements.append({"label": "馃挰 100 Messages", "tooltip": "Send 100 messages in the server"})
     if message_count >= 500:
-        achievements.append({"label": "💬 500 Messages", "tooltip": "Send 500 messages in the server"})
+        achievements.append({"label": "馃挰 500 Messages", "tooltip": "Send 500 messages in the server"})
     if message_count >= 1_000:
-        achievements.append({"label": "💬 1,000 Messages", "tooltip": "Send 1,000 messages in the server"})
+        achievements.append({"label": "馃挰 1,000 Messages", "tooltip": "Send 1,000 messages in the server"})
     if message_count >= 5_000:
-        achievements.append({"label": "💬 5,000 Messages", "tooltip": "Send 5,000 messages in the server"})
+        achievements.append({"label": "馃挰 5,000 Messages", "tooltip": "Send 5,000 messages in the server"})
     if message_count >= 10_000:
-        achievements.append({"label": "💬 10,000 Messages", "tooltip": "Send 10,000 messages in the server"})
+        achievements.append({"label": "馃挰 10,000 Messages", "tooltip": "Send 10,000 messages in the server"})
     if message_count >= 25_000:
-        achievements.append({"label": "💬 25,000 Messages", "tooltip": "Send 25,000 messages in the server"})
+        achievements.append({"label": "馃挰 25,000 Messages", "tooltip": "Send 25,000 messages in the server"})
     if message_count >= 50_000:
-        achievements.append({"label": "💬 50,000 Messages", "tooltip": "Send 50,000 messages in the server"})
+        achievements.append({"label": "馃挰 50,000 Messages", "tooltip": "Send 50,000 messages in the server"})
     if message_count >= 100_000:
-        achievements.append({"label": "💬 100,000 Messages", "tooltip": "Send 100,000 messages in the server"})
+        achievements.append({"label": "馃挰 100,000 Messages", "tooltip": "Send 100,000 messages in the server"})
 
-    # 💰 Coin Achievements
+    # 馃挵 Coin Achievements
     if coins >= 100:
-        achievements.append({"label": "🟡 First 100 Coins", "tooltip": "Earn 100 coins"})
+        achievements.append({"label": "馃煛 First 100 Coins", "tooltip": "Earn 100 coins"})
     if coins >= 1_000:
-        achievements.append({"label": "🟡 Coin Collector", "tooltip": "Earn 1,000 coins"})
+        achievements.append({"label": "馃煛 Coin Collector", "tooltip": "Earn 1,000 coins"})
     if coins >= 10_000:
-        achievements.append({"label": "💸 Rolling in Coins (10k+)", "tooltip": "Earn 10,000 coins"})
+        achievements.append({"label": "馃捀 Rolling in Coins (10k+)", "tooltip": "Earn 10,000 coins"})
     if coins >= 50_000:
-        achievements.append({"label": "💰 Treasure Stacker (50k+)", "tooltip": "Earn 50,000 coins"})
+        achievements.append({"label": "馃挵 Treasure Stacker (50k+)", "tooltip": "Earn 50,000 coins"})
     if coins >= 100_000:
-        achievements.append({"label": "🤑 Rich Farmer (100k+)", "tooltip": "Earn 100,000 coins"})
+        achievements.append({"label": "馃 Rich Farmer (100k+)", "tooltip": "Earn 100,000 coins"})
     if coins >= 250_000:
-        achievements.append({"label": "🏦 Vault Builder (250k+)", "tooltip": "Earn 250,000 coins"})
+        achievements.append({"label": "馃彟 Vault Builder (250k+)", "tooltip": "Earn 250,000 coins"})
     if coins >= 500_000:
-        achievements.append({"label": "💶 Coin Tycoon (500k+)", "tooltip": "Earn 500,000 coins"})
+        achievements.append({"label": "馃挾 Coin Tycoon (500k+)", "tooltip": "Earn 500,000 coins"})
     if coins >= 1_000_000:
-        achievements.append({"label": "👑 Millionaire Status", "tooltip": "Earn 1,000,000 coins"})
+        achievements.append({"label": "馃憫 Millionaire Status", "tooltip": "Earn 1,000,000 coins"})
 
-    # 🔥 Streaks
+    # 馃敟 Streaks
     if streak >= 2:
-        achievements.append({"label": "🔥 Daily Habit (2+ days)", "tooltip": "Log in 2 days in a row"})
+        achievements.append({"label": "馃敟 Daily Habit (2+ days)", "tooltip": "Log in 2 days in a row"})
     if streak >= 5:
-        achievements.append({"label": "🔥🔥 Consistent Farmer (5+ days)", "tooltip": "Log in 5 days in a row"})
+        achievements.append({"label": "馃敟馃敟 Consistent Farmer (5+ days)", "tooltip": "Log in 5 days in a row"})
     if streak >= 7:
-        achievements.append({"label": "📅 Weekly Warrior (7+ days)", "tooltip": "Maintain a 7-day login streak"})
+        achievements.append({"label": "馃搮 Weekly Warrior (7+ days)", "tooltip": "Maintain a 7-day login streak"})
     if streak >= 14:
-        achievements.append({"label": "🌾 Biweekly Beast (14+ days)", "tooltip": "Maintain a 14-day login streak"})
+        achievements.append({"label": "馃尵 Biweekly Beast (14+ days)", "tooltip": "Maintain a 14-day login streak"})
     if streak >= 30:
-        achievements.append({"label": "🎯 1 Month Grind!", "tooltip": "Maintain a 30-day login streak"})
+        achievements.append({"label": "馃幆 1 Month Grind!", "tooltip": "Maintain a 30-day login streak"})
     if streak >= 60:
-        achievements.append({"label": "🏆 2 Months Streak", "tooltip": "Maintain a 60-day login streak"})
+        achievements.append({"label": "馃弳 2 Months Streak", "tooltip": "Maintain a 60-day login streak"})
     if streak >= 90:
-        achievements.append({"label": "👑 Daily Legend (90+ days)", "tooltip": "Maintain a 90-day login streak"})
+        achievements.append({"label": "馃憫 Daily Legend (90+ days)", "tooltip": "Maintain a 90-day login streak"})
 
-    # 🏅 Auctions
+    # 馃弲 Auctions
     if auctions_won >= 1:
-        achievements.append({"label": "🏅 Auction Winner", "tooltip": "Win at least 1 auction"})
+        achievements.append({"label": "馃弲 Auction Winner", "tooltip": "Win at least 1 auction"})
     if top_bidder_count >= 5:
-        achievements.append({"label": "🎯 Top Bidder", "tooltip": "Be top bidder in 5+ auctions"})
+        achievements.append({"label": "馃幆 Top Bidder", "tooltip": "Be top bidder in 5+ auctions"})
 
-    # 🤝 Trades (Mentions)
+    # 馃 Trades (Mentions)
     if mentions >= 15:
-        achievements.append({"label": "🔴 15+ safe trades!", "tooltip": "Complete 15 valid trades"})
+        achievements.append({"label": "馃敶 15+ safe trades!", "tooltip": "Complete 15 valid trades"})
     if mentions >= 30:
-        achievements.append({"label": "🔴 30+ safe trades!", "tooltip": "Complete 30 valid trades"})
+        achievements.append({"label": "馃敶 30+ safe trades!", "tooltip": "Complete 30 valid trades"})
     if mentions >= 50:
-        achievements.append({"label": "🔴 50+ Professional Trader", "tooltip": "Complete 50 valid trades"})
+        achievements.append({"label": "馃敶 50+ Professional Trader", "tooltip": "Complete 50 valid trades"})
     if mentions >= 100:
-        achievements.append({"label": "🟠 Master Of Trades 100+", "tooltip": "Complete 100 valid trades"})
+        achievements.append({"label": "馃煚 Master Of Trades 100+", "tooltip": "Complete 100 valid trades"})
     if mentions >= 200:
-        achievements.append({"label": "🟠 Trade-a-saurus rex 200+", "tooltip": "Complete 200 valid trades"})
+        achievements.append({"label": "馃煚 Trade-a-saurus rex 200+", "tooltip": "Complete 200 valid trades"})
     if mentions >= 300:
-        achievements.append({"label": "🟡 Bullish Banana 300+", "tooltip": "Complete 300 valid trades"})
+        achievements.append({"label": "馃煛 Bullish Banana 300+", "tooltip": "Complete 300 valid trades"})
     if mentions >= 400:
-        achievements.append({"label": "🟡 Stocky McTradeface 400+", "tooltip": "Complete 400 valid trades"})
+        achievements.append({"label": "馃煛 Stocky McTradeface 400+", "tooltip": "Complete 400 valid trades"})
     if mentions >= 500:
-        achievements.append({"label": "🟢 Profit Piranha 500+", "tooltip": "Complete 500 valid trades"})
+        achievements.append({"label": "馃煝 Profit Piranha 500+", "tooltip": "Complete 500 valid trades"})
     if mentions >= 600:
-        achievements.append({"label": "🟢 Deal-a-whale 600+", "tooltip": "Complete 600 valid trades"})
+        achievements.append({"label": "馃煝 Deal-a-whale 600+", "tooltip": "Complete 600 valid trades"})
     if mentions >= 700:
-        achievements.append({"label": "🟢 Chart Chimp 700+", "tooltip": "Complete 700 valid trades"})
+        achievements.append({"label": "馃煝 Chart Chimp 700+", "tooltip": "Complete 700 valid trades"})
     if mentions >= 800:
-        achievements.append({"label": "🔵 Market Munchkin 800+", "tooltip": "Complete 800 valid trades"})
+        achievements.append({"label": "馃數 Market Munchkin 800+", "tooltip": "Complete 800 valid trades"})
     if mentions >= 900:
-        achievements.append({"label": "🔵 Penny Pincher 900+", "tooltip": "Complete 900 valid trades"})
+        achievements.append({"label": "馃數 Penny Pincher 900+", "tooltip": "Complete 900 valid trades"})
     if mentions >= 1000:
-        achievements.append({"label": "🛡️ 1k Trades??? ur crazy", "tooltip": "Complete 1,000 valid trades"})
+        achievements.append({"label": "馃洝锔?1k Trades??? ur crazy", "tooltip": "Complete 1,000 valid trades"})
 
     return achievements
 
@@ -2290,10 +2290,10 @@ def ip_watch():
         banned.append(f"{escape(doc['_id'])} (internal: {escape(doc.get('internal_ip', 'N/A'))}, reason: {escape(doc.get('reason', 'n/a'))}, hits: {doc.get('hit_count', '?')})")
 
     return f"""
-        <h1>🛡️ IP Scanner Watch</h1>
+        <h1>馃洝锔?IP Scanner Watch</h1>
         <h2>Suspicious Activity</h2>
         {"<br>".join(rows) if rows else "<i>None</i>"}
-        <h2>🔥 Banned IPs</h2>
+        <h2>馃敟 Banned IPs</h2>
         {"<br>".join(banned) if banned else "<i>None</i>"}
     """
 
@@ -2503,7 +2503,7 @@ def admin_lookup(identifier):
                 banned = data.get("banned", False)
                 ban_reason = data.get("reason") if banned else None
         except Exception as e:
-            print(f"⚠️ Ban check failed: {e}")
+            print(f"鈿狅笍 Ban check failed: {e}")
 
         usernames = client["Website"]["usernames"].find_one({"_id": user_id})
 
@@ -2610,7 +2610,7 @@ def api_mute_user():
                     timeout=5
                 )
             except Exception as e:
-                print(f"⚠️ Failed to trigger unmute webhook: {e}")
+                print(f"鈿狅笍 Failed to trigger unmute webhook: {e}")
 
             return jsonify({"success": True})
 
@@ -2655,7 +2655,7 @@ def api_mute_user():
                 timeout=5
             )
         except Exception as e:
-            print(f"⚠️ Failed to trigger bot mute webhook: {e}")
+            print(f"鈿狅笍 Failed to trigger bot mute webhook: {e}")
 
         return jsonify({"success": True})
 
@@ -2756,7 +2756,7 @@ def api_ban_user():
         else:
             ban_col.delete_one({"_id": user_id})
 
-        # 🔁 Trigger bot webhook
+        # 馃攣 Trigger bot webhook
         try:
             requests.post(
                 os.getenv("BOT_WEBHOOK_URL") + "/webhook/moderation/ban",
@@ -2770,7 +2770,7 @@ def api_ban_user():
                 timeout=5
             )
         except Exception as e:
-            print(f"⚠️ Failed to trigger bot ban webhook: {e}")
+            print(f"鈿狅笍 Failed to trigger bot ban webhook: {e}")
 
         return jsonify({"success": True})
 
@@ -2798,7 +2798,7 @@ def remove_featured_achievement():
 @app.route("/booster-dashboard", methods=["GET", "POST"])
 def booster_dashboard():
     if not is_staff():
-        return "❌ Access denied. You are not staff.", 403
+        return "鉂?Access denied. You are not staff.", 403
 
     discord_id = int(session["discord_id"])
     message = None
@@ -2815,7 +2815,7 @@ def booster_dashboard():
         role_color = request.form.get("role_color")
 
         if not role_name or not role_color:
-            message = "❌ Both fields are required."
+            message = "鉂?Both fields are required."
         else:
             try:
                 r = requests.post(
@@ -2828,9 +2828,9 @@ def booster_dashboard():
                     headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
                     timeout=5
                 )
-                message = "✅ Role updated!" if r.status_code == 200 else "❌ Failed to update role"
+                message = "鉁?Role updated!" if r.status_code == 200 else "鉂?Failed to update role"
             except Exception as e:
-                message = f"❌ Error: {e}"
+                message = f"鉂?Error: {e}"
 
         # Load all boosters
         boosters = []
@@ -2847,7 +2847,7 @@ def booster_dashboard():
                 "display_name": user.get("display_name", "Unknown") if user else "Unknown",
                 "username": user.get("username", "") if user else "",
                 "avatar_url": user.get("avatar", "https://cdn.discordapp.com/embed/avatars/0.png") if user else "https://cdn.discordapp.com/embed/avatars/0.png",
-                "role_name": b.get("role_name", "❓ Unknown"),
+                "role_name": b.get("role_name", "鉂?Unknown"),
                 "color": f"#{int(b.get('role_color', 0)):06x}"
             })
 
@@ -2856,7 +2856,7 @@ def booster_dashboard():
 @app.route("/force-logout", methods=["POST"])
 def force_logout_all():
     if session.get("discord_id") != "154282062973501441":
-        return "❌ Unauthorized", 403
+        return "鉂?Unauthorized", 403
 
     client = get_db()
     # Clear all session data in the Website.users collection
@@ -2882,7 +2882,7 @@ def update_bio():
 
     new_bio = request.form.get("bio", "").strip()
     if len(new_bio) > 300:
-        flash("❌ Bio must be under 300 characters.", "error")
+        flash("鉂?Bio must be under 300 characters.", "error")
         return redirect(url_for("profile"))
 
     safe_bio = escape(new_bio)  # prevent injection
@@ -2894,7 +2894,7 @@ def update_bio():
         {"$set": {"bio": safe_bio}}
     )
 
-    flash("✅ Bio updated successfully!", "success")
+    flash("鉁?Bio updated successfully!", "success")
     return redirect(url_for("profile"))
 
 
@@ -2945,7 +2945,7 @@ def button_toggles():
         reason = data.get("reason", "").strip()
 
         if not enabled and not reason:
-            reason = "🔒 This function is disabled by the staff."
+            reason = "馃敀 This function is disabled by the staff."
 
         if key not in ["staff_application", "support", "giveaway", "verification", "auction"]:
             return jsonify({"error": "Invalid key"}), 400
@@ -3058,8 +3058,7 @@ def giveaways_page():
 
         g["not_in_guild"] = str(MEMBER_ROLE_ID) not in user_roles
 
-        # host info…
-        host_id = str(g.get("host_id"))
+        # host info鈥?        host_id = str(g.get("host_id"))
         host = user_map.get(host_id)
         g["host_display"] = host.get("display_name", f"<@{host_id}>") if host else f"<@{host_id}>"
         g["host_avatar"] = None
@@ -3069,8 +3068,7 @@ def giveaways_page():
             elif host.get("avatar_hash"):
                 g["host_avatar"] = f"https://cdn.discordapp.com/avatars/{host_id}/{host.get('avatar_hash')}.png"
 
-        # participants info…
-        total_entries = g["entry_count"]
+        # participants info鈥?        total_entries = g["entry_count"]
         g["participants_percent"] = []
         g["participant_info"] = []
         for uid, count in g.get("participants", {}).items():
@@ -3813,9 +3811,9 @@ def admin_competition():
     client = get_db()
     db = client["Website"]
     entries = list(db["CompEntries"].find({"comp_id": comp_id}).sort("created_at", -1))
-    vote_counts = _vote_counts_for(comp_id, client)  # ← reuse
+    vote_counts = _vote_counts_for(comp_id, client)  # 鈫?reuse
 
-    # Optional: label “who submitted” via your usernames cache
+    # Optional: label 鈥渨ho submitted鈥?via your usernames cache
     ids = [str(e.get("user_id")) for e in entries if e.get("user_id")]
     users = list(db["usernames"].find({"_id": {"$in": ids}}))
     user_map = {u["_id"]: u for u in users}
@@ -3886,13 +3884,13 @@ def api_bid():
     if not user_roles or str(UNVERIFIED_ROLE_ID) in user_roles:
         return jsonify({
             "success": False,
-            "message": "❌ You must be a verified member of the Discord to bid. Join here: https://discord.gg/hayday"
+            "message": "鉂?You must be a verified member of the Discord to bid. Join here: https://discord.gg/hayday"
         }), 403
 
     if str(MEMBER_ROLE_ID) not in user_roles:
         return jsonify({
             "success": False,
-            "message": "❌ You must be a member of the Discord server to place bids. Join here: https://discord.gg/hayday"
+            "message": "鉂?You must be a member of the Discord server to place bids. Join here: https://discord.gg/hayday"
         }), 403
 
     try:
@@ -3921,7 +3919,7 @@ def api_bid():
         return jsonify({"success": False, "message": "Auction not found or already ended"}), 404
 
     if str(auction["owner_id"]) == str(user_id):
-        return jsonify({"success": False, "message": "❌ You cannot bid on your own auction."}), 403
+        return jsonify({"success": False, "message": "鉂?You cannot bid on your own auction."}), 403
 
     now = datetime.now(timezone.utc)
     end_time = auction["end_time"]
@@ -3981,7 +3979,7 @@ def api_bid():
     )
 
     if result.modified_count == 0:
-        # Someone else updated the bid first → tell the user to re-try with the latest number
+        # Someone else updated the bid first 鈫?tell the user to re-try with the latest number
         return jsonify({
             "success": False,
             "message": "Another bid landed just before yours. Please refresh and try again."
@@ -4015,7 +4013,7 @@ def apply_security_headers(response):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
 
-    # Updated CSP — currently allowing unsafe-inline until nonce migration is ready
+    # Updated CSP 鈥?currently allowing unsafe-inline until nonce migration is ready
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "img-src 'self' data: https://cdn.discordapp.com https://cdn-icons-png.flaticon.com "
@@ -4124,18 +4122,18 @@ def handle_scanner_protection():
         if doc:
             banned_at = doc.get("banned_at")
             if banned_at and (datetime.utcnow() - banned_at).total_seconds() >= BAN_TIME:
-                # Expired — unban them
+                # Expired 鈥?unban them
                 client["Security"]["banned_ips"].delete_one({"_id": real_ip})
                 BANNED_IPS.discard(real_ip)
                 app.logger.info(f"[UNBANNED] IP {real_ip} was automatically unbanned after expiry")
             else:
-                # 🔄 Extend the ban if they hit again
+                # 馃攧 Extend the ban if they hit again
                 client["Security"]["banned_ips"].update_one(
                     {"_id": real_ip},
                     {"$set": {"banned_at": datetime.utcnow()}},
                     upsert=True
                 )
-                app.logger.warning(f"[AUTO-EXTENDED BAN] {real_ip} tried {path} again — ban extended (internal: {internal_ip})")
+                app.logger.warning(f"[AUTO-EXTENDED BAN] {real_ip} tried {path} again 鈥?ban extended (internal: {internal_ip})")
                 abort(403)
 
     # Check for scanner-like behavior
@@ -4157,7 +4155,7 @@ def handle_scanner_protection():
                 }},
                 upsert=True
             )
-            app.logger.warning(f"[🔥 BANNED] IP {real_ip} matched '{matched}' {len(ip_hits[real_ip])} times (internal: {internal_ip})")
+            app.logger.warning(f"[馃敟 BANNED] IP {real_ip} matched '{matched}' {len(ip_hits[real_ip])} times (internal: {internal_ip})")
         else:
             app.logger.warning(f"[BLOCKED] Scanner-like request: {real_ip} tried {path} (matched: {matched})")
 
@@ -4170,7 +4168,7 @@ def debug_ip():
     internal_ip = request.remote_addr
 
     return f"""
-        <h1>🔍 IP Debug</h1>
+        <h1>馃攳 IP Debug</h1>
         <p><strong>Real IP:</strong> {real_ip}</p>
         <p><strong>Internal IP:</strong> {internal_ip}</p>
     """
@@ -4321,7 +4319,7 @@ def mod_action():
                 },
                 upsert=True
             )
-            flash("✅ Mute added to the database.", "success")
+            flash("鉁?Mute added to the database.", "success")
 
         elif action == "unmute":
             result = collection.update_one(
@@ -4330,7 +4328,7 @@ def mod_action():
                     "$set": {"muted": False}
                 }
             )
-            flash("✅ Unmute request added to DB. Bot will process shortly.", "success")
+            flash("鉁?Unmute request added to DB. Bot will process shortly.", "success")
 
         elif action in {"kick", "ban", "warn"}:
             action_doc = {
@@ -4343,7 +4341,7 @@ def mod_action():
                 "executed": False
             }
             db["web_actions"].insert_one(action_doc)
-            flash(f"✅ {action.capitalize()} queued. Bot will process it shortly.", "success")
+            flash(f"鉁?{action.capitalize()} queued. Bot will process it shortly.", "success")
 
         elif action == "unban":
             db["web_actions"].insert_one({
@@ -4355,14 +4353,14 @@ def mod_action():
                 "moderator_id": session["discord_id"],
                 "executed": False
             })
-            flash("✅ Unban request queued.", "success")
+            flash("鉁?Unban request queued.", "success")
 
         else:
-            flash("❌ Unknown action selected.", "error")
+            flash("鉂?Unknown action selected.", "error")
 
     except Exception as e:
         print(f"[mod_action] Error: {e}")
-        flash("❌ Failed to perform action.", "error")
+        flash("鉂?Failed to perform action.", "error")
 
     return redirect("/staff-panel")
 
@@ -4379,7 +4377,7 @@ def api_news():
             "url": item.get("_id", "#"),
             "timestamp": item.get("timestamp") or datetime.utcnow().isoformat(),
             "source": item.get("source", "unknown"),
-            "thumbnail": item.get("thumbnail")  # ✅ ensure this field is populated by your bot
+            "thumbnail": item.get("thumbnail")  # 鉁?ensure this field is populated by your bot
         }
         for item in items
     ])
@@ -4597,6 +4595,8 @@ def view_logs():
     )
 
 PET_SWITCH_LOCK_HOURS = 24
+CLEAN_TRAY_MIN_AVG = 40
+CLEAN_TRAY_INTERVAL_HOURS = 12
 VISIBLE_STAT_MIN = 0
 VISIBLE_STAT_MAX = 100
 INTERNAL_STAT_MIN = -100
@@ -4616,14 +4616,14 @@ PET_STARTERS = {
 BOOST_SHOP = {
     "daily_coin_chip": {
         "name": "Daily Coin Chip",
-        "price": 25000,
+        "price": 40000,
         "description": "Adds bonus coins to /daily while active.",
         "bonus_type": "daily_coins_flat",
         "bonus_by_level": {1: 10, 5: 20, 10: 35, 20: 50},
     },
     "daily_xp_chip": {
         "name": "Daily XP Chip",
-        "price": 25000,
+        "price": 40000,
         "description": "Adds bonus XP to /daily while active.",
         "bonus_type": "daily_xp_flat",
         "bonus_by_level": {1: 10, 5: 20, 10: 35, 20: 50},
@@ -4631,40 +4631,30 @@ BOOST_SHOP = {
     "bee_hunt_chip": {
         "name": "Bee Hunt Chip",
         "price": 40000,
-        "description": "Adds Bee Hunt coin bonus while active.",
+        "description": "Adds a % Bee Hunt coin bonus while active.",
         "bonus_type": "bee_hunt_coins_pct",
-        "bonus_by_level": {1: 2, 5: 4, 10: 6, 20: 8},
+        "bonus_by_level": {1: 20, 5: 30, 10: 45, 20: 60},
     },
 }
 
 PETSHOP_ITEMS = {
-    "daily_coin_chip": {"name": "Daily Coin Chip", "price": 25000, "type": "boost", "description": "Adds bonus coins to /daily while active."},
-    "daily_xp_chip": {"name": "Daily XP Chip", "price": 25000, "type": "boost", "description": "Adds bonus XP to /daily while active."},
-    "bee_hunt_chip": {"name": "Bee Hunt Chip", "price": 40000, "type": "boost", "description": "Adds Bee Hunt coin bonus while active."},
-    "pet_snack": {"name": "Pet Snack", "price": 800, "type": "consumable", "description": "A simple snack for your pet."},
-    "toy_ball": {"name": "Toy Ball", "price": 1200, "type": "consumable", "description": "A toy to entertain your pet."},
-    "bubble_bath": {"name": "Bubble Bath", "price": 1500, "type": "consumable", "description": "A bath item for your pet."},
-    "pet_xp_treat": {"name": "Pet XP Treat", "price": 5000, "type": "consumable", "description": "A premium treat for pet growth."},
-    "red_bow": {"name": "Red Bow", "price": 8000, "type": "cosmetic", "description": "Cute cosmetic bow."},
-    "farmer_hat": {"name": "Farmer Hat", "price": 12000, "type": "cosmetic", "description": "A farm-style hat."},
-    "flower_crown": {"name": "Flower Crown", "price": 15000, "type": "cosmetic", "description": "A seasonal flower accessory."},
-    "golden_collar": {"name": "Golden Collar", "price": 35000, "type": "cosmetic", "description": "Luxury cosmetic collar."},
-    "bee_wings": {"name": "Bee Wings", "price": 40000, "type": "cosmetic", "description": "Buzzing wing accessory."},
-    "bunny_ears": {"name": "Bunny Ears", "price": 14000, "type": "cosmetic", "description": "Cute bunny ear headband."},
-    "royal_crown": {"name": "Royal Crown", "price": 90000, "type": "cosmetic", "description": "Prestige pet cosmetic."},
-    "cloud_bed": {"name": "Cloud Bed", "price": 25000, "type": "cosmetic", "description": "A dreamy pet bed."},
-    "scholar_glasses": {"name": "Scholar Glasses", "price": 22000, "type": "cosmetic", "description": "Smart pet glasses."},
+    "daily_coin_chip": {"name": "Daily Coin Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus /daily coins based on pet level."},
+    "daily_xp_chip": {"name": "Daily XP Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus /daily XP based on pet level."},
+    "bee_hunt_chip": {"name": "Bee Hunt Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus Bee Hunt coins based on pet level."},
+    "pet_snack": {"name": "Pet Snack", "price": 800, "type": "consumable", "description": "One-time use. Gives +25 Hunger. Does not give Pet XP."},
+    "toy_ball": {"name": "Toy Ball", "price": 1200, "type": "consumable", "description": "One-time use. Gives +25 Happiness. Does not give Pet XP."},
+    "bubble_bath": {"name": "Bubble Bath", "price": 1500, "type": "consumable", "description": "One-time use. Gives +30 Cleanliness. Does not give Pet XP."},
+    "pet_xp_treat": {"name": "Pet XP Treat", "price": 5000, "type": "consumable", "description": "One-time use. Gives +25 Pet XP only."},
+    "red_bow": {"name": "Red Bow", "price": 8000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
+    "farmer_hat": {"name": "Farmer Hat", "price": 12000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
+    "flower_crown": {"name": "Flower Crown", "price": 15000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
+    "scholar_glasses": {"name": "Scholar Glasses", "price": 22000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
 }
 
 PET_COSMETIC_META = {
     "red_bow": {"emoji": "🎀", "slot": "head", "asset": "red_bow", "asset_ext": "png", "fallback_asset": "red_bow.svg"},
     "farmer_hat": {"emoji": "👒", "slot": "head", "asset": "farmer_hat", "asset_ext": "png", "fallback_asset": "farmer_hat.svg"},
     "flower_crown": {"emoji": "🌸", "slot": "head", "asset": "flower_crown", "asset_ext": "png", "fallback_asset": "flower_crown.svg"},
-    "golden_collar": {"emoji": "✨", "slot": "neck", "asset": "golden_collar", "asset_ext": "png", "fallback_asset": "golden_collar.svg"},
-    "bee_wings": {"emoji": "🪽", "slot": "back", "asset": "bee_wings", "asset_ext": "png", "fallback_asset": "bee_wings.svg"},
-    "bunny_ears": {"emoji": "🐇", "slot": "head", "asset": "bunny_ears", "asset_ext": "png", "fallback_asset": "bunny_ears.svg"},
-    "royal_crown": {"emoji": "👑", "slot": "head", "asset": "royal_crown", "asset_ext": "png", "fallback_asset": "royal_crown.svg"},
-    "cloud_bed": {"emoji": "☁️", "slot": "aura", "asset": "cloud_bed", "asset_ext": "png", "fallback_asset": "cloud_bed.svg"},
     "scholar_glasses": {"emoji": "👓", "slot": "face", "asset": "scholar_glasses", "asset_ext": "png", "fallback_asset": "scholar_glasses.svg"},
 }
 
@@ -4715,6 +4705,10 @@ def _petshop_logs_col():
     return get_db("Economy")["petshop_logs"]
 
 
+def _pet_level_col():
+    return get_db("hayday")["level"]
+
+
 def _pet_flash_redirect():
     return redirect(url_for("pet_profile"))
 
@@ -4754,6 +4748,7 @@ def _pet_default(pet_type: str, name: str | None = None) -> dict:
         "last_fed": None,
         "last_played": None,
         "last_cleaned": None,
+        "last_clean_tray_at": None,
         "last_decay_at": _pet_now(),
         "owned_boosts": [],
         "owned_cosmetics": [],
@@ -4827,6 +4822,96 @@ def _pet_care_effectiveness_multiplier(stat_value: int) -> float:
     if stat_value < 0:
         return 0.50
     return 1.00
+
+
+def _pet_clean_tray_rewards(pet_level: int) -> tuple[int, int]:
+    if pet_level >= 20:
+        return 400, 175
+    if pet_level >= 10:
+        return 300, 150
+    if pet_level >= 5:
+        return 225, 125
+    return 175, 100
+
+
+def _pet_level_up_reward(pet_level: int) -> tuple[int, int]:
+    if pet_level >= 20:
+        return 900, 150
+    if pet_level >= 15:
+        return 600, 100
+    if pet_level >= 10:
+        return 400, 75
+    if pet_level >= 5:
+        return 250, 50
+    return 150, 35
+
+
+def _pet_clean_tray_ready_at(pet: dict) -> datetime | None:
+    last_collected = pet.get("last_clean_tray_at")
+    if not isinstance(last_collected, datetime):
+        return None
+    return last_collected + timedelta(hours=CLEAN_TRAY_INTERVAL_HOURS)
+
+
+def _pet_clean_tray_status_text(pet: dict) -> str:
+    coins, server_xp = _pet_clean_tray_rewards(int(pet.get("level", 1)))
+    avg = _pet_visible_average_stats(pet)
+    ready_at = _pet_clean_tray_ready_at(pet)
+    now = _pet_now()
+
+    lines = [
+        f"Claim: +{coins} coins and +{server_xp} server XP",
+        f"Requirement: average condition must stay {CLEAN_TRAY_MIN_AVG}%+",
+    ]
+
+    last_collected = pet.get("last_clean_tray_at")
+    if isinstance(last_collected, datetime):
+        lines.append(f"Last collected: {last_collected.strftime('%Y-%m-%d %H:%M UTC')}")
+
+    if avg < CLEAN_TRAY_MIN_AVG:
+        lines.append(f"Status: Paused right now because your pet average is only {avg}%.")
+    elif ready_at is None or ready_at <= now:
+        lines.append("Status: Ready to collect now.")
+    else:
+        lines.append(f"Status: Ready in {_pet_format_remaining(ready_at - now)}.")
+
+    return "\n".join(lines)
+
+
+def _pet_level_up_reward_text(pet: dict) -> str:
+    pet_level = int(pet.get("level", 1))
+    coins, server_xp = _pet_level_up_reward(min(pet_level + 1, 20))
+    return (
+        f"Next reward: +{coins} coins and +{server_xp} server XP\n"
+        "Rewards are granted automatically whenever your pet levels up."
+    )
+
+
+def _pet_add_server_xp(user_id: int, xp_amount: int):
+    if int(xp_amount) <= 0:
+        return
+    _pet_level_col().update_one(
+        {"_id": str(user_id)},
+        {"$inc": {"xp": int(xp_amount)}},
+        upsert=True,
+    )
+
+
+def _pet_grant_level_up_rewards(user_id: int, pet: dict, leveled: list[int]) -> tuple[int, int]:
+    total_coins = 0
+    total_server_xp = 0
+
+    for level in leveled:
+        coins, server_xp = _pet_level_up_reward(level)
+        total_coins += coins
+        total_server_xp += server_xp
+
+    if total_coins > 0:
+        _pet_users_col().update_one({"_id": int(user_id)}, {"$inc": {"coins": int(total_coins)}})
+    if total_server_xp > 0:
+        _pet_add_server_xp(user_id, total_server_xp)
+
+    return total_coins, total_server_xp
 
 
 def _pet_normalize_neglect_state(pet: dict):
@@ -4976,6 +5061,9 @@ def _pet_load_user(user_id: int):
         if not isinstance(pet.get("equipped_cosmetics"), list):
             pet["equipped_cosmetics"] = []
             changed = True
+        if "last_clean_tray_at" not in pet:
+            pet["last_clean_tray_at"] = None
+            changed = True
         if not isinstance(pet.get("web_style"), dict):
             pet["web_style"] = {"accent_color": "strawberry"}
             changed = True
@@ -5088,6 +5176,14 @@ def _pet_context_from_doc(user_doc: dict):
         "pet_xp_needed": None,
         "care_actions": {},
         "pet_mood_slug": "happy",
+        "clean_tray_status_text": None,
+        "clean_tray_rewards": None,
+        "clean_tray_ready_at": None,
+        "clean_tray_is_ready": False,
+        "clean_tray_requirement": CLEAN_TRAY_MIN_AVG,
+        "clean_tray_status_label": None,
+        "next_level_reward_text": None,
+        "next_level_reward": None,
     }
 
     if not pet:
@@ -5102,6 +5198,24 @@ def _pet_context_from_doc(user_doc: dict):
     context["consumable_counts"] = _pet_inventory_counts(pet.get("owned_consumables", []))
     context["equipped_cosmetic_items"] = _pet_preview_cosmetics(pet)
     context["care_actions"] = _pet_care_actions_state(pet)
+    clean_tray_coins, clean_tray_server_xp = _pet_clean_tray_rewards(int(pet.get("level", 1)))
+    clean_tray_ready_at = _pet_clean_tray_ready_at(pet)
+    context["clean_tray_status_text"] = _pet_clean_tray_status_text(pet)
+    context["clean_tray_rewards"] = {"coins": clean_tray_coins, "server_xp": clean_tray_server_xp}
+    context["clean_tray_ready_at"] = clean_tray_ready_at
+    context["clean_tray_is_ready"] = (
+        _pet_visible_average_stats(pet) >= CLEAN_TRAY_MIN_AVG and
+        (clean_tray_ready_at is None or clean_tray_ready_at <= _pet_now())
+    )
+    if _pet_visible_average_stats(pet) < CLEAN_TRAY_MIN_AVG:
+        context["clean_tray_status_label"] = f"Paused below {CLEAN_TRAY_MIN_AVG}%"
+    elif clean_tray_ready_at is None or clean_tray_ready_at <= _pet_now():
+        context["clean_tray_status_label"] = "Ready to collect"
+    else:
+        context["clean_tray_status_label"] = f"Ready in {_pet_format_remaining(clean_tray_ready_at - _pet_now())}"
+    context["next_level_reward_text"] = _pet_level_up_reward_text(pet)
+    next_reward_coins, next_reward_server_xp = _pet_level_up_reward(min(int(pet.get("level", 1)) + 1, 20))
+    context["next_level_reward"] = {"coins": next_reward_coins, "server_xp": next_reward_server_xp}
 
     owned_cosmetic_items = []
     for key in pet.get("owned_cosmetics", []):
@@ -5259,11 +5373,57 @@ def pet_care():
     pet[config["field"]] = now
     _pet_normalize_neglect_state(pet)
     leveled = _pet_apply_xp(pet, xp_gain)
+    reward_coins, reward_server_xp = _pet_grant_level_up_rewards(discord_id, pet, leveled)
     _pet_save(discord_id, pet)
-    _pet_log(discord_id, action, {"gain": gain, "xp": xp_gain})
+    _pet_log(discord_id, action, {"gain": gain, "xp": xp_gain, "level_rewards_coins": reward_coins, "level_rewards_server_xp": reward_server_xp})
 
-    level_line = f" Level up to {pet['level']}!" if leveled else ""
-    flash(f"✅ You {config['verb']} {pet['name']}. +{gain} {config['label']}.{level_line}", "success")
+    level_line = ""
+    if leveled:
+        level_line = f" Your pet reached level {pet['level']}! +{reward_coins} coins and +{reward_server_xp} server XP."
+    message = (
+        f"You {config['verb']} {pet['name']}. +{gain} {config['label']}. "
+        f"+{0 if _pet_is_neglected(pet) else xp_gain} Pet XP.{level_line}"
+    )
+    flash(message, "success")
+    return _pet_flash_redirect()
+
+
+@app.post("/profile/pet/clean-tray")
+def pet_clean_tray():
+    login_redirect = _pet_require_login()
+    if login_redirect:
+        return login_redirect
+
+    discord_id = int(session["discord_id"])
+    user_doc = _pet_load_user(discord_id)
+    pet = user_doc.get("pet")
+    if not pet:
+        flash("❌ Adopt a pet first.", "error")
+        return _pet_flash_redirect()
+
+    avg = _pet_visible_average_stats(pet)
+    if avg < CLEAN_TRAY_MIN_AVG:
+        flash(
+            f"❌ Clean Tray is paused until {pet.get('name', 'your pet')} is back above {CLEAN_TRAY_MIN_AVG}% average condition. It is currently {avg}%.",
+            "error",
+        )
+        return _pet_flash_redirect()
+
+    now = _pet_now()
+    ready_at = _pet_clean_tray_ready_at(pet)
+    if isinstance(ready_at, datetime) and ready_at > now:
+        flash(f"❌ Clean Tray is not ready yet. Try again in {_pet_format_remaining(ready_at - now)}.", "error")
+        return _pet_flash_redirect()
+
+    coins, server_xp = _pet_clean_tray_rewards(int(pet.get("level", 1)))
+    _pet_users_col().update_one({"_id": discord_id}, {"$inc": {"coins": int(coins)}})
+    _pet_add_server_xp(discord_id, server_xp)
+
+    pet["last_clean_tray_at"] = now
+    _pet_save(discord_id, pet)
+    _pet_log(discord_id, "clean_tray_collect", {"coins": coins, "server_xp": server_xp, "pet_level": int(pet.get("level", 1))})
+
+    flash(f"✅ You collected Clean Tray from {pet['name']}. +{coins} coins and +{server_xp} server XP.", "success")
     return _pet_flash_redirect()
 
 
@@ -5303,9 +5463,10 @@ def pet_use_item():
         message = f"✅ {pet['name']} feels fresh after Bubble Bath. +30 Cleanliness."
     elif item == "pet_xp_treat":
         leveled = _pet_apply_xp(pet, 25)
+        reward_coins, reward_server_xp = _pet_grant_level_up_rewards(discord_id, pet, leveled)
         message = f"✅ {pet['name']} enjoyed a Pet XP Treat. +25 Pet XP."
         if leveled:
-            message += f" Level up to {pet['level']}!"
+            message += f" Your pet reached level {pet['level']}! +{reward_coins} coins and +{reward_server_xp} server XP."
     else:
         flash("❌ That item is not ready on web yet.", "error")
         return _pet_flash_redirect()
@@ -5561,7 +5722,7 @@ def profile():
 
     display_name = fallback.get("display_name", "Unknown")
 
-    # ✅ Always fetch avatar from synced collection
+    # 鉁?Always fetch avatar from synced collection
     avatar_url = fallback.get("avatar", f"https://cdn.discordapp.com/embed/avatars/0.png")
 
     eco_user = client["Economy"]["Users"].find_one({"_id": int(discord_id)}) or {}
@@ -5653,7 +5814,7 @@ def profile():
 
 @app.route("/test-flash")
 def test_flash():
-    flash("✅ This is a test message!", "success")
+    flash("鉁?This is a test message!", "success")
     print("Flashed:", get_flashed_messages(with_categories=True))
     return redirect(url_for("profile"))
 
@@ -5675,7 +5836,7 @@ def toggle_privacy():
             {"_id": discord_id},
             {"$set": {"public_profile": new_value}}
         )
-        flash("✅ Profile visibility updated.", "success")
+        flash("鉁?Profile visibility updated.", "success")
 
     return redirect(url_for("profile"))
 
@@ -5776,7 +5937,7 @@ def leaderboard():
         sorted_staff = sorted(all_staff, key=lambda u: u.get("Number of Verifications", 0), reverse=True)
         users = sorted_staff[skip:skip + limit]
 
-        # 🔧 Make sure all user IDs are strings
+        # 馃敡 Make sure all user IDs are strings
         for user in users:
             user["_id"] = str(user["id"])
 
@@ -5786,6 +5947,21 @@ def leaderboard():
         col = client["Economy"]["Users"]
         total_users = col.count_documents({"coins": {"$gt": 0}})
         users = list(col.find({"coins": {"$gt": 0}}).sort("coins", -1).skip(skip).limit(limit))
+        user_ids = [str(u["_id"]) for u in users]
+
+    elif lb_type == "pet_xp":
+        col = client["Economy"]["Users"]
+        raw = list(col.find({"pet": {"$exists": True}}))
+        ranked = sorted(
+            [u for u in raw if isinstance(u.get("pet"), dict)],
+            key=lambda u: (
+                int((u.get("pet") or {}).get("level", 1) or 1),
+                int((u.get("pet") or {}).get("xp", 0) or 0),
+            ),
+            reverse=True,
+        )
+        total_users = len(ranked)
+        users = ranked[skip:skip + limit]
         user_ids = [str(u["_id"]) for u in users]
 
     else:  # default = level or messages
@@ -5809,6 +5985,9 @@ def leaderboard():
         user["mention_count"] = user.get("Mentions", 0)
         user["streak"] = user.get("streak", 0)
         user["coins"] = int(user.get("coins", 0) or 0)
+        pet = user.get("pet") or {}
+        user["pet_level"] = int(pet.get("level", 1) or 1)
+        user["pet_xp"] = int(pet.get("xp", 0) or 0)
         profile = profile_map.get(uid)
         user["display_name"] = profile.get("display_name") or profile.get("username", "Unknown") if profile else f"<@{uid}>"
         user["avatar_url"] = profile.get("avatar") if profile else "https://cdn.discordapp.com/embed/avatars/0.png"
@@ -5862,6 +6041,27 @@ def leaderboard():
                         if u.get("_id") == econ_id:
                             viewer_rank = idx + 1
                             break
+
+            elif lb_type == "pet_xp":
+                econ = client["Economy"]["Users"]
+                try:
+                    econ_id = int(vid)
+                except (TypeError, ValueError):
+                    econ_id = vid
+
+                raw = list(econ.find({"pet": {"$exists": True}}))
+                ranked = sorted(
+                    [u for u in raw if isinstance(u.get("pet"), dict)],
+                    key=lambda u: (
+                        int((u.get("pet") or {}).get("level", 1) or 1),
+                        int((u.get("pet") or {}).get("xp", 0) or 0),
+                    ),
+                    reverse=True,
+                )
+                for idx, u in enumerate(ranked):
+                    if u.get("_id") == econ_id:
+                        viewer_rank = idx + 1
+                        break
 
             elif lb_type == "mentions":
                 mcol = client["Mentions"]["Amount"]
@@ -5942,7 +6142,7 @@ def callback():
         code = request.args.get("code")
         state = request.args.get("state")      
         if not code:
-            return "❌ Missing code from Discord redirect", 400
+            return "鉂?Missing code from Discord redirect", 400
 
         state_next_page = "/"
         expected_nonce = session.get("oauth_state")
@@ -5952,9 +6152,9 @@ def callback():
                 state_next_page = _safe_next_path(state_payload.get("next"), default="/")
                 state_nonce = state_payload.get("nonce")
                 if expected_nonce and state_nonce != expected_nonce:
-                    return "❌ Invalid OAuth state", 400
+                    return "鉂?Invalid OAuth state", 400
             except BadSignature:
-                return "❌ Invalid OAuth state", 400
+                return "鉂?Invalid OAuth state", 400
 
         data = {
             "client_id": DISCORD_CLIENT_ID,
@@ -6047,7 +6247,7 @@ def callback():
     
     except Exception as e:
         traceback.print_exc()
-        return f"<h1>❌ Error:</h1><pre>{e}</pre>", 500
+        return f"<h1>鉂?Error:</h1><pre>{e}</pre>", 500
 
 @app.route("/admin/purchases/export")
 def export_purchases_csv():
@@ -6340,7 +6540,7 @@ def admin_trading_override_delete():
     if not doc:
         return jsonify(ok=False, error="Not found"), 404
 
-    # ✅ Only allow deleting manual overrides
+    # 鉁?Only allow deleting manual overrides
     if not doc.get("manual_override"):
         return jsonify(ok=False, error="Cannot delete non-manual override"), 400
 
@@ -6505,7 +6705,7 @@ def api_trading_overview():
         "sum_value": 1,
         "posts": 1,
 
-        # ✅ NEW
+        # 鉁?NEW
         "price_posts": 1,
         "sum_unit_price": 1,
     }},
@@ -6936,7 +7136,7 @@ def public_profile(discord_id):
 
     fallback = usernames_collection.find_one({"_id": discord_id})
     if not fallback:
-        return "🚫 This profile is private or does not exist.", 404
+        return "馃毇 This profile is private or does not exist.", 404
 
     # Get synced info from Website.usernames
     display_name = fallback.get("display_name", fallback.get("username", "Unknown"))
@@ -6945,12 +7145,12 @@ def public_profile(discord_id):
 
     # Get Website.users doc and force-sync name/avatar
     user = users_collection.find_one({"_id": discord_id}) or {}
-    user["display_name"] = display_name  # ✅ always use latest name from usernames collection
-    user["avatar"] = avatar_url          # ✅ always use latest avatar from usernames collection
+    user["display_name"] = display_name  # 鉁?always use latest name from usernames collection
+    user["avatar"] = avatar_url          # 鉁?always use latest avatar from usernames collection
 
     # Public/private check
     if not user.get("public_profile", True) and not is_owner:
-        return "🚫 This profile is private or does not exist.", 404
+        return "馃毇 This profile is private or does not exist.", 404
 
 
     # Staff badges from roles
@@ -6995,9 +7195,11 @@ def public_profile(discord_id):
 
         current_xp_formatted = f"{current_xp:,}"
         required_xp_formatted = f"{required_xp:,}"
-
-        all_users = list(level_col.find().sort("xp", -1))
-        rank = next((i + 1 for i, u in enumerate(all_users) if u["_id"] == discord_id), "?")
+        try:
+            rank = level_col.count_documents({"xp": {"$gt": xp}}) + 1
+        except Exception:
+            app.logger.exception("Failed to calculate public profile rank for %s", discord_id)
+            rank = "?"
 
     return render_template(
         "profile.html",
@@ -7142,12 +7344,12 @@ def shop():
 @app.route("/buy", methods=["POST"])
 def buy_item():
     if "discord_id" not in session:
-        flash("⚠️ You need to log in to make a purchase.", "error")
+        flash("鈿狅笍 You need to log in to make a purchase.", "error")
         return redirect(url_for("login", next=url_for("shop")))
 
     item_id = (request.form.get("item_id") or "").strip().lower()
     if not item_id or item_id not in SHOP_ITEMS:
-        flash("❌ Unknown item.", "error")
+        flash("鉂?Unknown item.", "error")
         return redirect(url_for("shop"))
 
     user_id = int(session["discord_id"])
@@ -7159,7 +7361,7 @@ def buy_item():
     print("[SHOP] BOT_BASE_URL=", bot_base, "BOT_WEBHOOK_KEY set?", bool(bot_key))
 
     if not bot_base or not bot_key:
-        flash("❌ Missing BOT_BASE_URL / BOT_WEBHOOK_KEY on website.", "error")
+        flash("鉂?Missing BOT_BASE_URL / BOT_WEBHOOK_KEY on website.", "error")
         return redirect(url_for("shop"))
 
     try:
@@ -7183,10 +7385,10 @@ def buy_item():
     # IMPORTANT: treat error as failure even if success=True
     bot_ok = bool(data.get("ok") or data.get("success"))
     if (not bot_ok) or data.get("error"):
-        flash(f"❌ Purchase failed: {data.get('error', 'Unknown error')}", "error")
+        flash(f"鉂?Purchase failed: {data.get('error', 'Unknown error')}", "error")
         return redirect(url_for("shop"))
 
-    flash(f"✅ Purchase complete: {SHOP_ITEMS[item_id]['name']}", "success")
+    flash(f"鉁?Purchase complete: {SHOP_ITEMS[item_id]['name']}", "success")
     return redirect(url_for("shop"))
 
 @app.route("/admin/purchases")
@@ -7288,7 +7490,7 @@ def starboard_data():
         entry["original_message_id"] = str(entry.get("original_message_id", ""))
         entry["starboard_message_id"] = str(entry.get("starboard_message_id", ""))
 
-        # ✅ Add these two lines:
+        # 鉁?Add these two lines:
         entry["guild_id"] = str(entry.get("guild_id", ""))
         entry["channel_id"] = str(entry.get("channel_id", ""))
 
@@ -7388,7 +7590,7 @@ def view_interaction_logs():
         "actions": col.distinct("action")
     }
 
-    # ✅ Top pages tracking
+    # 鉁?Top pages tracking
     pv_col = client["Website"]["PageViews"]
 
     match_real_pages = {
@@ -7446,9 +7648,9 @@ def delete_starboard_message():
     result = col.delete_one({"starboard_message_id": message_id})
 
     if result.deleted_count > 0:
-        return jsonify({"message": "✅ Starboard message deleted."})
+        return jsonify({"message": "鉁?Starboard message deleted."})
     else:
-        return jsonify({"message": "❌ Message not found."})
+        return jsonify({"message": "鉂?Message not found."})
     
 
 @app.route("/starboard-dashboard")
@@ -7526,7 +7728,7 @@ def auction_dashboard():
     log_total_pages = max((log_total + limit - 1) // limit, 1)
     ban_total_pages = max((ban_total + limit - 1) // limit, 1)
 
-    # 🧠 Collect all user IDs
+    # 馃 Collect all user IDs
     user_ids = set()
     for auc in active_auctions + ended_auctions:
         user_ids.add(str(auc.get("owner_id")))
@@ -7624,7 +7826,7 @@ def get_auction_bids(message_id):
     for bid in auction["bid_logs"]:
         output.append({
             "user_display": user_map.get(str(bid["user_id"]), {}).get("display_name", str(bid["user_id"])),
-            "user_id": str(bid["user_id"]),  # ← change from int() to str()
+            "user_id": str(bid["user_id"]),  # 鈫?change from int() to str()
             "amount": bid["amount"],
             "timestamp": bid["timestamp"],
         })
@@ -7804,7 +8006,7 @@ def remove_auction_bid(message_id):
     auction = auctions.find_one({"message_id": int(message_id)})
 
     if not auction:
-        print("[REMOVE BID] ❌ Auction not found.")
+        print("[REMOVE BID] 鉂?Auction not found.")
         return "Auction not found", 404
 
     bid_logs = auction.get("bid_logs", [])
@@ -7821,7 +8023,7 @@ def remove_auction_bid(message_id):
     print(f"[REMOVE BID] Bids after removal: {len(updated_logs)}")
 
     if len(updated_logs) == len(bid_logs):
-        print("[REMOVE BID] ⚠ No bid found for this user_id — nothing removed")
+        print("[REMOVE BID] 鈿?No bid found for this user_id 鈥?nothing removed")
 
     # Recalculate highest bid
     if updated_logs:
@@ -7912,7 +8114,7 @@ def refund_purchase():
         {"$set": {"refunded": True, "refunded_at": datetime.utcnow()}}
     )
 
-    flash("✅ Purchase refunded successfully.", "success")
+    flash("鉁?Purchase refunded successfully.", "success")
     return redirect(url_for("view_purchases"))
 
 
@@ -8503,12 +8705,12 @@ def get_winners(message_id):
 
         user_ids = g["winners"]
 
-        # ✅ Use the usernames collection (not hayday.level)
+        # 鉁?Use the usernames collection (not hayday.level)
         user_db = client["Website"]["usernames"]
         found_users = list(user_db.find({"_id": {"$in": [str(uid) for uid in user_ids]}}))
         user_map = {str(u["_id"]): u for u in found_users}
 
-        # ✅ Build result with avatar + display name fallback
+        # 鉁?Build result with avatar + display name fallback
         result = []
         for uid in user_ids:
             user = user_map.get(str(uid))
@@ -8628,7 +8830,7 @@ def join_giveaway_web():
     if now - last_attempt < 3:
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"error": "You are joining too fast. Please wait a few seconds."}), 429
-        flash("⚠️ You're joining giveaways too fast. Please wait.")
+        flash("鈿狅笍 You're joining giveaways too fast. Please wait.")
         return redirect("/giveaways")
     rate_limit_cache[rate_key] = now
 
@@ -8642,7 +8844,7 @@ def join_giveaway_web():
     except (TypeError, ValueError):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"error": "Invalid message id"}), 400
-        flash("❌ Invalid giveaway link.")
+        flash("鉂?Invalid giveaway link.")
         return redirect("/giveaways")
 
     giveaway = col.find_one({"message_id": mid})
@@ -8650,7 +8852,7 @@ def join_giveaway_web():
     if not giveaway or giveaway.get("ended"):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"error": "Giveaway ended or not found"}), 400
-        flash("❌ Giveaway not found or has ended.")
+        flash("鉂?Giveaway not found or has ended.")
         return redirect("/giveaways")
 
     # Support list of required role IDs (OR) with legacy fallback
@@ -8674,21 +8876,21 @@ def join_giveaway_web():
     if requires_confirm and request.form.get("confirm") != "on":
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"error": "Please confirm you understand the extra requirements."}), 400
-        flash("⚠️ Please confirm you understand the extra requirements.")
+        flash("鈿狅笍 Please confirm you understand the extra requirements.")
         return redirect("/giveaways")
 
     # Final eligibility
     if not (has_required or can_booster_bypass):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"error": "You don’t have the required role"}), 403
-        flash("❌ You don’t have the required role to enter this giveaway.")
+            return jsonify({"error": "You don鈥檛 have the required role"}), 403
+        flash("鉂?You don鈥檛 have the required role to enter this giveaway.")
         return redirect("/giveaways")
 
     participants = giveaway.get("participants", {})
     if discord_id in participants:
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"error": "Already entered"}), 409
-        flash("❌ You are already entered in this giveaway.")
+        flash("鉂?You are already entered in this giveaway.")
         return redirect("/giveaways")
 
     extra_entries = 2 if has_booster else 1
@@ -8704,12 +8906,12 @@ def join_giveaway_web():
             timeout=5
         )
     except Exception as e:
-        print(f"⚠️ Failed to sync with bot: {e}")
+        print(f"鈿狅笍 Failed to sync with bot: {e}")
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"status": "joined", "entries": extra_entries})
 
-    flash("✅ You have joined the giveaway.")
+    flash("鉁?You have joined the giveaway.")
     return redirect("/giveaways")
 
 @csrf.exempt
@@ -8736,7 +8938,7 @@ def leave_giveaway_web():
 
     participants = giveaway.get("participants", {})
     if discord_id not in participants:
-        return jsonify({"error": "You’re not in this giveaway."}), 400
+        return jsonify({"error": "You鈥檙e not in this giveaway."}), 400
 
     del participants[discord_id]
     col.update_one({"message_id": mid}, {"$set": {"participants": participants}})
@@ -8749,7 +8951,7 @@ def leave_giveaway_web():
             timeout=5
         )
     except Exception as e:
-        print(f"⚠️ Failed to sync with bot: {e}")
+        print(f"鈿狅笍 Failed to sync with bot: {e}")
 
     return jsonify({"success": True})
 
@@ -8778,16 +8980,16 @@ def reroll_giveaway_post():
             json={"message_id": message_id, "action": action},
             headers={"Authorization": auth_header}
         )
-        print("✅ Forwarded reroll to bot:", res.status_code, res.text)
+        print("鉁?Forwarded reroll to bot:", res.status_code, res.text)
         return res.json(), res.status_code
     except Exception as e:
-        print("❌ Failed to contact bot:", e)
+        print("鉂?Failed to contact bot:", e)
         return jsonify({"error": f"Request failed: {e}"}), 500
 
 @app.route("/competition")
 def competition_home():
     meta = page_meta(
-        title="Monthly Farm Design Competition — HayDay 🍀",
+        title="Monthly Farm Design Competition 鈥?HayDay 馃崁",
         description="Submit your design and vote on the best farms. Win huge coin prizes each month!",
         image=url_for("static", filename="img/competition_share.jpg", _external=True),
         url="https://www.hayday.info/competition",
@@ -9061,7 +9263,7 @@ def competition_submit():
         flash("Please choose an image.", "error")
         return redirect(url_for("competition_submit"))
 
-    # (Optional) enforce ≤ 25 MB on the server as well
+    # (Optional) enforce 鈮?25 MB on the server as well
     file.seek(0, 2)  # end
     size = file.tell()
     file.seek(0)
@@ -9086,7 +9288,7 @@ def competition_submit():
 
 
     if contains_identifying_text(to_scan, display_name, username_tag, discord_id):
-        flash("❌ Submissions must be anonymous. Do not include your name, Discord tag, ID, or mentions in the filename or caption.", "error")
+        flash("鉂?Submissions must be anonymous. Do not include your name, Discord tag, ID, or mentions in the filename or caption.", "error")
         return redirect(url_for("competition_submit"))  # adjust endpoint name if different
 
     # Upload to R2 (resized)
@@ -9126,7 +9328,7 @@ def competition_results():
 
     phase, comp_id = _phase_today()  # e.g. ("submit"|"voting"|"results", "2025-11")
 
-    # Target month: results month when in results, otherwise previous month… unless overridden
+    # Target month: results month when in results, otherwise previous month鈥?unless overridden
     display_comp_id = (
         override.strip() if override
         else (comp_id if phase == "results" else _prev_comp_id(comp_id))
@@ -9242,8 +9444,7 @@ def competition_results():
 
     # Pagination
     score = paginate(entries_sorted, score_page, per_page=10)   # Full scoreboard
-    grid  = paginate(entries_sorted, grid_page,  per_page=16)   # 4×4 “All entries”
-
+    grid  = paginate(entries_sorted, grid_page,  per_page=16)   # 4脳4 鈥淎ll entries鈥?
     # Label for the DISPLAY month (after any fallback)
     try:
         month_label = datetime.strptime(display_comp_id, "%Y-%m").strftime("%B %Y")
@@ -9467,10 +9668,10 @@ def competition_vote():
                 "entry_id": new_entry_id,
                 "created_at": datetime.now(timezone.utc),
             })
-            # ⬇️ was changed: False
+            # 猬囷笍 was changed: False
             return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
         except DuplicateKeyError:
-            # another request inserted first — re-fetch and continue below
+            # another request inserted first 鈥?re-fetch and continue below
             existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
             existing_entry_id = _as_str(existing["entry_id"]) if existing else None
 
@@ -9508,8 +9709,8 @@ def api_competition_submit_from_bot():
 
     discord_id   = (request.form.get("discord_id") or "").strip()
     caption      = (request.form.get("caption") or "").strip()[:35]
-    display_name = (request.form.get("display_name") or "").strip()   # ✅ NEW
-    username_tag = (request.form.get("username") or "").strip()       # ✅ NEW (legacy tag like user#1234)
+    display_name = (request.form.get("display_name") or "").strip()   # 鉁?NEW
+    username_tag = (request.form.get("username") or "").strip()       # 鉁?NEW (legacy tag like user#1234)
     file         = request.files.get("image")
 
     if not discord_id:
@@ -9541,15 +9742,15 @@ def api_competition_submit_from_bot():
             "user_id": str(discord_id),
             "image_url": image_url,
             "caption": caption,
-            "display_name": display_name or username_tag,  # ✅ prefer display name
-            "username": username_tag,                      # ✅ keep legacy tag too
+            "display_name": display_name or username_tag,  # 鉁?prefer display name
+            "username": username_tag,                      # 鉁?keep legacy tag too
             "created_at": datetime.now(timezone.utc),
             "ip": request.remote_addr,
         }},
         upsert=True
     )
 
-    db["usernames"].update_one(  # ✅ handy for joins/backfills elsewhere
+    db["usernames"].update_one(  # 鉁?handy for joins/backfills elsewhere
         {"_id": str(discord_id)},
         {"$set": {
             "display_name": display_name or username_tag,
@@ -9635,3 +9836,5 @@ if __name__ == "__main__":
         server.serve(host='127.0.0.1', port=port)
     else:
         app.run(host="0.0.0.0", port=port, threaded=True)
+
+
