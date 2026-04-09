@@ -1,0 +1,675 @@
+{% extends 'base.html' %}
+{% block title %}Pet Dashboard - HayDay{% endblock %}
+
+{% block head_extra %}
+<style>
+.dashboard-wrapper {
+  display: flex;
+  min-height: 100vh;
+  margin-top: 60px;
+}
+
+.dashboard-content {
+  flex: 1;
+  padding: 32px;
+  background: #f4f1ea;
+}
+
+body.dark .dashboard-content {
+  background: #1d1b18;
+}
+
+.pets-shell {
+  max-width: 1380px;
+  margin: 0 auto;
+  display: grid;
+  gap: 24px;
+}
+
+.pets-hero,
+.pet-admin-card,
+.pet-admin-empty,
+.pets-pagination {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(93, 70, 41, 0.12);
+  border-radius: 22px;
+  box-shadow: 0 16px 40px rgba(71, 49, 26, 0.08);
+}
+
+body.dark .pets-hero,
+body.dark .pet-admin-card,
+body.dark .pet-admin-empty,
+body.dark .pets-pagination {
+  background: rgba(37, 32, 28, 0.96);
+  border-color: rgba(255, 222, 173, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  color: #f7efe3;
+}
+
+.pets-hero {
+  padding: 28px;
+}
+
+.pets-eyebrow {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #9a6b33;
+  font-weight: 700;
+}
+
+.pets-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.pets-title-row h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+}
+
+.pets-title-row p {
+  margin: 0;
+  max-width: 760px;
+  color: #6f5b45;
+}
+
+body.dark .pets-title-row p {
+  color: #d4c1aa;
+}
+
+.pets-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.pets-stat {
+  background: rgba(255, 249, 239, 0.95);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+body.dark .pets-stat {
+  background: rgba(255, 248, 235, 0.05);
+}
+
+.pets-stat-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9b7a55;
+  margin-bottom: 8px;
+}
+
+.pets-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.pets-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+}
+
+.pets-search-form input {
+  border: 1px solid rgba(109, 87, 58, 0.18);
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+body.dark .pets-search-form input {
+  background: rgba(22, 20, 18, 0.9);
+  color: #f5eee3;
+  border-color: rgba(255, 222, 173, 0.12);
+}
+
+.pets-button,
+.pets-link-button {
+  border: none;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pets-button {
+  background: linear-gradient(135deg, #6db05f, #4e8f47);
+  color: #fff;
+}
+
+.pets-button.secondary,
+.pets-link-button {
+  background: rgba(125, 103, 73, 0.12);
+  color: inherit;
+}
+
+.pets-button.danger {
+  background: linear-gradient(135deg, #dd645b, #b94444);
+}
+
+.pets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+}
+
+.pet-admin-card {
+  padding: 22px;
+}
+
+.pet-admin-top {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.pet-admin-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.pet-admin-owner {
+  margin: 0 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9c7c59;
+}
+
+.pet-admin-name {
+  margin: 0;
+  font-size: 26px;
+}
+
+.pet-admin-sub {
+  margin: 6px 0 0;
+  color: #6f5c47;
+}
+
+body.dark .pet-admin-sub {
+  color: #dac8b3;
+}
+
+.pet-admin-badges,
+.pet-admin-inventory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.pet-admin-badge {
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: rgba(106, 177, 92, 0.12);
+}
+
+.pet-admin-bars {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 14px;
+}
+
+.pet-admin-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.pet-admin-bar-track {
+  height: 10px;
+  background: rgba(89, 71, 49, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.pet-admin-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.pet-admin-bar-fill.hunger {
+  background: linear-gradient(90deg, #f8c65c, #ef9d51);
+}
+
+.pet-admin-bar-fill.happiness {
+  background: linear-gradient(90deg, #e89dd0, #dd6c9e);
+}
+
+.pet-admin-bar-fill.cleanliness {
+  background: linear-gradient(90deg, #8fd4ff, #5f9ef7);
+}
+
+.pet-admin-tools {
+  margin-top: 18px;
+  border-top: 1px solid rgba(109, 87, 58, 0.14);
+  padding-top: 16px;
+}
+
+.pet-admin-tools summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.pet-admin-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.pet-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pet-admin-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pet-admin-field.wide {
+  grid-column: 1 / -1;
+}
+
+.pet-admin-field label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pet-admin-field input,
+.pet-admin-field select {
+  border: 1px solid rgba(109, 87, 58, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+body.dark .pet-admin-field input,
+body.dark .pet-admin-field select {
+  background: rgba(17, 15, 13, 0.94);
+  color: #f7efe3;
+  border-color: rgba(255, 222, 173, 0.12);
+}
+
+.pet-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.pet-admin-delete {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(109, 87, 58, 0.18);
+  display: grid;
+  gap: 10px;
+}
+
+.pet-admin-delete-copy {
+  margin: 0;
+  font-size: 13px;
+  color: #8a6b4c;
+}
+
+body.dark .pet-admin-delete-copy {
+  color: #d0bda6;
+}
+
+.pet-admin-empty {
+  padding: 28px;
+  text-align: center;
+}
+
+.pets-pagination {
+  padding: 18px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pets-pagination-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pets-page-chip {
+  border-radius: 999px;
+  padding: 8px 12px;
+  text-decoration: none;
+  background: rgba(125, 103, 73, 0.12);
+  color: inherit;
+}
+
+.pets-page-chip.active {
+  background: linear-gradient(135deg, #6db05f, #4e8f47);
+  color: #fff;
+}
+
+@media (max-width: 980px) {
+  .dashboard-wrapper {
+    flex-direction: column;
+  }
+
+  .dashboard-content {
+    padding: 20px;
+  }
+
+  .pets-title-row,
+  .pets-pagination,
+  .pet-admin-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pets-stats,
+  .pet-admin-fields,
+  .pets-search-form {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+  {% include 'sidepanel.html' %}
+
+  <main class="dashboard-content">
+    <div class="pets-shell">
+      <section class="pets-hero">
+        <p class="pets-eyebrow">Staff Pet Tools</p>
+        <div class="pets-title-row">
+          <div>
+            <h1>Pet Management</h1>
+            <p>Browse every server pet, search by pet name or owner, and make careful admin updates with confirmation on each action.</p>
+          </div>
+          <div class="pet-admin-badges">
+            <span class="pet-admin-badge">Signed in as {{ username }}</span>
+          </div>
+        </div>
+
+        <div class="pets-stats">
+          <div class="pets-stat">
+            <span class="pets-stat-label">All Pets</span>
+            <span class="pets-stat-value">{{ total_pets }}</span>
+          </div>
+          <div class="pets-stat">
+            <span class="pets-stat-label">Matching Results</span>
+            <span class="pets-stat-value">{{ matching_pets }}</span>
+          </div>
+          <div class="pets-stat">
+            <span class="pets-stat-label">Page</span>
+            <span class="pets-stat-value">{{ page }} / {{ total_pages }}</span>
+          </div>
+        </div>
+
+        <form class="pets-search-form" method="GET" action="{{ url_for('dashboard_pets') }}">
+          <input
+            type="text"
+            name="search"
+            value="{{ search }}"
+            placeholder="Search by pet name, owner name, username, or Discord ID"
+          >
+          <button class="pets-button" type="submit">Search Pets</button>
+          <a class="pets-link-button" href="{{ url_for('dashboard_pets') }}">Clear</a>
+        </form>
+      </section>
+
+      {% if pet_rows %}
+        <section class="pets-grid">
+          {% for row in pet_rows %}
+            <article class="pet-admin-card">
+              <div class="pet-admin-top">
+                <img class="pet-admin-avatar" src="{{ row.avatar_url }}" alt="{{ row.owner_name }}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                <div>
+                  <p class="pet-admin-owner">{{ row.owner_name }} - {{ row.user_id }}</p>
+                  <h2 class="pet-admin-name">{{ row.pet.name }}</h2>
+                  <p class="pet-admin-sub">{{ row.pet.type|title }} - Level {{ row.pet.level }} - {{ row.pet.xp }}/{{ row.pet_xp_needed if row.pet_xp_needed else '?' }} XP - {{ row.mood }}</p>
+                </div>
+              </div>
+
+              <div class="pet-admin-badges">
+                <span class="pet-admin-badge">Average {{ row.average_stat }}%</span>
+                <span class="pet-admin-badge">Boosts {{ row.owned_boost_count }}</span>
+                <span class="pet-admin-badge">Cosmetics {{ row.owned_cosmetic_count }}</span>
+                <span class="pet-admin-badge">Consumables {{ row.owned_consumable_count }}</span>
+                {% if row.hotel_is_active %}
+                  <span class="pet-admin-badge">Hotel: {{ row.hotel_time_left }} left</span>
+                {% endif %}
+                {% if row.active_boost_name %}
+                  <span class="pet-admin-badge">Active boost: {{ row.active_boost_name }}</span>
+                {% endif %}
+              </div>
+
+              <p class="pet-admin-sub" style="margin: 0 0 10px;">
+                {% if row.hotel_is_active %}
+                  {{ row.hotel_status_text }}
+                {% else %}
+                  Not currently in the hotel.
+                {% endif %}
+              </p>
+
+              <div class="pet-admin-bars">
+                <div>
+                  <div class="pet-admin-bar-label"><span>Hunger</span><span>{{ row.visible_hunger }}%</span></div>
+                  <div class="pet-admin-bar-track"><div class="pet-admin-bar-fill hunger" style="width: {{ row.visible_hunger }}%;"></div></div>
+                </div>
+                <div>
+                  <div class="pet-admin-bar-label"><span>Happiness</span><span>{{ row.visible_happiness }}%</span></div>
+                  <div class="pet-admin-bar-track"><div class="pet-admin-bar-fill happiness" style="width: {{ row.visible_happiness }}%;"></div></div>
+                </div>
+                <div>
+                  <div class="pet-admin-bar-label"><span>Cleanliness</span><span>{{ row.visible_cleanliness }}%</span></div>
+                  <div class="pet-admin-bar-track"><div class="pet-admin-bar-fill cleanliness" style="width: {{ row.visible_cleanliness }}%;"></div></div>
+                </div>
+              </div>
+
+              <details class="pet-admin-tools">
+                <summary>Open Admin Controls</summary>
+
+                <form
+                  class="pet-admin-form js-pet-admin-form"
+                  method="POST"
+                  action="{{ url_for('dashboard_pets') }}"
+                  data-confirm-message="Save changes to {{ row.pet.name }} for {{ row.owner_name }}?"
+                >
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="save_pet">
+                  <input type="hidden" name="user_id" value="{{ row.user_id }}">
+                  <input type="hidden" name="return_search" value="{{ search }}">
+                  <input type="hidden" name="return_page" value="{{ page }}">
+
+                  <div class="pet-admin-fields">
+                    <div class="pet-admin-field wide">
+                      <label for="pet_name_{{ row.user_id }}">Pet Name</label>
+                      <input id="pet_name_{{ row.user_id }}" type="text" name="pet_name" value="{{ row.pet.name }}" maxlength="24" required>
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="pet_type_{{ row.user_id }}">Pet Type</label>
+                      <select id="pet_type_{{ row.user_id }}" name="pet_type">
+                        {% for key, starter in pet_starters.items() %}
+                          <option value="{{ key }}" {% if row.pet.type == key %}selected{% endif %}>{{ starter.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="accent_{{ row.user_id }}">Accent</label>
+                      <select id="accent_{{ row.user_id }}" name="accent_color">
+                        {% for swatch in style_swatches %}
+                          <option value="{{ swatch.key }}" {% if row.pet.web_style and row.pet.web_style.accent_color == swatch.key %}selected{% endif %}>{{ swatch.label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="level_{{ row.user_id }}">Level</label>
+                      <input id="level_{{ row.user_id }}" type="number" name="level" min="1" max="20" value="{{ row.pet.level }}">
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="xp_{{ row.user_id }}">XP</label>
+                      <input id="xp_{{ row.user_id }}" type="number" name="xp" min="0" value="{{ row.pet.xp }}">
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="hunger_{{ row.user_id }}">Hunger</label>
+                      <input id="hunger_{{ row.user_id }}" type="number" name="hunger" min="0" max="100" value="{{ row.pet.hunger }}">
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="happiness_{{ row.user_id }}">Happiness</label>
+                      <input id="happiness_{{ row.user_id }}" type="number" name="happiness" min="0" max="100" value="{{ row.pet.happiness }}">
+                    </div>
+
+                    <div class="pet-admin-field">
+                      <label for="cleanliness_{{ row.user_id }}">Cleanliness</label>
+                      <input id="cleanliness_{{ row.user_id }}" type="number" name="cleanliness" min="0" max="100" value="{{ row.pet.cleanliness }}">
+                    </div>
+                  </div>
+
+                  <div class="pet-admin-actions">
+                    <button class="pets-button" type="submit">Save Pet Changes</button>
+                    <a class="pets-link-button" href="/profile/{{ row.user_id }}" target="_blank" rel="noopener noreferrer">Open Public Profile</a>
+                  </div>
+                </form>
+
+                <form
+                  class="pet-admin-delete js-pet-delete-form"
+                  method="POST"
+                  action="{{ url_for('dashboard_pets') }}"
+                  data-confirm-message="Remove {{ row.pet.name }} from {{ row.owner_name }}? This cannot be undone."
+                >
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="delete_pet">
+                  <input type="hidden" name="user_id" value="{{ row.user_id }}">
+                  <input type="hidden" name="return_search" value="{{ search }}">
+                  <input type="hidden" name="return_page" value="{{ page }}">
+
+                  <p class="pet-admin-delete-copy">Danger zone: type <strong>DELETE</strong> before removing this pet entirely.</p>
+                  <div class="pet-admin-fields">
+                    <div class="pet-admin-field wide">
+                      <label for="confirm_word_{{ row.user_id }}">Confirmation Word</label>
+                      <input id="confirm_word_{{ row.user_id }}" type="text" name="confirm_word" placeholder="DELETE">
+                    </div>
+                  </div>
+                  <div class="pet-admin-actions">
+                    <button class="pets-button danger" type="submit">Delete Pet</button>
+                  </div>
+                </form>
+
+                {% if row.hotel_is_active %}
+                  <form
+                    class="pet-admin-delete js-pet-hotel-remove-form"
+                    method="POST"
+                    action="{{ url_for('dashboard_pets') }}"
+                    data-confirm-message="Return {{ row.pet.name }} from the hotel now? This will restore the pet at {{ row.hotel_return_state }}% condition."
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="remove_hotel">
+                    <input type="hidden" name="user_id" value="{{ row.user_id }}">
+                    <input type="hidden" name="return_search" value="{{ search }}">
+                    <input type="hidden" name="return_page" value="{{ page }}">
+
+                    <p class="pet-admin-delete-copy">Hotel override: this brings the pet back immediately at {{ row.hotel_return_state }}% condition.</p>
+                    <div class="pet-admin-actions">
+                      <button class="pets-button secondary" type="submit">Return From Hotel</button>
+                    </div>
+                  </form>
+                {% endif %}
+              </details>
+            </article>
+          {% endfor %}
+        </section>
+      {% else %}
+        <section class="pet-admin-empty">
+          <h2 style="margin-top: 0;">No pets matched this search</h2>
+          <p style="margin-bottom: 0;">Try a pet name, owner name, username, or Discord ID.</p>
+        </section>
+      {% endif %}
+
+      <nav class="pets-pagination" aria-label="Pets pagination">
+        <div>Showing {{ pet_rows|length }} pets on this page.</div>
+        <div class="pets-pagination-links">
+          {% if page > 1 %}
+            <a class="pets-page-chip" href="{{ url_for('dashboard_pets', search=search, page=page - 1) }}">Previous</a>
+          {% endif %}
+          {% for page_num in range(1, total_pages + 1) %}
+            {% if page_num == page or page_num <= 2 or page_num > total_pages - 2 or (page_num >= page - 1 and page_num <= page + 1) %}
+              <a class="pets-page-chip {% if page_num == page %}active{% endif %}" href="{{ url_for('dashboard_pets', search=search, page=page_num) }}">{{ page_num }}</a>
+            {% endif %}
+          {% endfor %}
+          {% if page < total_pages %}
+            <a class="pets-page-chip" href="{{ url_for('dashboard_pets', search=search, page=page + 1) }}">Next</a>
+          {% endif %}
+        </div>
+      </nav>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".js-pet-admin-form").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      const message = form.dataset.confirmMessage || "Save these pet changes?";
+      if (!window.confirm(message)) {
+        event.preventDefault();
+      }
+    });
+  });
+
+  document.querySelectorAll(".js-pet-delete-form").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      const confirmWordInput = form.querySelector('input[name="confirm_word"]');
+      if (!confirmWordInput || confirmWordInput.value.trim().toUpperCase() !== "DELETE") {
+        event.preventDefault();
+        window.alert("Type DELETE before removing a pet.");
+        return;
+      }
+
+      const message = form.dataset.confirmMessage || "Delete this pet?";
+      if (!window.confirm(message)) {
+        event.preventDefault();
+      }
+    });
+  });
+
+  document.querySelectorAll(".js-pet-hotel-remove-form").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      const message = form.dataset.confirmMessage || "Return this pet from the hotel now?";
+      if (!window.confirm(message)) {
+        event.preventDefault();
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -99,6 +99,96 @@
     color: #d7c5ad;
   }
 
+  .pet-name-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .pet-name-edit {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    background: rgba(255,255,255,.16);
+    color: inherit;
+    font-size: 16px;
+    margin-top: 2px;
+  }
+
+  body.dark .pet-name-edit {
+    background: rgba(255,255,255,.08);
+  }
+
+  .pet-name-edit:hover {
+    background: rgba(255,255,255,.24);
+  }
+
+  .pet-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 12, 9, .58);
+    z-index: 50;
+  }
+
+  .pet-modal.is-open {
+    display: flex;
+  }
+
+  .pet-modal-card {
+    width: min(100%, 440px);
+    border-radius: 24px;
+    padding: 22px;
+    background: linear-gradient(180deg, rgba(46,38,30,.98), rgba(32,26,21,.98));
+    color: #fff6ea;
+    box-shadow: 0 24px 80px rgba(0,0,0,.34);
+  }
+
+  .pet-modal-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .pet-modal-top h3 {
+    margin: 0 0 6px;
+    font-size: 24px;
+  }
+
+  .pet-modal-top p {
+    margin: 0;
+    color: #dbc9b3;
+    font-size: 14px;
+  }
+
+  .pet-modal-close {
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255,255,255,.08);
+    color: #fff6ea;
+    cursor: pointer;
+    font-size: 20px;
+  }
+
+  .pet-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 14px;
+  }
+
   .pet-stage {
     --accent: #ff7fa5;
     position: relative;
@@ -710,7 +800,10 @@
 
         <div class="pet-nameplate">
           <div>
-            <h2 class="pet-name">{{ pet.name }}</h2>
+            <div class="pet-name-row">
+              <h2 class="pet-name">{{ pet.name }}</h2>
+              <button class="pet-name-edit" type="button" id="petRenameOpen" aria-label="Rename {{ pet.name }}">✏️</button>
+            </div>
             <p class="pet-meta">{{ pet.type|title }} · Level {{ pet.level }} · {{ pet.xp }}/{{ pet_xp_needed if pet_xp_needed else '?' }} XP</p>
           </div>
           <div class="pet-mood-pill">{{ mood }}</div>
@@ -730,6 +823,9 @@
             <div class="pet-bar-track"><div class="pet-bar-fill" style="width: {{ visible_cleanliness }}%; --fill-a: #7ed3ff; --fill-b: #5b9bff;"></div></div>
           </div>
         </div>
+        <div class="pet-badges" style="margin-top: 12px;">
+          <div class="pet-badge">🌿 Average Condition: {{ visible_average_condition }}%</div>
+        </div>
 
         <div class="pet-badges">
           <div class="pet-badge">🪙 {{ coins | format }} coins</div>
@@ -738,6 +834,9 @@
           <div class="pet-badge">🧺 {{ pet.owned_consumables|length }} consumables</div>
         </div>
         <div class="pet-badges">
+          {% if hotel_is_active %}
+            <div class="pet-badge">🏨 Pet Hotel: {{ hotel_time_left }} left</div>
+          {% endif %}
           <div class="pet-badge">🧼 Clean Tray: {% if clean_tray_is_ready %}Ready{% elif clean_tray_ready_at %}On cooldown{% else %}Ready{% endif %}</div>
           <div class="pet-badge">🎁 Auto level-up rewards enabled</div>
         </div>
@@ -783,7 +882,13 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Care Actions</h2>
-              <p class="pet-card-subtitle">Keep {{ pet.name }} fed, happy, and fresh throughout the day.</p>
+              <p class="pet-card-subtitle">
+                {% if hotel_is_active %}
+                  Care actions are paused while {{ pet.name }} is staying at the Pet Hotel.
+                {% else %}
+                  Keep {{ pet.name }} fed, happy, and fresh throughout the day.
+                {% endif %}
+              </p>
             </div>
           </div>
           <div class="pet-actions primary-actions">
@@ -797,15 +902,17 @@
                     <h3 class="pet-item-name">Feed</h3>
                     <p class="pet-item-meta">
                       {% if care_actions.feed and not care_actions.feed.is_ready %}
-                        Ready in {{ care_actions.feed.remaining }}
+                        Available soon
                       {% else %}
                         Every 4 hours
                       {% endif %}
                     </p>
                   </div>
                 </div>
-                <button class="pet-button secondary" type="submit" {% if care_actions.feed and not care_actions.feed.is_ready %}disabled{% endif %}>
-                  {% if care_actions.feed and not care_actions.feed.is_ready %}
+                <button class="pet-button secondary" type="submit" {% if hotel_is_active or (care_actions.feed and not care_actions.feed.is_ready) %}disabled{% endif %}>
+                  {% if hotel_is_active %}
+                    In Hotel
+                  {% elif care_actions.feed and not care_actions.feed.is_ready %}
                     Feed in {{ care_actions.feed.remaining }}
                   {% else %}
                     Feed {{ pet.name }}
@@ -824,15 +931,17 @@
                     <h3 class="pet-item-name">Play</h3>
                     <p class="pet-item-meta">
                       {% if care_actions.play and not care_actions.play.is_ready %}
-                        Ready in {{ care_actions.play.remaining }}
+                        Available soon
                       {% else %}
                         Every 3 hours
                       {% endif %}
                     </p>
                   </div>
                 </div>
-                <button class="pet-button secondary" type="submit" {% if care_actions.play and not care_actions.play.is_ready %}disabled{% endif %}>
-                  {% if care_actions.play and not care_actions.play.is_ready %}
+                <button class="pet-button secondary" type="submit" {% if hotel_is_active or (care_actions.play and not care_actions.play.is_ready) %}disabled{% endif %}>
+                  {% if hotel_is_active %}
+                    In Hotel
+                  {% elif care_actions.play and not care_actions.play.is_ready %}
                     Play in {{ care_actions.play.remaining }}
                   {% else %}
                     Play With {{ pet.name }}
@@ -851,15 +960,17 @@
                     <h3 class="pet-item-name">Clean</h3>
                     <p class="pet-item-meta">
                       {% if care_actions.clean and not care_actions.clean.is_ready %}
-                        Ready in {{ care_actions.clean.remaining }}
+                        Available soon
                       {% else %}
                         Every 6 hours
                       {% endif %}
                     </p>
                   </div>
                 </div>
-                <button class="pet-button secondary" type="submit" {% if care_actions.clean and not care_actions.clean.is_ready %}disabled{% endif %}>
-                  {% if care_actions.clean and not care_actions.clean.is_ready %}
+                <button class="pet-button secondary" type="submit" {% if hotel_is_active or (care_actions.clean and not care_actions.clean.is_ready) %}disabled{% endif %}>
+                  {% if hotel_is_active %}
+                    In Hotel
+                  {% elif care_actions.clean and not care_actions.clean.is_ready %}
                     Clean in {{ care_actions.clean.remaining }}
                   {% else %}
                     Clean {{ pet.name }}
@@ -896,6 +1007,8 @@
                 <button class="pet-button secondary" type="submit" style="margin-top: 14px;" {% if not clean_tray_is_ready %}disabled{% endif %}>
                   {% if clean_tray_is_ready %}
                     Collect Rewards
+                  {% elif hotel_is_active %}
+                    In Hotel
                   {% else %}
                     Not Ready
                   {% endif %}
@@ -923,25 +1036,8 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Customize</h2>
-              <p class="pet-card-subtitle">Update your pet's name, style, and favorite accessories.</p>
+              <p class="pet-card-subtitle">Update your pet's look and favorite accessories.</p>
             </div>
-          </div>
-
-          <div class="pet-actions" style="margin-bottom: 16px;">
-            <form class="pet-inline-stack" method="POST" action="{{ url_for('pet_rename') }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <div class="pet-action-card">
-                <div class="pet-item-top">
-                  <div class="pet-item-icon">✏️</div>
-                  <div>
-                    <h3 class="pet-item-name">Rename</h3>
-                    <p class="pet-item-meta">Up to 24 characters</p>
-                  </div>
-                </div>
-                <input class="pet-input" type="text" name="pet_name" maxlength="24" value="{{ pet.name }}">
-                <button class="pet-button soft" type="submit">Save Name</button>
-              </div>
-            </form>
           </div>
 
           <div class="pet-actions" style="margin-bottom: 16px;">
@@ -1022,7 +1118,7 @@
                         </div>
                       </div>
                       <p class="pet-item-desc">{{ item.description }}</p>
-                      <button class="pet-button soft" type="submit">Use Item</button>
+                      <button class="pet-button soft" type="submit" {% if hotel_is_active %}disabled{% endif %}>{% if hotel_is_active %}In Hotel{% else %}Use Item{% endif %}</button>
                     </div>
                   </form>
                 {% endfor %}
@@ -1049,8 +1145,8 @@
                         </div>
                       </div>
                       <p class="pet-item-desc">{{ item.description }}</p>
-                      <button class="pet-button {% if item.active %}ghost{% else %}soft{% endif %}" type="submit" name="action" value="equip">
-                        {% if item.active %}Equipped{% else %}Equip Boost{% endif %}
+                      <button class="pet-button {% if item.active %}ghost{% else %}soft{% endif %}" type="submit" name="action" value="equip" {% if hotel_is_active %}disabled{% endif %}>
+                        {% if hotel_is_active %}In Hotel{% elif item.active %}Equipped{% else %}Equip Boost{% endif %}
                       </button>
                     </div>
                   </form>
@@ -1060,12 +1156,86 @@
               {% if active_boost_name %}
                 <form method="POST" action="{{ url_for('pet_boost') }}" style="margin-top: 12px;">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="pet-button ghost" type="submit" name="action" value="unequip">Unequip {{ active_boost_name }}</button>
+                  <button class="pet-button ghost" type="submit" name="action" value="unequip" {% if hotel_is_active %}disabled{% endif %}>{% if hotel_is_active %}In Hotel{% else %}Unequip {{ active_boost_name }}{% endif %}</button>
                 </form>
               {% endif %}
             {% else %}
               <div class="pet-empty">No boosts owned yet.</div>
             {% endif %}
+          </div>
+        </article>
+
+        <article class="pet-card">
+          <div class="pet-card-header">
+            <div>
+              <h2 class="pet-card-title">Pet Hotel</h2>
+              <p class="pet-card-subtitle">
+                {% if hotel_is_active %}
+                  {{ pet.name }} is away right now and returns at {{ hotel_return_state }}% condition.
+                {% else %}
+                  Let your pet stay away for 1 to 4 weeks when you need a break.
+                {% endif %}
+              </p>
+            </div>
+          </div>
+
+          <div class="pet-utility-grid">
+            <div class="pet-summary-card">
+              <div class="pet-summary-top">
+                <div class="pet-item-icon">🏨</div>
+                <div>
+                  <h3 class="pet-summary-title">Hotel Status</h3>
+                  <p class="pet-item-meta">
+                    {% if hotel_is_active %}
+                      {{ hotel_time_left }} remaining
+                    {% else %}
+                      Ready for check-in
+                    {% endif %}
+                  </p>
+                </div>
+              </div>
+              <div class="pet-summary-stack">
+                <p class="pet-summary-copy">{{ hotel_status_text }}</p>
+                <p class="pet-summary-copy">
+                  {% if hotel_is_active %}
+                    No early checkout from the website while your pet is away.
+                  {% else %}
+                    Pick your stay length below. The website will ask you to confirm before check-in.
+                  {% endif %}
+                </p>
+              </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('pet_hotel') }}" class="pet-summary-card pet-hotel-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="hotel_confirm" value="false">
+              <div class="pet-summary-top">
+                <div class="pet-item-icon">🧳</div>
+                <div>
+                  <h3 class="pet-summary-title">Book A Stay</h3>
+                  <p class="pet-item-meta">Choose how long {{ pet.name }} should stay away.</p>
+                </div>
+              </div>
+              <div class="pet-summary-stack">
+                <select class="pet-select" name="hotel_weeks" {% if hotel_is_active %}disabled{% endif %}>
+                  {% for weeks in hotel_weeks %}
+                    <option value="{{ weeks }}">{{ weeks }} {% if weeks == 1 %}week{% else %}weeks{% endif %}</option>
+                  {% endfor %}
+                </select>
+                <p class="pet-summary-copy">Warning: no pet XP, Clean Tray rewards, or boost bonuses while your pet is in the hotel.</p>
+                <p class="pet-summary-copy">Your pet returns at {{ hotel_return_state }}% hunger, happiness, and cleanliness.</p>
+              </div>
+              <button
+                class="pet-button secondary"
+                type="submit"
+                data-default-label="{% if hotel_is_active %}Already In Hotel{% else %}Send To Hotel{% endif %}"
+                data-confirm-label="Confirm Hotel Stay"
+                style="margin-top: 14px;"
+                {% if hotel_is_active %}disabled{% endif %}
+              >
+                {% if hotel_is_active %}Already In Hotel{% else %}Send To Hotel{% endif %}
+              </button>
+            </form>
           </div>
         </article>
 
@@ -1124,7 +1294,60 @@
     </section>
   </div>
 </div>
+<div class="pet-modal" id="petRenameModal" aria-hidden="true">
+  <div class="pet-modal-card">
+    <div class="pet-modal-top">
+      <div>
+        <h3>Rename {{ pet.name }}</h3>
+        <p>Pick a new name for your farm companion.</p>
+      </div>
+      <button class="pet-modal-close" type="button" id="petRenameClose" aria-label="Close rename popup">×</button>
+    </div>
+    <form method="POST" action="{{ url_for('pet_rename') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="pet-input" type="text" name="pet_name" maxlength="24" value="{{ pet.name }}" required>
+      <div class="pet-modal-actions">
+        <button class="pet-button ghost" type="button" id="petRenameCancel">Cancel</button>
+        <button class="pet-button soft" type="submit">Save Name</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script>
+  (function () {
+    const modal = document.getElementById("petRenameModal");
+    const openButton = document.getElementById("petRenameOpen");
+    const closeButton = document.getElementById("petRenameClose");
+    const cancelButton = document.getElementById("petRenameCancel");
+    if (!modal || !openButton || !closeButton || !cancelButton) return;
+
+    const openModal = () => {
+      modal.classList.add("is-open");
+      modal.setAttribute("aria-hidden", "false");
+      const input = modal.querySelector('input[name="pet_name"]');
+      if (input) {
+        window.setTimeout(() => input.focus(), 30);
+      }
+    };
+
+    const closeModal = () => {
+      modal.classList.remove("is-open");
+      modal.setAttribute("aria-hidden", "true");
+    };
+
+    openButton.addEventListener("click", openModal);
+    closeButton.addEventListener("click", closeModal);
+    cancelButton.addEventListener("click", closeModal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeModal();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && modal.classList.contains("is-open")) {
+        closeModal();
+      }
+    });
+  })();
+
   (function () {
     const shopForms = document.querySelectorAll(".pet-shop-form");
     if (!shopForms.length) return;
@@ -1173,6 +1396,45 @@
     document.addEventListener("click", (event) => {
       if (event.target.closest(".pet-shop-form")) return;
       shopForms.forEach((form) => resetButton(form.querySelector('button[type="submit"]')));
+    });
+  })();
+
+  (function () {
+    const form = document.querySelector(".pet-hotel-form");
+    if (!form) return;
+
+    const button = form.querySelector('button[type="submit"]');
+    const confirmInput = form.querySelector('input[name="hotel_confirm"]');
+    if (!button || !confirmInput || button.disabled) return;
+
+    const resetButton = () => {
+      button.dataset.confirmed = "false";
+      confirmInput.value = "false";
+      button.textContent = button.dataset.defaultLabel || "Send To Hotel";
+    };
+
+    button.dataset.confirmed = "false";
+
+    form.addEventListener("submit", (event) => {
+      if (button.dataset.confirmed === "true") return;
+
+      event.preventDefault();
+      button.dataset.confirmed = "true";
+      confirmInput.value = "true";
+      button.textContent = button.dataset.confirmLabel || "Confirm Hotel Stay";
+    });
+
+    button.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (document.activeElement !== button) {
+          resetButton();
+        }
+      }, 150);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (event.target.closest(".pet-hotel-form")) return;
+      resetButton();
     });
   })();
 </script>

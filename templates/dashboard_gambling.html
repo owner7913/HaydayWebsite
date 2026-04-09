@@ -1,0 +1,438 @@
+{% extends 'base.html' %}
+{% block title %}Gambling Dashboard{% endblock %}
+
+{% block head_extra %}
+<style>
+  .dashboard-wrapper {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    margin-top: 60px;
+  }
+
+  .dashboard-content {
+    flex: 1;
+    padding: 32px;
+    background:
+      radial-gradient(circle at top right, rgba(244, 180, 0, 0.12), transparent 26%),
+      linear-gradient(180deg, #f6f2e8 0%, #ece5d8 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  body.dark .dashboard-content {
+    background:
+      radial-gradient(circle at top right, rgba(244, 180, 0, 0.12), transparent 26%),
+      linear-gradient(180deg, #151515 0%, #101010 100%);
+  }
+
+  .hero-card,
+  .panel,
+  .stat-card {
+    border-radius: 18px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+  }
+
+  .hero-card {
+    padding: 28px;
+    color: #1f1606;
+    background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+  }
+
+  .hero-card p {
+    margin: 10px 0 0;
+    max-width: 760px;
+  }
+
+  body.dark .hero-card {
+    color: #fff6db;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.26);
+  }
+
+  .panel {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 22px;
+    backdrop-filter: blur(8px);
+  }
+
+  body.dark .panel,
+  body.dark .stat-card {
+    background: rgba(24, 24, 24, 0.95);
+    color: #f5f5f5;
+  }
+
+  .filter-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    align-items: end;
+  }
+
+  .filter-form label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .filter-form input,
+  .filter-form select {
+    width: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 11px 12px;
+    font-size: 14px;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  body.dark .filter-form input,
+  body.dark .filter-form select {
+    background: #111;
+    color: #f5f5f5;
+    border-color: #2f2f2f;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 12px;
+    padding: 11px 16px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    background: #111;
+    color: #fff;
+  }
+
+  .btn.secondary {
+    background: #ece7db;
+    color: #111;
+  }
+
+  body.dark .btn.secondary {
+    background: #262626;
+    color: #f5f5f5;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+  }
+
+  .stat-card {
+    background: rgba(255, 255, 255, 0.86);
+    padding: 18px;
+  }
+
+  .stat-card .label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.72;
+  }
+
+  .stat-card .value {
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 8px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .section-head h2 {
+    margin: 0;
+  }
+
+  .hint {
+    font-size: 13px;
+    opacity: 0.75;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 860px;
+  }
+
+  th,
+  td {
+    padding: 12px 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    text-align: left;
+    vertical-align: top;
+    font-size: 14px;
+  }
+
+  body.dark th,
+  body.dark td {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.72;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .pill.win { background: rgba(47, 158, 68, 0.14); color: #1d7d36; }
+  .pill.loss { background: rgba(224, 49, 49, 0.14); color: #b42318; }
+  .pill.push { background: rgba(212, 158, 0, 0.18); color: #956700; }
+  .pill.blackjack { background: rgba(114, 9, 183, 0.14); color: #6a1b9a; }
+  .pill.dealer_blackjack { background: rgba(224, 49, 49, 0.14); color: #b42318; }
+
+  .summary {
+    max-width: 360px;
+    white-space: normal;
+  }
+
+  .empty {
+    padding: 24px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.04);
+    text-align: center;
+  }
+
+  body.dark .empty {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .pagination {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  @media (max-width: 900px) {
+    .dashboard-wrapper {
+      flex-direction: column;
+    }
+
+    .dashboard-content {
+      padding: 18px;
+    }
+
+    .hero-card,
+    .panel,
+    .stat-card {
+      border-radius: 14px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+  {% include 'sidepanel.html' %}
+
+  <main class="dashboard-content">
+    <section class="hero-card">
+      <h1>Gambling Admin</h1>
+      <p>Review blackjack sessions and coinflip activity from the bot economy data. Filters apply to both sections so you can trace a single user quickly.</p>
+    </section>
+
+    <section class="panel">
+      <form class="filter-form" method="get" action="/dashboard/gambling">
+        <div>
+          <label for="search">Search</label>
+          <input id="search" name="search" type="text" value="{{ search_term }}" placeholder="Username or Discord ID">
+        </div>
+        <div>
+          <label for="blackjack_result">Blackjack result</label>
+          <select id="blackjack_result" name="blackjack_result">
+            <option value="all" {% if blackjack_result == 'all' %}selected{% endif %}>All</option>
+            <option value="win" {% if blackjack_result == 'win' %}selected{% endif %}>Win</option>
+            <option value="blackjack" {% if blackjack_result == 'blackjack' %}selected{% endif %}>Blackjack</option>
+            <option value="push" {% if blackjack_result == 'push' %}selected{% endif %}>Push</option>
+            <option value="loss" {% if blackjack_result == 'loss' %}selected{% endif %}>Loss</option>
+            <option value="dealer_blackjack" {% if blackjack_result == 'dealer_blackjack' %}selected{% endif %}>Dealer blackjack</option>
+          </select>
+        </div>
+        <div>
+          <label for="coinflip_result">Coinflip result</label>
+          <select id="coinflip_result" name="coinflip_result">
+            <option value="all" {% if coinflip_result == 'all' %}selected{% endif %}>All</option>
+            <option value="win" {% if coinflip_result == 'win' %}selected{% endif %}>Win</option>
+            <option value="loss" {% if coinflip_result == 'loss' %}selected{% endif %}>Loss</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn" type="submit">Apply filters</button>
+          <a class="btn secondary" href="/dashboard/gambling">Reset</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Blackjack</h2>
+          <div class="hint">{{ blackjack_total }} matching sessions</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="label">Sessions</div><div class="value">{{ blackjack_total }}</div></div>
+        <div class="stat-card"><div class="label">Wins</div><div class="value">{{ blackjack_stats.wins or 0 }}</div></div>
+        <div class="stat-card"><div class="label">Losses</div><div class="value">{{ blackjack_stats.losses or 0 }}</div></div>
+        <div class="stat-card"><div class="label">Pushes</div><div class="value">{{ blackjack_stats.pushes or 0 }}</div></div>
+        <div class="stat-card"><div class="label">Split Games</div><div class="value">{{ blackjack_stats.splits or 0 }}</div></div>
+        <div class="stat-card"><div class="label">Wagered</div><div class="value">{{ blackjack_stats.wagered or 0 }}</div></div>
+      </div>
+
+      {% if blackjack_logs %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Player</th>
+              <th>Result</th>
+              <th>Bet</th>
+              <th>Total Wager</th>
+              <th>Payout</th>
+              <th>Dealer</th>
+              <th>Player Totals</th>
+              <th>Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in blackjack_logs %}
+            <tr>
+              <td>{{ log.ts.strftime('%Y-%m-%d %H:%M UTC') if log.ts else '-' }}</td>
+              <td>{{ log.display_username }}<br><span class="hint">{{ log.user_id }}</span></td>
+              <td><span class="pill {{ log.result }}">{{ log.result|replace('_', ' ') }}</span></td>
+              <td>{{ log.bet or 0 }}</td>
+              <td>{{ log.total_wager or 0 }}</td>
+              <td>{{ log.payout or 0 }}</td>
+              <td>{{ log.dealer_total or '-' }}</td>
+              <td>{{ (log.player_totals or [])|join(', ') }}</td>
+              <td class="summary">{{ log.summary or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        {% if blackjack_page > 1 %}
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page - 1, coinflip_page=coinflip_page) }}">Previous blackjack page</a>
+        {% endif %}
+        <span class="hint">Page {{ blackjack_page }}</span>
+        {% if blackjack_page * per_page < blackjack_total %}
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page + 1, coinflip_page=coinflip_page) }}">Next blackjack page</a>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty">No blackjack sessions matched the current filters.</div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Coinflip</h2>
+          <div class="hint">{{ coinflip_total }} matching events</div>
+        </div>
+        <div class="hint">
+          {% if coinflip_mode == 'ledger' %}
+          Using `Economy.coin_ledger` fallback. Loss rows are inferred from wager entries.
+          {% else %}
+          Using dedicated `Economy.coinflip_logs`.
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="label">Events</div><div class="value">{{ coinflip_stats.total }}</div></div>
+        <div class="stat-card"><div class="label">Wins</div><div class="value">{{ coinflip_stats.wins }}</div></div>
+        <div class="stat-card"><div class="label">Losses</div><div class="value">{{ coinflip_stats.losses }}</div></div>
+        <div class="stat-card"><div class="label">Wagered</div><div class="value">{{ coinflip_stats.wagered }}</div></div>
+        <div class="stat-card"><div class="label">Paid Out</div><div class="value">{{ coinflip_stats.paid_out }}</div></div>
+        <div class="stat-card"><div class="label">Profit Paid</div><div class="value">{{ coinflip_stats.profit_paid }}</div></div>
+      </div>
+
+      {% if coinflip_logs %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Player</th>
+              <th>Result</th>
+              <th>Bet</th>
+              <th>Payout</th>
+              <th>Choice</th>
+              <th>Flip</th>
+              <th>Balance After</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in coinflip_logs %}
+            <tr>
+              <td>{{ log.ts.strftime('%Y-%m-%d %H:%M UTC') if log.ts else '-' }}</td>
+              <td>{{ log.username }}<br><span class="hint">{{ log.user_id }}</span></td>
+              <td><span class="pill {{ log.result }}">{{ log.result }}</span></td>
+              <td>{{ log.bet }}</td>
+              <td>{{ log.payout }}</td>
+              <td>{{ log.choice or '-' }}</td>
+              <td>{{ log.flip_result or '-' }}</td>
+              <td>{{ log.balance_after if log.balance_after is not none else '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        {% if coinflip_page > 1 %}
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page - 1) }}">Previous coinflip page</a>
+        {% endif %}
+        <span class="hint">Page {{ coinflip_page }}</span>
+        {% if coinflip_page * per_page < coinflip_total %}
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page + 1) }}">Next coinflip page</a>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty">No coinflip events matched the current filters.</div>
+      {% endif %}
+    </section>
+  </main>
+</div>
+{% endblock %}

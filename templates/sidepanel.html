@@ -2,6 +2,10 @@
     <aside class="sidebar">
       <h2>Dashboard</h2>
       <a href="/dashboard">Bot Settings</a>
+      <a href="/dashboard/pets">Pets</a>
+      {% if session.get("staff_role") in ["Owner", "Co-Owner", "Head Admin"] %}
+      <a href="/dashboard/gambling">Gambling</a>
+      {% endif %}
       <a href="/giveaway-dashboard">Giveaways</a>
       <a href="#">Boosters - Not implemted</a>
       <a href="/admin">Admin Panel</a>
