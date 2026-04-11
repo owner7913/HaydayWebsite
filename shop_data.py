@@ -86,6 +86,27 @@ SHOP_ITEMS = {
         "category": "Chaos",
         "permanent": False,
     },
+    "mute_other_30m": {
+        "name": "Mute Someone (30m)",
+        "price": 1500,
+        "description": "Mutes a member of your choice for 30 minutes. (Staff immune)",
+        "category": "Chaos",
+        "permanent": False,
+    },
+    "mute_other_45m": {
+        "name": "Mute Someone (45m)",
+        "price": 2200,
+        "description": "Mutes a member of your choice for 45 minutes. (Staff immune)",
+        "category": "Chaos",
+        "permanent": False,
+    },
+    "mute_other_60m": {
+        "name": "Mute Someone (1h)",
+        "price": 2800,
+        "description": "Mutes a member of your choice for 1 hour. (Staff immune)",
+        "category": "Chaos",
+        "permanent": False,
+    },
     "self_mute_rng": {
         "name": "🎲 Self-Mute Randomizer",
         "price": 500,

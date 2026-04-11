@@ -313,7 +313,7 @@
         <div class="stat-card"><div class="label">Losses</div><div class="value">{{ blackjack_stats.losses or 0 }}</div></div>
         <div class="stat-card"><div class="label">Pushes</div><div class="value">{{ blackjack_stats.pushes or 0 }}</div></div>
         <div class="stat-card"><div class="label">Split Games</div><div class="value">{{ blackjack_stats.splits or 0 }}</div></div>
-        <div class="stat-card"><div class="label">Wagered</div><div class="value">{{ blackjack_stats.wagered or 0 }}</div></div>
+        <div class="stat-card"><div class="label">Bets</div><div class="value">{{ blackjack_stats.wagered or 0 }}</div></div>
       </div>
 
       {% if blackjack_logs %}
@@ -325,11 +325,12 @@
               <th>Player</th>
               <th>Result</th>
               <th>Bet</th>
-              <th>Total Wager</th>
+              <th>Total Bets</th>
               <th>Payout</th>
               <th>Dealer</th>
               <th>Player Totals</th>
               <th>Summary</th>
+              <th>Admin</th>
             </tr>
           </thead>
           <tbody>
@@ -344,6 +345,29 @@
               <td>{{ log.dealer_total or '-' }}</td>
               <td>{{ (log.player_totals or [])|join(', ') }}</td>
               <td class="summary">{{ log.summary or '-' }}</td>
+              <td>
+                {% if log.admin_refunded_at %}
+                <div class="hint">Refunded</div>
+                {% elif log.result in ['loss', 'dealer_blackjack'] %}
+                <form method="post" action="/admin/gambling/blackjack/refund" style="margin-bottom:8px;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="log_id" value="{{ log._id }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn secondary" type="submit">Refund</button>
+                </form>
+                {% endif %}
+
+                {% if log.admin_reviewed_at %}
+                <div class="hint">Reviewed</div>
+                {% else %}
+                <form method="post" action="/admin/gambling/blackjack/review">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="log_id" value="{{ log._id }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn secondary" type="submit">Mark reviewed</button>
+                </form>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -372,7 +396,7 @@
         </div>
         <div class="hint">
           {% if coinflip_mode == 'ledger' %}
-          Using `Economy.coin_ledger` fallback. Loss rows are inferred from wager entries.
+          Using `Economy.coin_ledger` fallback. Loss rows are inferred from bet entries.
           {% else %}
           Using dedicated `Economy.coinflip_logs`.
           {% endif %}
@@ -383,7 +407,7 @@
         <div class="stat-card"><div class="label">Events</div><div class="value">{{ coinflip_stats.total }}</div></div>
         <div class="stat-card"><div class="label">Wins</div><div class="value">{{ coinflip_stats.wins }}</div></div>
         <div class="stat-card"><div class="label">Losses</div><div class="value">{{ coinflip_stats.losses }}</div></div>
-        <div class="stat-card"><div class="label">Wagered</div><div class="value">{{ coinflip_stats.wagered }}</div></div>
+        <div class="stat-card"><div class="label">Bets</div><div class="value">{{ coinflip_stats.wagered }}</div></div>
         <div class="stat-card"><div class="label">Paid Out</div><div class="value">{{ coinflip_stats.paid_out }}</div></div>
         <div class="stat-card"><div class="label">Profit Paid</div><div class="value">{{ coinflip_stats.profit_paid }}</div></div>
       </div>
@@ -401,6 +425,7 @@
               <th>Choice</th>
               <th>Flip</th>
               <th>Balance After</th>
+              <th>Admin</th>
             </tr>
           </thead>
           <tbody>
@@ -414,6 +439,31 @@
               <td>{{ log.choice or '-' }}</td>
               <td>{{ log.flip_result or '-' }}</td>
               <td>{{ log.balance_after if log.balance_after is not none else '-' }}</td>
+              <td>
+                {% if log.admin_refunded_at %}
+                <div class="hint">Refunded</div>
+                {% elif log.can_refund %}
+                <form method="post" action="/admin/gambling/coinflip/refund" style="margin-bottom:8px;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="event_id" value="{{ log.event_id }}">
+                  <input type="hidden" name="storage_mode" value="{{ log.storage_mode }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn secondary" type="submit">Refund</button>
+                </form>
+                {% endif %}
+
+                {% if log.admin_reviewed_at %}
+                <div class="hint">Reviewed</div>
+                {% else %}
+                <form method="post" action="/admin/gambling/coinflip/review">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="event_id" value="{{ log.event_id }}">
+                  <input type="hidden" name="storage_mode" value="{{ log.storage_mode }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn secondary" type="submit">Mark reviewed</button>
+                </form>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
