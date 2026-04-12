@@ -19,6 +19,8 @@
   const reportReasonInput = document.getElementById("blackjack-report-reason");
   const reportSubmitBtn = document.getElementById("blackjack-report-submit");
   const reportCancelBtn = document.getElementById("blackjack-report-cancel");
+  const rulesOverlay = document.getElementById("blackjack-rules-overlay");
+  const rulesCloseBtn = document.getElementById("blackjack-rules-close");
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
   const isAdmin = app.dataset.isAdmin === "true";
   const disclaimerKey = "blackjack-disclaimer-v1";
@@ -34,7 +36,7 @@
   let tableTimer = null;
   const renderedCardKeys = new Set();
   let countdownTimer = null;
-  let chatCollapsed = false;
+  let chatCollapsed = window.matchMedia("(max-width: 980px)").matches;
   let unreadChatCount = 0;
   const seenChatIds = new Set();
   let lastRenderedTable = null;
@@ -48,6 +50,19 @@
     document.querySelectorAll("[data-blackjack-balance]").forEach((node) => {
       node.textContent = formatNumber(value);
     });
+  }
+
+  function formatSignedNumber(value) {
+    const amount = Number(value || 0);
+    const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
+    return `${sign}${formatNumber(Math.abs(amount))}`;
+  }
+
+  function sessionPnlClass(value) {
+    const amount = Number(value || 0);
+    if (amount > 0) return "win";
+    if (amount < 0) return "loss";
+    return "even";
   }
 
   function setSidebarCollapsed(value) {
@@ -83,6 +98,16 @@
       document.body.classList.add("no-scroll");
       setTimeout(() => reportReasonInput?.focus(), 0);
     } else if (hasAcceptedDisclaimer()) {
+      document.body.classList.remove("no-scroll");
+    }
+  }
+
+  function setRulesModalOpen(value) {
+    const isOpen = Boolean(value);
+    rulesOverlay?.classList.toggle("hidden", !isOpen);
+    if (isOpen) {
+      document.body.classList.add("no-scroll");
+    } else if (hasAcceptedDisclaimer() && reportOverlay?.classList.contains("hidden")) {
       document.body.classList.remove("no-scroll");
     }
   }
@@ -193,13 +218,15 @@
   function renderResultBanner(hand) {
     if (!hand?.result) return "";
     const payout = Number(hand.payout || 0);
+    const betAmount = Number(hand.bet_amount || 0);
+    const net = payout - betAmount;
     if (hand.result === "win" || hand.result === "blackjack") {
-      return `<div class="blackjack-result-banner win">Win +${formatNumber(payout)}</div>`;
+      return `<div class="blackjack-result-banner win">Win +${formatNumber(net)}</div>`;
     }
     if (hand.result === "push") {
-      return `<div class="blackjack-result-banner push">Push ${formatNumber(payout)}</div>`;
+      return `<div class="blackjack-result-banner push">Push 0</div>`;
     }
-    return `<div class="blackjack-result-banner loss">Loss -${formatNumber(hand.bet_amount || 0)}</div>`;
+    return `<div class="blackjack-result-banner loss">Loss -${formatNumber(betAmount)}</div>`;
   }
 
   function statusLabel(status) {
@@ -374,6 +401,43 @@
       return '<div class="blackjack-empty">No players at this table yet.</div>';
     }
 
+    const compactLayout = window.innerWidth <= 980;
+    if (compactLayout) {
+      const orderedPlayers = [...table.players].sort((a, b) => {
+        const aViewer = Number(a.user_id === viewerId);
+        const bViewer = Number(b.user_id === viewerId);
+        if (aViewer !== bViewer) return bViewer - aViewer;
+        const aTurn = Number(table.current_turn_user_id === a.user_id);
+        const bTurn = Number(table.current_turn_user_id === b.user_id);
+        return bTurn - aTurn;
+      });
+
+      return `<div class="blackjack-mobile-seat-grid">${orderedPlayers.map((player) => `
+        <div class="blackjack-mobile-seat ${table.current_turn_user_id === player.user_id ? "turn" : ""} ${player.user_id === viewerId ? "viewer" : ""}">
+          <div class="blackjack-mobile-seat-head">
+            <img class="blackjack-avatar ${table.current_turn_user_id === player.user_id ? "turn" : ""}" src="${player.avatar_url}" alt="">
+            <div class="blackjack-mobile-seat-name">${player.username}</div>
+          </div>
+          ${player.hands?.length ? `
+            <div class="blackjack-hand-stack ${player.hands.length > 1 ? "multi-hand" : ""}">
+              ${player.hands.map((seatHand, handIndex) => `
+                <div class="blackjack-seat-hand ${player.hands.length > 1 ? "split-layout" : ""}">
+                  ${renderResultBanner(seatHand)}
+                  <div class="blackjack-seat-cards ${handIndex === (player.active_hand_index || 0) && table.current_turn_user_id === player.user_id ? "active" : ""}">
+                    ${renderCards(`player-${player.user_id}-hand-${handIndex}`, seatHand.cards, { fan: true, compactFan: true })}
+                  </div>
+                  <div class="blackjack-player-meta">
+                    <span>Bet ${formatNumber(seatHand.bet_amount || player.bet || 0)}</span>
+                    <span>Total ${seatHand.total}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : '<div class="blackjack-copy">Waiting for the next hand.</div>'}
+        </div>
+      `).join("")}</div>`;
+    }
+
     const seatOffsets = {
       1: [{ x: 0, y: 0 }],
       2: [{ x: -156, y: 24 }, { x: 156, y: 24 }],
@@ -388,16 +452,26 @@
 
     const seatScaleByCount = {
       1: 1,
-      2: 1,
-      3: 1,
-      4: 0.94,
-      5: 0.84,
-      6: 0.74,
+      2: 0.97,
+      3: 0.9,
+      4: 0.81,
+      5: 0.71,
+      6: 0.62,
     };
 
-    const seatScale = seatScaleByCount[playerCount] || 0.74;
+    const mobileGridScaleByCount = {
+      1: 0.62,
+      2: 0.58,
+      3: 0.5,
+      4: 0.44,
+      5: 0.39,
+      6: 0.34,
+    };
 
-    return `<div class="blackjack-player-grid seats-${playerCount}">${table.players.map((player, index) => {
+    const seatScale = seatScaleByCount[playerCount] || 0.62;
+    const mobileGridScale = mobileGridScaleByCount[playerCount] || 0.34;
+
+    return `<div class="blackjack-player-grid seats-${playerCount}" style="--grid-scale-mobile:${mobileGridScale};">${table.players.map((player, index) => {
       const seat = layout[Math.min(layout.length - 1, index)] || { x: 0, y: 0 };
 
       const scaledX = Math.round(seat.x * seatScale);
@@ -442,6 +516,7 @@
     const draftState = captureDraftState();
     trackChat(table);
     lastRenderedTable = table;
+    const compactLayout = window.innerWidth <= 980;
     const turnRemaining = secondsUntil(table.turn_deadline_at);
     const nextHandRemaining = secondsUntil(table.auto_redeal_at);
     const autoStartRemaining = secondsUntil(table.auto_start_at);
@@ -458,6 +533,8 @@
           <div class="blackjack-status ${table.status}">${table.phase}</div>
           <div class="blackjack-row" style="justify-content:flex-end;">
             <div class="blackjack-balance blackjack-balance-inline">Balance <strong data-blackjack-balance>${balanceNode?.textContent || "0"}</strong></div>
+            <div class="blackjack-pnl-chip ${sessionPnlClass(table.viewer_player?.session_pnl)}">Table P/L <strong>${formatSignedNumber(table.viewer_player?.session_pnl || 0)}</strong></div>
+            <button class="blackjack-info-button" id="blackjack-rules-btn" type="button" aria-label="Open blackjack rules">i</button>
             <div class="blackjack-copy">Code ${table.table_code}</div>
           </div>
         </div>
@@ -468,7 +545,7 @@
           <div class="blackjack-stat"><strong>Turn</strong><div>${table.current_turn_user_id ? "Player action" : "No active turn"}</div></div>
           <div class="blackjack-stat"><strong>Timer</strong><div id="blackjack-turn-timer" data-deadline="${table.turn_deadline_at || ""}" data-redeal="${table.auto_redeal_at || ""}" data-start="${table.auto_start_at || ""}">${turnRemaining !== null ? formatDuration(turnRemaining) : nextHandRemaining !== null ? formatDuration(nextHandRemaining) : autoStartRemaining !== null ? formatDuration(autoStartRemaining) : formatDuration(table.turn_time_seconds)}</div></div>
         </div>
-        <div class="blackjack-table-stage">
+        <div class="blackjack-table-stage ${compactLayout ? "mobile-layout" : ""}">
           <div class="blackjack-dealer-zone">
             <div class="blackjack-dealer-head">
               <img class="blackjack-dealer-avatar" src="${table.dealer_profile.avatar_url}" alt="">
@@ -609,6 +686,10 @@
       renderTable(table);
     });
 
+    document.getElementById("blackjack-rules-btn")?.addEventListener("click", function () {
+      setRulesModalOpen(true);
+    });
+
     const chatLog = document.getElementById("blackjack-chat-log");
     if (chatLog && !chatCollapsed) chatLog.scrollTop = chatLog.scrollHeight;
     restoreDraftState(draftState);
@@ -620,6 +701,7 @@
     leaveBtn.hidden = true;
     if (reportBtn) reportBtn.hidden = true;
     setReportModalOpen(false);
+    setRulesModalOpen(false);
     liveRoot.innerHTML = '<div class="blackjack-empty">Create a table or join one from the lobby.</div>';
   }
 
@@ -770,6 +852,14 @@
 
   reportOverlay?.addEventListener("click", function (event) {
     if (event.target === reportOverlay) setReportModalOpen(false);
+  });
+
+  rulesCloseBtn?.addEventListener("click", function () {
+    setRulesModalOpen(false);
+  });
+
+  rulesOverlay?.addEventListener("click", function (event) {
+    if (event.target === rulesOverlay) setRulesModalOpen(false);
   });
 
   reportSubmitBtn?.addEventListener("click", async function () {

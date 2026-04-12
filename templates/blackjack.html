@@ -95,6 +95,50 @@
     white-space: nowrap;
   }
 
+  .blackjack-pnl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    background: rgba(255,255,255,0.08);
+    color: #f1f5f0;
+  }
+
+  .blackjack-pnl-chip.win {
+    background: rgba(39, 174, 96, 0.16);
+    color: #8ff0af;
+  }
+
+  .blackjack-pnl-chip.loss {
+    background: rgba(231, 76, 60, 0.16);
+    color: #ff9f97;
+  }
+
+  .blackjack-pnl-chip.even {
+    background: rgba(255,255,255,0.08);
+    color: #f1f5f0;
+  }
+
+  .blackjack-info-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(15, 15, 15, 0.36);
+    color: #f3f5f0;
+    font-weight: 800;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .blackjack-info-button:hover {
+    background: rgba(255,255,255,0.08);
+  }
+
   .blackjack-form {
     display: grid;
     gap: 10px;
@@ -374,6 +418,7 @@
     will-change: transform, opacity;
     backface-visibility: hidden;
     -webkit-font-smoothing: antialiased;
+    isolation: isolate;
   }
 
   .blackjack-card.fan-slot {
@@ -427,6 +472,8 @@
 
   .blackjack-card-face {
     padding: 6px;
+    background: #ffffff;
+    opacity: 1;
   }
 
   .blackjack-card playing-card {
@@ -435,6 +482,10 @@
     height: 100%;
     transform: translateZ(0);
     image-rendering: auto;
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+    color-scheme: light;
   }
 
   .blackjack-card-back {
@@ -525,6 +576,13 @@
     justify-items: center;
   }
 
+  .blackjack-hand-stack.multi-hand {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 16px;
+  }
+
   .blackjack-player .blackjack-card-row {
     min-height: 112px;
   }
@@ -564,12 +622,61 @@
     line-height: 1.2;
   }
 
+  .blackjack-mobile-seat-grid {
+    display: none;
+  }
+
+  .blackjack-mobile-seat {
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.14);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .blackjack-mobile-seat-head {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+  }
+
+  .blackjack-mobile-seat-name {
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+    word-break: break-word;
+  }
+
   .blackjack-seat-hand {
     display: grid;
     gap: 8px;
     width: max-content;
     justify-items: center;
     justify-self: center;
+  }
+
+  .blackjack-hand-stack.multi-hand .blackjack-seat-hand {
+    align-self: flex-end;
+  }
+
+  .blackjack-seat-hand.split-layout .blackjack-card {
+    width: 72px;
+    height: 102px;
+  }
+
+  .blackjack-seat-hand.split-layout .blackjack-card-row {
+    min-height: 100px;
+  }
+
+  .blackjack-seat-hand.split-layout .blackjack-card.fan-slot {
+    margin-left: -28px;
+  }
+
+  .blackjack-seat-hand.split-layout .blackjack-card.fan-slot.compact {
+    margin-left: -42px;
   }
 
   .blackjack-seat-cards {
@@ -717,6 +824,47 @@
 
   .blackjack-report-overlay.hidden {
     display: none;
+  }
+
+  .blackjack-rules-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1450;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(6, 10, 8, 0.74);
+    backdrop-filter: blur(8px);
+  }
+
+  .blackjack-rules-overlay.hidden {
+    display: none;
+  }
+
+  .blackjack-rules-card {
+    width: min(640px, 100%);
+    display: grid;
+    gap: 14px;
+    padding: 22px;
+    border-radius: 8px;
+    background: rgba(16, 20, 18, 0.98);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 22px 60px rgba(0,0,0,0.34);
+    color: #f4f5f2;
+  }
+
+  .blackjack-rules-card h3,
+  .blackjack-rules-card p {
+    margin: 0;
+  }
+
+  .blackjack-rules-list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+    line-height: 1.45;
   }
 
   .blackjack-report-card {
@@ -981,15 +1129,44 @@
     }
 
     .blackjack-chat-panel {
-      position: static;
-      min-height: 280px;
-      height: 280px;
-      max-height: 280px;
+      position: fixed;
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      width: min(420px, calc(100vw - 24px));
+      bottom: 14px;
+      height: min(58svh, 420px);
+      max-height: min(58svh, 420px);
+      min-height: 260px;
+      z-index: 30;
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
     }
 
     .blackjack-chat-panel.collapsed {
+      left: auto;
+      right: 12px;
+      transform: none;
+      bottom: 14px;
+      width: auto;
+      min-height: 0;
       height: auto;
       max-height: none;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      overflow: visible;
+    }
+
+    .blackjack-chat-panel.collapsed .blackjack-chat-head {
+      display: inline-flex;
+      align-items: center;
+      flex-direction: row;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(12, 14, 14, 0.96);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
     }
 
     .blackjack-table-stage {
@@ -998,11 +1175,37 @@
       gap: 12px;
     }
 
+    .blackjack-table-stage.mobile-layout {
+      min-height: auto;
+      max-height: none;
+      grid-template-rows: auto auto;
+      overflow: visible;
+    }
+
     .blackjack-player-grid {
       min-height: clamp(180px, 26vw, 250px);
       display: block;
-      transform: scale(0.72);
+      transform: scale(var(--grid-scale-mobile, 0.5));
       margin: -32px -130px -72px;
+    }
+
+    .blackjack-table-stage.mobile-layout .blackjack-player-grid {
+      display: none;
+    }
+
+    .blackjack-mobile-seat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      align-items: start;
+    }
+
+    .blackjack-table-stage.mobile-layout .blackjack-dealer-zone {
+      gap: 8px;
+    }
+
+    .blackjack-table-stage.mobile-layout .blackjack-dealer-cards {
+      margin-top: 0;
     }
 
     .blackjack-player {
@@ -1011,6 +1214,15 @@
 
     .blackjack-table-board::after {
       display: none;
+    }
+
+    .blackjack-dealer-cards .blackjack-card {
+      width: 66px;
+      height: 92px;
+    }
+
+    .blackjack-dealer-cards .blackjack-card-row {
+      min-height: 98px;
     }
 
     .blackjack-controls-panel {
@@ -1073,10 +1285,73 @@
       gap: 8px;
     }
 
+    .blackjack-table-stage.mobile-layout {
+      min-height: auto;
+      max-height: none;
+    }
+
     .blackjack-player-grid {
-      transform: scale(0.50);
+      transform: scale(var(--grid-scale-mobile, 0.44));
       min-height: 145px;
       margin: -62px -220px -116px;
+    }
+
+    .blackjack-mobile-seat-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .blackjack-hand-stack.multi-hand {
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+    }
+
+    .blackjack-mobile-seat {
+      padding: 8px;
+      gap: 6px;
+    }
+
+    .blackjack-mobile-seat .blackjack-card {
+      width: 58px;
+      height: 82px;
+    }
+
+    .blackjack-mobile-seat .blackjack-card-row {
+      min-height: 84px;
+    }
+
+    .blackjack-mobile-seat .blackjack-card.fan-slot {
+      margin-left: -22px;
+    }
+
+    .blackjack-mobile-seat .blackjack-card.fan-slot.compact {
+      margin-left: -30px;
+    }
+
+    .blackjack-card,
+    .blackjack-card-face,
+    .blackjack-card playing-card {
+      opacity: 1 !important;
+      filter: none !important;
+    }
+
+    .blackjack-card {
+      background: #ffffff;
+      border-color: rgba(15, 23, 42, 0.22);
+      box-shadow:
+        0 10px 18px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .blackjack-card-face,
+    .blackjack-card playing-card {
+      background: #ffffff !important;
+      color: #111827 !important;
+      filter: saturate(1.28) contrast(1.14) brightness(1.06) !important;
+      mix-blend-mode: normal !important;
+      transform: translateZ(0) !important;
+      -webkit-transform: translateZ(0) !important;
     }
 
     .blackjack-player {
@@ -1084,6 +1359,16 @@
     }
 
     .blackjack-dealer-zone {
+      gap: 6px;
+    }
+
+    .blackjack-dealer-cards .blackjack-card {
+      width: 52px;
+      height: 74px;
+    }
+
+    .blackjack-dealer-cards .blackjack-card-row {
+      min-height: 76px;
       gap: 6px;
     }
 
@@ -1114,11 +1399,20 @@
       min-width: 96px;
     }
     .blackjack-chat-panel {
-      min-height: 220px;
-      height: 220px;
-      max-height: 220px;
+      width: min(400px, calc(100vw - 16px));
+      bottom: 10px;
+      min-height: 200px;
+      height: min(54svh, 340px);
+      max-height: min(54svh, 340px);
       padding: 10px;
       gap: 8px;
+    }
+
+    .blackjack-chat-panel.collapsed {
+      left: auto;
+      right: 8px;
+      width: auto;
+      bottom: 10px;
     }
 
     .blackjack-controls-panel {
@@ -1144,9 +1438,16 @@
     }
 
     .blackjack-balance-inline,
+    .blackjack-pnl-chip,
     .blackjack-timer-pill {
       font-size: 12px;
       padding: 6px 9px;
+    }
+
+    .blackjack-info-button {
+      width: 30px;
+      height: 30px;
+      font-size: 13px;
     }
 
     .blackjack-player-meta {
@@ -1201,6 +1502,11 @@
       height: 92px;
     }
 
+    .blackjack-card-face,
+    .blackjack-card playing-card {
+      filter: saturate(1.35) contrast(1.18) brightness(1.08) !important;
+    }
+
     .blackjack-card-row {
       min-height: 92px;
     }
@@ -1241,6 +1547,24 @@
       height: 180px;
       max-height: 180px;
       padding: 8px;
+      width: min(360px, calc(100vw - 12px));
+      bottom: 8px;
+    }
+
+    .blackjack-chat-panel.collapsed {
+      width: auto;
+      right: 6px;
+      bottom: 8px;
+    }
+
+    .blackjack-chat-panel.collapsed .blackjack-chat-head {
+      padding: 6px 8px;
+      gap: 6px;
+    }
+
+    .blackjack-chat-panel.collapsed .blackjack-chat-toggle {
+      min-width: 0;
+      padding-inline: 10px;
     }
   }  
   .blackjack-bet-note {
@@ -1355,6 +1679,27 @@
     <div class="blackjack-disclaimer-actions">
       <button class="blackjack-button" id="blackjack-report-submit" type="button">Submit report</button>
       <button class="blackjack-button alt" id="blackjack-report-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="blackjack-rules-overlay hidden" id="blackjack-rules-overlay">
+  <div class="blackjack-rules-card">
+    <h3>Blackjack rules</h3>
+    <p>This table uses site coins only. Nothing here is tied to real money, real prizes, or cash value.</p>
+    <ul class="blackjack-rules-list">
+      <li>Your goal is to beat the dealer by getting closer to 21 without going over.</li>
+      <li>Number cards keep their value, face cards are worth 10, and aces count as 1 or 11.</li>
+      <li>A natural blackjack is an ace plus any 10-value card and pays 3:2 unless the dealer also has blackjack.</li>
+      <li>The dealer reveals the hidden card after player actions and draws until reaching at least 17.</li>
+      <li><strong>Hit</strong> takes one more card. <strong>Stand</strong> keeps your total.</li>
+      <li><strong>Double</strong> adds one extra bet, deals exactly one final card, then locks the hand.</li>
+      <li><strong>Split</strong> is available on matching opening ranks and turns them into two separate hands with matching bets.</li>
+      <li><strong>Insurance</strong> appears only when the dealer shows an ace. It costs half your original bet and pays 2:1 if the dealer has blackjack.</li>
+      <li>Your <strong>Table P/L</strong> tracks how much you are up or down since you joined this table.</li>
+    </ul>
+    <div class="blackjack-disclaimer-actions">
+      <button class="blackjack-button" id="blackjack-rules-close" type="button">Close</button>
     </div>
   </div>
 </div>

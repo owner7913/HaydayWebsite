@@ -8955,9 +8955,10 @@ def _bj_dealer_view(table):
 
 def _bj_table_state(table, viewer_id=None):
     viewer_id = int(viewer_id) if str(viewer_id).isdigit() else None
+    viewer_balance = _bj_current_balance(viewer_id) if viewer_id is not None else None
     players = []
     for player in table.get("players", []):
-        players.append({
+        serialized_player = {
             "user_id": int(player.get("user_id")),
             "username": player.get("username"),
             "avatar_url": player.get("avatar_url"),
@@ -8971,7 +8972,12 @@ def _bj_table_state(table, viewer_id=None):
             "is_owner": int(player.get("user_id")) == int(table.get("owner_id", 0)),
             "is_turn": viewer_id is not None and int(player.get("user_id")) == int(table.get("current_turn_user_id") or 0),
             "hands": [_bj_serialize_hand(hand) for hand in player.get("hands", [])],
-        })
+        }
+        if viewer_id is not None and int(player.get("user_id", 0)) == viewer_id:
+            session_start_balance = int(player.get("session_start_balance", viewer_balance or 0) or 0)
+            serialized_player["session_start_balance"] = session_start_balance
+            serialized_player["session_pnl"] = int((viewer_balance or 0) - session_start_balance)
+        players.append(serialized_player)
 
     viewer_player = None
     for player in players:
@@ -9331,23 +9337,25 @@ def _bj_progress_table(table):
 
     auto_redeal_at = _bj_as_utc(table.get("auto_redeal_at"))
     if table.get("phase") == "settled" and auto_redeal_at and auto_redeal_at <= now:
-        ok, message = _bj_start_round(table)
-        if not ok:
-            table["message"] = message
-        changed = True
+        if _bj_claim_due_transition(table, allowed_phases={"settled"}, due_field="auto_redeal_at"):
+            ok, message = _bj_start_round(table)
+            if not ok:
+                table["message"] = message
+            changed = True
 
     auto_start_at = _bj_as_utc(table.get("auto_start_at"))
     if table.get("phase") in {"lobby", "waiting"} and auto_start_at and auto_start_at <= now:
-        ok, message = _bj_start_round(table)
-        if not ok:
-            if any(int(player.get("bet", 0) or 0) > 0 for player in table.get("players", [])):
-                _bj_schedule_start(table, force=True)
-            else:
-                table["phase"] = "lobby"
-                table["status"] = "waiting"
-                table["auto_start_at"] = None
-                table["message"] = message
-        changed = True
+        if _bj_claim_due_transition(table, allowed_phases={"lobby", "waiting"}, due_field="auto_start_at"):
+            ok, message = _bj_start_round(table)
+            if not ok:
+                if any(int(player.get("bet", 0) or 0) > 0 for player in table.get("players", [])):
+                    _bj_schedule_start(table, force=True)
+                else:
+                    table["phase"] = "lobby"
+                    table["status"] = "waiting"
+                    table["auto_start_at"] = None
+                    table["message"] = message
+            changed = True
 
     return changed
 
@@ -9366,6 +9374,36 @@ def _bj_load_table_or_404(table_id, *, progress=False):
             return None
         _bj_save_table(table)
     return table
+
+
+def _bj_claim_due_transition(table, *, allowed_phases, due_field, next_phase="dealing"):
+    if not table or not table.get("_id"):
+        return False
+    due_value = table.get(due_field)
+    if not isinstance(allowed_phases, (list, tuple, set)):
+        allowed_phases = [allowed_phases]
+    query = {
+        "_id": table["_id"],
+        "phase": {"$in": list(allowed_phases)},
+        due_field: due_value,
+        "updated_at": table.get("updated_at"),
+    }
+    update = {
+        "$set": {
+            "phase": next_phase,
+            "status": "waiting",
+            due_field: None,
+            "updated_at": _bj_now(),
+        }
+    }
+    result = _bj_tables_col().update_one(query, update)
+    if not result.modified_count:
+        return False
+    table["phase"] = next_phase
+    table["status"] = "waiting"
+    table[due_field] = None
+    table["updated_at"] = _bj_now()
+    return True
 
 
 def _bj_save_table(table):
@@ -9466,6 +9504,7 @@ def api_blackjack_create():
         "username": profile["username"],
         "avatar_url": profile["avatar_url"],
         "joined_at": _bj_now(),
+        "session_start_balance": _bj_current_balance(user_id),
         "bet": min_bet,
         "next_bet": min_bet,
         "reserved_bet": 0,
@@ -9542,6 +9581,7 @@ def api_blackjack_join():
         "username": profile["username"],
         "avatar_url": profile["avatar_url"],
         "joined_at": _bj_now(),
+        "session_start_balance": _bj_current_balance(user_id),
         "bet": int(table.get("min_bet", 1) or 1),
         "next_bet": int(table.get("min_bet", 1) or 1),
         "reserved_bet": 0,
@@ -11472,7 +11512,7 @@ def competition_home():
         app.logger.info(f"[competition_home] No entries for comp_id={comp_id}. "
                         f"Example doc fields? created_at/comp_id set?")
     prizes = {
-        "first":  "1,000,000 coins + 1 month of Discord Nitro",
+        "first":  "1,000,000 coins or 75k Server coins + 1 month of Discord Nitro",
         "second": "700,000 coins",
         "third":  "500,000 coins",
     }
