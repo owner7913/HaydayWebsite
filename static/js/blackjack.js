@@ -11,8 +11,17 @@
   const leaveBtn = document.getElementById("blackjack-leave-btn");
   const createForm = document.getElementById("blackjack-create-form");
   const refreshLobbyBtn = document.getElementById("blackjack-refresh-lobby");
+  const sidebarToggleBtn = document.getElementById("blackjack-sidebar-toggle");
+  const disclaimerOverlay = document.getElementById("blackjack-disclaimer");
+  const disclaimerAcceptBtn = document.getElementById("blackjack-disclaimer-accept");
+  const reportBtn = document.getElementById("blackjack-report-btn");
+  const reportOverlay = document.getElementById("blackjack-report-overlay");
+  const reportReasonInput = document.getElementById("blackjack-report-reason");
+  const reportSubmitBtn = document.getElementById("blackjack-report-submit");
+  const reportCancelBtn = document.getElementById("blackjack-report-cancel");
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
   const isAdmin = app.dataset.isAdmin === "true";
+  const disclaimerKey = "blackjack-disclaimer-v1";
 
   const suitCodes = {
     spades: "S",
@@ -29,13 +38,53 @@
   let unreadChatCount = 0;
   const seenChatIds = new Set();
   let lastRenderedTable = null;
+  let sidebarCollapsed = window.matchMedia("(max-width: 980px)").matches;
 
   function formatNumber(value) {
     return new Intl.NumberFormat().format(Number(value || 0));
   }
 
   function setBalance(value) {
-    if (balanceNode) balanceNode.textContent = formatNumber(value);
+    document.querySelectorAll("[data-blackjack-balance]").forEach((node) => {
+      node.textContent = formatNumber(value);
+    });
+  }
+
+  function setSidebarCollapsed(value) {
+    sidebarCollapsed = Boolean(value);
+    app.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+    if (sidebarToggleBtn) {
+      sidebarToggleBtn.textContent = sidebarCollapsed ? "Show setup" : "Hide setup";
+    }
+  }
+
+  function hasAcceptedDisclaimer() {
+    try {
+      return window.localStorage.getItem(disclaimerKey) === "accepted";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function setDisclaimerAccepted() {
+    try {
+      window.localStorage.setItem(disclaimerKey, "accepted");
+    } catch (error) {
+      // ignore storage failures
+    }
+    disclaimerOverlay?.classList.add("hidden");
+    document.body.classList.remove("no-scroll");
+  }
+
+  function setReportModalOpen(value) {
+    const isOpen = Boolean(value);
+    reportOverlay?.classList.toggle("hidden", !isOpen);
+    if (isOpen) {
+      document.body.classList.add("no-scroll");
+      setTimeout(() => reportReasonInput?.focus(), 0);
+    } else if (hasAcceptedDisclaimer()) {
+      document.body.classList.remove("no-scroll");
+    }
   }
 
   function formatDuration(seconds) {
@@ -172,9 +221,31 @@
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function isEditingField() {
+  function captureDraftState() {
     const active = document.activeElement;
-    return Boolean(active && (active.id === "blackjack-bet-input" || active.id === "blackjack-chat-input"));
+    const activeId = active?.id || "";
+    return {
+      activeId,
+      betValue: document.getElementById("blackjack-bet-input")?.value ?? "",
+      chatValue: document.getElementById("blackjack-chat-input")?.value ?? "",
+      selectionStart: typeof active?.selectionStart === "number" ? active.selectionStart : null,
+      selectionEnd: typeof active?.selectionEnd === "number" ? active.selectionEnd : null,
+    };
+  }
+
+  function restoreDraftState(state) {
+    if (!state) return;
+    const betInput = document.getElementById("blackjack-bet-input");
+    const chatInput = document.getElementById("blackjack-chat-input");
+    if (betInput && state.betValue !== "") betInput.value = state.betValue;
+    if (chatInput && state.chatValue !== "") chatInput.value = state.chatValue;
+    const active = state.activeId ? document.getElementById(state.activeId) : null;
+    if (active) {
+      active.focus({ preventScroll: true });
+      if (typeof state.selectionStart === "number" && typeof active.setSelectionRange === "function") {
+        active.setSelectionRange(state.selectionStart, state.selectionEnd ?? state.selectionStart);
+      }
+    }
   }
 
   function trackChat(table) {
@@ -259,10 +330,17 @@
       Math.floor(Number(activeHand?.bet_amount || 0) / 2) > 0 &&
       player.insurance_state === "pending"
     );
+
+    const isLiveRound = Number(player.reserved_bet || 0) > 0;
+    const shownBet = isLiveRound
+      ? (player.next_bet || player.bet || table.min_bet)
+      : (player.bet || player.next_bet || table.min_bet);
+    const saveBetLabel = isLiveRound ? "Save next bet" : "Save bet";
     return `
       <div class="blackjack-actions">
-        <input class="blackjack-input" id="blackjack-bet-input" type="number" min="${table.min_bet}" step="1" value="${player.bet || table.min_bet}" style="max-width:180px">
-        <button class="blackjack-button alt" id="blackjack-save-bet" type="button">Save bet</button>
+        <input class="blackjack-input" id="blackjack-bet-input" type="number" min="${table.min_bet}" step="1" value="${shownBet}" style="max-width:180px">
+        <button class="blackjack-button alt" id="blackjack-save-bet" type="button">${saveBetLabel}</button>
+        ${isLiveRound ? `<div class="blackjack-bet-note">Current hand locked at ${formatNumber(player.reserved_bet)} • next hand ${formatNumber(player.next_bet || player.bet || table.min_bet)}</div>` : ""}
         ${table.phase === "insurance" && isTurn ? `
           ${canInsurance ? '<button class="blackjack-button" id="blackjack-insurance" type="button">Insurance</button>' : ""}
           <button class="blackjack-button alt" id="blackjack-no-insurance" type="button">No insurance</button>
@@ -304,25 +382,45 @@
       5: [{ x: -314, y: 138 }, { x: -168, y: 72 }, { x: 0, y: 18 }, { x: 168, y: 72 }, { x: 314, y: 138 }],
       6: [{ x: -334, y: 150 }, { x: -220, y: 96 }, { x: -72, y: 32 }, { x: 72, y: 32 }, { x: 220, y: 96 }, { x: 334, y: 150 }],
     };
-    const layout = seatOffsets[table.players.length] || seatOffsets[6];
 
-    return `<div class="blackjack-player-grid">${table.players.map((player, index) => {
-      const hand = player.hands && player.hands[0];
-      const seat = layout[Math.min(layout.length - 1, index)] || { x: 0, y: 0, rotate: 0 };
-      const seatStyle = `transform: translateX(calc(-50% + ${seat.x}px)) translateY(${seat.y}px);`;
+    const playerCount = Math.min(table.players.length, 6);
+    const layout = seatOffsets[playerCount] || seatOffsets[6];
+
+    const seatScaleByCount = {
+      1: 1,
+      2: 1,
+      3: 1,
+      4: 0.94,
+      5: 0.84,
+      6: 0.74,
+    };
+
+    const seatScale = seatScaleByCount[playerCount] || 0.74;
+
+    return `<div class="blackjack-player-grid seats-${playerCount}">${table.players.map((player, index) => {
+      const seat = layout[Math.min(layout.length - 1, index)] || { x: 0, y: 0 };
+
+      const scaledX = Math.round(seat.x * seatScale);
+      const scaledY = Math.round(seat.y * seatScale);
+
+      const seatStyle = `
+        transform:
+          translateX(calc(-50% + ${scaledX}px))
+          translateY(${scaledY}px)
+          scale(${seatScale});
+        transform-origin: center bottom;
+      `;
+
       return `
         <div class="blackjack-player ${table.current_turn_user_id === player.user_id ? "turn" : ""}" style="${seatStyle}">
-          <div class="blackjack-player-head">
-            <div>
-              <strong>${player.username}</strong>
-            </div>
-          </div>
           ${player.hands?.length ? `
             <div class="blackjack-hand-stack">
               ${player.hands.map((seatHand, handIndex) => `
-                <div class="blackjack-seat-hand ${handIndex === (player.active_hand_index || 0) && table.current_turn_user_id === player.user_id ? "active" : ""}">
+                <div class="blackjack-seat-hand">
                   ${renderResultBanner(seatHand)}
-                  ${renderCards(`player-${player.user_id}-hand-${handIndex}`, seatHand.cards, { fan: true, compactFan: true })}
+                  <div class="blackjack-seat-cards ${handIndex === (player.active_hand_index || 0) && table.current_turn_user_id === player.user_id ? "active" : ""}">
+                    ${renderCards(`player-${player.user_id}-hand-${handIndex}`, seatHand.cards, { fan: true, compactFan: true })}
+                  </div>
                   <div class="blackjack-player-meta">
                     <span>Bet ${formatNumber(seatHand.bet_amount || player.bet || 0)}</span>
                     <span>Total ${seatHand.total}</span>
@@ -341,6 +439,7 @@
   }
 
   function renderTable(table) {
+    const draftState = captureDraftState();
     trackChat(table);
     lastRenderedTable = table;
     const turnRemaining = secondsUntil(table.turn_deadline_at);
@@ -349,6 +448,7 @@
     activeTitle.textContent = table.name;
     activeCopy.textContent = `${table.owner_name} owns this table. Minimum bet ${formatNumber(table.min_bet)}. Turn time ${formatDuration(table.turn_time_seconds)}.`;
     leaveBtn.hidden = false;
+    if (reportBtn) reportBtn.hidden = false;
 
     liveRoot.innerHTML = `
       <div class="blackjack-live-layout ${chatCollapsed ? "chat-collapsed" : ""}">
@@ -356,7 +456,10 @@
           <div class="blackjack-table-board">
         <div class="blackjack-row">
           <div class="blackjack-status ${table.status}">${table.phase}</div>
-          <div class="blackjack-copy">Code ${table.table_code}</div>
+          <div class="blackjack-row" style="justify-content:flex-end;">
+            <div class="blackjack-balance blackjack-balance-inline">Balance <strong data-blackjack-balance>${balanceNode?.textContent || "0"}</strong></div>
+            <div class="blackjack-copy">Code ${table.table_code}</div>
+          </div>
         </div>
         <p class="blackjack-message">${table.message || "Waiting on the next move."}</p>
         <div class="blackjack-meta">
@@ -508,12 +611,15 @@
 
     const chatLog = document.getElementById("blackjack-chat-log");
     if (chatLog && !chatCollapsed) chatLog.scrollTop = chatLog.scrollHeight;
+    restoreDraftState(draftState);
   }
 
   function renderEmptyState() {
     activeTitle.textContent = "Choose a table";
     activeCopy.textContent = "Join a table to play. Hands start automatically when bets are ready.";
     leaveBtn.hidden = true;
+    if (reportBtn) reportBtn.hidden = true;
+    setReportModalOpen(false);
     liveRoot.innerHTML = '<div class="blackjack-empty">Create a table or join one from the lobby.</div>';
   }
 
@@ -611,16 +717,11 @@
       return;
     }
 
-    if (isEditingField()) {
-      tableTimer = setTimeout(refreshTable, 800);
-      return;
-    }
-
     try {
       const data = await api(`/api/blackjack/table/${activeTableId}`, { method: "GET" });
       setBalance(data.balance);
       renderTable(data.table);
-      tableTimer = setTimeout(refreshTable, (data.table.poll_seconds || 2) * 1000);
+      tableTimer = setTimeout(refreshTable, Math.max(900, (data.table.poll_seconds || 1) * 1000));
     } catch (error) {
       activeTableId = "";
       updateUrl();
@@ -654,6 +755,49 @@
     refreshLobby();
   });
 
+  sidebarToggleBtn?.addEventListener("click", function () {
+    setSidebarCollapsed(!sidebarCollapsed);
+  });
+
+  reportBtn?.addEventListener("click", function () {
+    if (!activeTableId) return;
+    setReportModalOpen(true);
+  });
+
+  reportCancelBtn?.addEventListener("click", function () {
+    setReportModalOpen(false);
+  });
+
+  reportOverlay?.addEventListener("click", function (event) {
+    if (event.target === reportOverlay) setReportModalOpen(false);
+  });
+
+  reportSubmitBtn?.addEventListener("click", async function () {
+    const reason = String(reportReasonInput?.value || "").trim();
+    if (reason.length < 10) {
+      alert("Please describe the issue before sending the report.");
+      reportReasonInput?.focus();
+      return;
+    }
+    try {
+      await api("/api/blackjack/report", {
+        method: "POST",
+        body: JSON.stringify({ table_id: activeTableId, reason }),
+      });
+      if (reportReasonInput) reportReasonInput.value = "";
+      setReportModalOpen(false);
+      alert("Report sent to the admin dashboard.");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  window.addEventListener("resize", function () {
+    if (window.innerWidth <= 980 && !sidebarCollapsed) {
+      setSidebarCollapsed(true);
+    }
+  });
+
   leaveBtn?.addEventListener("click", async function () {
     if (!activeTableId) return;
     try {
@@ -670,7 +814,17 @@
     }
   });
 
+  disclaimerAcceptBtn?.addEventListener("click", function () {
+    setDisclaimerAccepted();
+  });
+
   renderEmptyState();
+  setSidebarCollapsed(sidebarCollapsed);
+  if (hasAcceptedDisclaimer()) {
+    disclaimerOverlay?.classList.add("hidden");
+  } else {
+    document.body.classList.add("no-scroll");
+  }
   refreshLobby();
   refreshTable();
   setInterval(refreshLobby, 5000);

@@ -49,6 +49,13 @@
           </ul>
         </li>
 
+        <li class="dropdown {% if request.path.startswith('/blackjack') %}active{% endif %}">
+          <a href="#">Games ▼</a>
+          <ul class="dropdown-content">
+            <li><a href="#">Blackjack</a></li>
+          </ul>
+        </li>
+
         <li class="{% if request.path.startswith('/staff') %}active{% endif %}"><a href="/staff">Staff Members</a></li>
 
         {% if session.get("staff_role") %}

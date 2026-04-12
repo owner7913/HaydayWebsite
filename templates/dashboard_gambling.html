@@ -220,6 +220,17 @@
     white-space: normal;
   }
 
+  .mono {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+  }
+
+  .reason {
+    max-width: 420px;
+    white-space: normal;
+    line-height: 1.45;
+  }
+
   .empty {
     padding: 24px;
     border-radius: 14px;
@@ -264,7 +275,7 @@
   <main class="dashboard-content">
     <section class="hero-card">
       <h1>Gambling Admin</h1>
-      <p>Review blackjack sessions and coinflip activity from the bot economy data. Filters apply to both sections so you can trace a single user quickly.</p>
+      <p>Review blackjack sessions, table-code activity trails, user reports, and coinflip activity from the bot economy data. Filters apply across the page so you can trace one table or one player quickly.</p>
     </section>
 
     <section class="panel">
@@ -272,6 +283,10 @@
         <div>
           <label for="search">Search</label>
           <input id="search" name="search" type="text" value="{{ search_term }}" placeholder="Username or Discord ID">
+        </div>
+        <div>
+          <label for="table_code">Table code</label>
+          <input id="table_code" name="table_code" type="text" value="{{ table_code }}" placeholder="e.g. 2D54AA">
         </div>
         <div>
           <label for="blackjack_result">Blackjack result</label>
@@ -376,15 +391,110 @@
 
       <div class="pagination">
         {% if blackjack_page > 1 %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page - 1, coinflip_page=coinflip_page) }}">Previous blackjack page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page - 1, coinflip_page=coinflip_page) }}">Previous blackjack page</a>
         {% endif %}
         <span class="hint">Page {{ blackjack_page }}</span>
         {% if blackjack_page * per_page < blackjack_total %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page + 1, coinflip_page=coinflip_page) }}">Next blackjack page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page + 1, coinflip_page=coinflip_page) }}">Next blackjack page</a>
         {% endif %}
       </div>
       {% else %}
       <div class="empty">No blackjack sessions matched the current filters.</div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Blackjack Table Actions</h2>
+          <div class="hint">
+            {% if table_code %}
+            Showing the latest logged actions for table <span class="mono">{{ table_code }}</span>.
+            {% else %}
+            Add a table code to trace a specific lobby from creation to reports.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if blackjack_action_logs %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Table</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Phase</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in blackjack_action_logs %}
+            <tr>
+              <td>{{ event.ts.strftime('%Y-%m-%d %H:%M UTC') if event.ts else '-' }}</td>
+              <td><span class="mono">{{ event.table_code or '-' }}</span><br><span class="hint">{{ event.table_name or '-' }}</span></td>
+              <td>{{ event.username or 'System' }}{% if event.user_id %}<br><span class="hint">{{ event.user_id }}</span>{% endif %}</td>
+              <td><span class="pill">{{ event.action|replace('_', ' ') }}</span></td>
+              <td>{{ event.phase or '-' }}</td>
+              <td class="summary">{{ event.details or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">No blackjack table actions matched the current filters.</div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Blackjack Reports</h2>
+          <div class="hint">Player-submitted reports tied to the table code and current table state.</div>
+        </div>
+      </div>
+
+      {% if blackjack_reports %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Table</th>
+              <th>Reporter</th>
+              <th>Reason</th>
+              <th>Admin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for report in blackjack_reports %}
+            <tr>
+              <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M UTC') if report.created_at else '-' }}</td>
+              <td><span class="mono">{{ report.table_code or '-' }}</span><br><span class="hint">{{ report.table_name or '-' }}</span></td>
+              <td>{{ report.reporter_username or '-' }}{% if report.reporter_user_id %}<br><span class="hint">{{ report.reporter_user_id }}</span>{% endif %}</td>
+              <td class="reason">{{ report.reason or '-' }}</td>
+              <td>
+                {% if report.admin_reviewed_at %}
+                <div class="hint">Reviewed</div>
+                {% else %}
+                <form method="post" action="/admin/gambling/blackjack/report/review">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="report_id" value="{{ report._id }}">
+                  <input type="hidden" name="return_to" value="{{ request.full_path }}">
+                  <button class="btn secondary" type="submit">Mark reviewed</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">No blackjack reports matched the current filters.</div>
       {% endif %}
     </section>
 
@@ -472,11 +582,11 @@
 
       <div class="pagination">
         {% if coinflip_page > 1 %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page - 1) }}">Previous coinflip page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page - 1) }}">Previous coinflip page</a>
         {% endif %}
         <span class="hint">Page {{ coinflip_page }}</span>
         {% if coinflip_page * per_page < coinflip_total %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page + 1) }}">Next coinflip page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page + 1) }}">Next coinflip page</a>
         {% endif %}
       </div>
       {% else %}
