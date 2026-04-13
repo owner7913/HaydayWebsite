@@ -253,7 +253,9 @@
     const activeId = active?.id || "";
     return {
       activeId,
-      betValue: document.getElementById("blackjack-bet-input")?.value ?? "",
+      seatBetValue: document.getElementById("blackjack-seat-bet-input")?.value ?? "",
+      autoBetValue: document.getElementById("blackjack-auto-bet-amount")?.value ?? "",
+      autoBetEnabled: document.getElementById("blackjack-auto-bet-enabled")?.checked ?? false,
       chatValue: document.getElementById("blackjack-chat-input")?.value ?? "",
       selectionStart: typeof active?.selectionStart === "number" ? active.selectionStart : null,
       selectionEnd: typeof active?.selectionEnd === "number" ? active.selectionEnd : null,
@@ -262,9 +264,13 @@
 
   function restoreDraftState(state) {
     if (!state) return;
-    const betInput = document.getElementById("blackjack-bet-input");
+    const seatBetInput = document.getElementById("blackjack-seat-bet-input");
+    const autoBetInput = document.getElementById("blackjack-auto-bet-amount");
+    const autoBetToggle = document.getElementById("blackjack-auto-bet-enabled");
     const chatInput = document.getElementById("blackjack-chat-input");
-    if (betInput && state.betValue !== "") betInput.value = state.betValue;
+    if (seatBetInput && state.seatBetValue !== "") seatBetInput.value = state.seatBetValue;
+    if (autoBetInput && state.autoBetValue !== "") autoBetInput.value = state.autoBetValue;
+    if (autoBetToggle) autoBetToggle.checked = Boolean(state.autoBetEnabled);
     if (chatInput && state.chatValue !== "") chatInput.value = state.chatValue;
     const active = state.activeId ? document.getElementById(state.activeId) : null;
     if (active) {
@@ -331,7 +337,21 @@
   function renderViewerControls(table) {
     const player = table.viewer_player;
     if (!player) {
-      return '<div class="blackjack-empty">Join the table to place a bet and play.</div>';
+      if (table.viewer_role === "observer") {
+        return `
+          <div class="blackjack-empty">You are watching this table.</div>
+          <div class="blackjack-actions">
+            <button class="blackjack-button" id="blackjack-join-seat" type="button">Join table</button>
+          </div>
+        `;
+      }
+      return `
+        <div class="blackjack-empty">Watch the table or take a seat to join the next betting window.</div>
+        <div class="blackjack-actions">
+          <button class="blackjack-button alt" id="blackjack-watch-table" type="button">Watch table</button>
+          <button class="blackjack-button" id="blackjack-join-seat" type="button">Join table</button>
+        </div>
+      `;
     }
 
     const isTurn = table.current_turn_user_id === viewerId;
@@ -358,16 +378,8 @@
       player.insurance_state === "pending"
     );
 
-    const isLiveRound = Number(player.reserved_bet || 0) > 0;
-    const shownBet = isLiveRound
-      ? (player.next_bet || player.bet || table.min_bet)
-      : (player.bet || player.next_bet || table.min_bet);
-    const saveBetLabel = isLiveRound ? "Save next bet" : "Save bet";
     return `
       <div class="blackjack-actions">
-        <input class="blackjack-input" id="blackjack-bet-input" type="number" min="${table.min_bet}" step="1" value="${shownBet}" style="max-width:180px">
-        <button class="blackjack-button alt" id="blackjack-save-bet" type="button">${saveBetLabel}</button>
-        ${isLiveRound ? `<div class="blackjack-bet-note">Current hand locked at ${formatNumber(player.reserved_bet)} • next hand ${formatNumber(player.next_bet || player.bet || table.min_bet)}</div>` : ""}
         ${table.phase === "insurance" && isTurn ? `
           ${canInsurance ? '<button class="blackjack-button" id="blackjack-insurance" type="button">Insurance</button>' : ""}
           <button class="blackjack-button alt" id="blackjack-no-insurance" type="button">No insurance</button>
@@ -394,6 +406,77 @@
     const autoStartRemaining = secondsUntil(table.auto_start_at);
     if (autoStartRemaining !== null) return `Hand starts ${formatDuration(autoStartRemaining)}`;
     return `Turn time ${formatDuration(table.turn_time_seconds)}`;
+  }
+
+  function renderSeatBetControls(player, table) {
+    if (Number(player.user_id) !== viewerId) return "";
+    const isLiveRound = Number(player.reserved_bet || 0) > 0;
+    const stagedBet = isLiveRound ? Number(player.next_bet || 0) : Number(player.bet || 0);
+    const currentBetPlaced = !isLiveRound && table.phase === "betting" && stagedBet > 0;
+    const quickBets = [25, 100, 250, 500];
+    if (currentBetPlaced) {
+      return `
+        <div class="blackjack-seat-bet-controls compact">
+          <div class="blackjack-bet-note">
+            Bet placed: ${formatNumber(stagedBet)}. Waiting for the rest of the table.
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="blackjack-seat-bet-controls">
+        <div class="blackjack-chip-row">
+          ${quickBets.map((amount) => `
+            <button class="blackjack-chip-button ${stagedBet === amount ? "active" : ""}" type="button" data-chip-bet="${amount}">
+              <span>${formatNumber(amount)}</span>
+            </button>
+          `).join("")}
+        </div>
+        <div class="blackjack-seat-bet-custom">
+          <input class="blackjack-input" id="blackjack-seat-bet-input" type="number" min="${table.min_bet}" step="1" placeholder="Custom amount" value="${stagedBet || ""}">
+          <button class="blackjack-button alt" id="blackjack-seat-bet-save" type="button">${isLiveRound ? "Save next" : "Bet"}</button>
+        </div>
+        <div class="blackjack-bet-note">
+          ${isLiveRound
+            ? `Current hand is locked at ${formatNumber(player.reserved_bet)}. Set the next one here.`
+            : `Place your bet here before the next hand starts. Minimum ${formatNumber(table.min_bet)}.`}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderObservers(table) {
+    if (!table.observers?.length) {
+      return '<div class="blackjack-copy">No observers yet.</div>';
+    }
+    return `
+      <div class="blackjack-observer-list">
+        ${table.observers.map((observer) => `
+          <div class="blackjack-observer-pill">
+            <img class="blackjack-avatar" src="${observer.avatar_url}" alt="">
+            <span>${observer.username}${observer.is_owner ? " (host)" : ""}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderTableAutoBet(table) {
+    const player = table.viewer_player;
+    if (!player) return "";
+    return `
+      <div class="blackjack-auto-bet-box blackjack-auto-bet-table">
+        <label class="blackjack-toggle-row" for="blackjack-auto-bet-enabled">
+          <span>Auto bet every round</span>
+          <input id="blackjack-auto-bet-enabled" type="checkbox" ${player.auto_bet_enabled ? "checked" : ""}>
+        </label>
+        <div class="blackjack-auto-bet-controls">
+          <input class="blackjack-input" id="blackjack-auto-bet-amount" type="number" min="${table.min_bet}" step="1" value="${player.auto_bet_amount || table.min_bet}">
+          <button class="blackjack-button alt" id="blackjack-auto-bet-save" type="button">Save auto bet</button>
+        </div>
+        <div class="blackjack-bet-note">Leave this off if you want a fresh manual bet before every hand.</div>
+      </div>
+    `;
   }
 
   function renderPlayers(table) {
@@ -434,6 +517,7 @@
               `).join("")}
             </div>
           ` : '<div class="blackjack-copy">Waiting for the next hand.</div>'}
+          ${renderSeatBetControls(player, table)}
         </div>
       `).join("")}</div>`;
     }
@@ -507,6 +591,7 @@
               <div class="blackjack-player-name">${player.username}</div>
             </div>
           ` : '<div class="blackjack-copy">Waiting for the next hand.</div>'}
+          ${renderSeatBetControls(player, table)}
         </div>
       `;
     }).join("")}</div>`;
@@ -521,7 +606,7 @@
     const nextHandRemaining = secondsUntil(table.auto_redeal_at);
     const autoStartRemaining = secondsUntil(table.auto_start_at);
     activeTitle.textContent = table.name;
-    activeCopy.textContent = `${table.owner_name} owns this table. Minimum bet ${formatNumber(table.min_bet)}. Turn time ${formatDuration(table.turn_time_seconds)}.`;
+    activeCopy.textContent = `${table.owner_name} owns this table. Minimum bet ${formatNumber(table.min_bet)}. Turn time ${formatDuration(table.turn_time_seconds)}. Fresh bets are required unless auto bet is on.`;
     leaveBtn.hidden = false;
     if (reportBtn) reportBtn.hidden = false;
 
@@ -541,8 +626,9 @@
         <p class="blackjack-message">${table.message || "Waiting on the next move."}</p>
         <div class="blackjack-meta">
           <div class="blackjack-stat"><strong>Seats</strong><div>${table.players.length} / ${table.max_players}</div></div>
+          <div class="blackjack-stat"><strong>Observers</strong><div>${table.observers?.length || 0}</div></div>
           <div class="blackjack-stat"><strong>Shoe</strong><div>${table.shoe_count} decks</div></div>
-          <div class="blackjack-stat"><strong>Turn</strong><div>${table.current_turn_user_id ? "Player action" : "No active turn"}</div></div>
+          <div class="blackjack-stat"><strong>Turn</strong><div>${table.phase === "betting" ? "Betting window" : table.current_turn_user_id ? "Player action" : "No active turn"}</div></div>
           <div class="blackjack-stat"><strong>Timer</strong><div id="blackjack-turn-timer" data-deadline="${table.turn_deadline_at || ""}" data-redeal="${table.auto_redeal_at || ""}" data-start="${table.auto_start_at || ""}">${turnRemaining !== null ? formatDuration(turnRemaining) : nextHandRemaining !== null ? formatDuration(nextHandRemaining) : autoStartRemaining !== null ? formatDuration(autoStartRemaining) : formatDuration(table.turn_time_seconds)}</div></div>
         </div>
         <div class="blackjack-table-stage ${compactLayout ? "mobile-layout" : ""}">
@@ -561,14 +647,19 @@
           </div>
           ${renderPlayers(table)}
         </div>
+        ${renderTableAutoBet(table)}
           </div>
           <div class="blackjack-controls-panel">
             <div class="blackjack-seat-meta">
               <div>
-                <p class="blackjack-seat-kicker">Your seat</p>
-                <p class="blackjack-seat-name">${table.viewer_player ? table.viewer_player.username : "Not seated"}</p>
+                <p class="blackjack-seat-kicker">${table.viewer_role === "player" ? "Your seat" : table.viewer_role === "observer" ? "Observing" : "Table access"}</p>
+                <p class="blackjack-seat-name">${table.viewer_player ? table.viewer_player.username : table.viewer_observer ? table.viewer_observer.username : "Not seated"}</p>
               </div>
               <div class="blackjack-timer-pill" data-deadline="${table.turn_deadline_at || ""}" data-redeal="${table.auto_redeal_at || ""}" data-start="${table.auto_start_at || ""}">${tableTimerText(table)}</div>
+            </div>
+            <div>
+              <p class="blackjack-seat-kicker">Observers</p>
+              ${renderObservers(table)}
             </div>
             ${renderViewerHand(table)}
             ${renderViewerControls(table)}
@@ -578,14 +669,67 @@
       </div>
     `;
 
-    document.getElementById("blackjack-save-bet")?.addEventListener("click", async function () {
-      const bet = Number(document.getElementById("blackjack-bet-input")?.value || 0);
+    async function saveSeatBet(amountOverride = null) {
+      const bet = Number(amountOverride ?? (document.getElementById("blackjack-seat-bet-input")?.value || 0));
       try {
         await api("/api/blackjack/bet", {
           method: "POST",
           body: JSON.stringify({ table_id: activeTableId, bet }),
         });
         await refreshTable();
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    document.getElementById("blackjack-seat-bet-save")?.addEventListener("click", function () {
+      saveSeatBet();
+    });
+
+    document.querySelectorAll("[data-chip-bet]").forEach((button) => {
+      button.addEventListener("click", function () {
+        const amount = Number(this.getAttribute("data-chip-bet") || 0);
+        const input = document.getElementById("blackjack-seat-bet-input");
+        if (input) input.value = String(amount);
+        saveSeatBet(amount);
+      });
+    });
+
+    document.getElementById("blackjack-auto-bet-save")?.addEventListener("click", async function () {
+      const enabled = Boolean(document.getElementById("blackjack-auto-bet-enabled")?.checked);
+      const amount = Number(document.getElementById("blackjack-auto-bet-amount")?.value || 0);
+      try {
+        await api("/api/blackjack/auto-bet", {
+          method: "POST",
+          body: JSON.stringify({ table_id: activeTableId, enabled, amount }),
+        });
+        await refreshTable();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+
+    document.getElementById("blackjack-watch-table")?.addEventListener("click", async function () {
+      try {
+        await api("/api/blackjack/observe", {
+          method: "POST",
+          body: JSON.stringify({ table_id: activeTableId }),
+        });
+        await refreshTable();
+        await refreshLobby();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+
+    document.getElementById("blackjack-join-seat")?.addEventListener("click", async function () {
+      try {
+        await api("/api/blackjack/join", {
+          method: "POST",
+          body: JSON.stringify({ table_id: activeTableId }),
+        });
+        await refreshTable();
+        await refreshLobby();
       } catch (error) {
         alert(error.message);
       }
@@ -697,7 +841,7 @@
 
   function renderEmptyState() {
     activeTitle.textContent = "Choose a table";
-    activeCopy.textContent = "Join a table to play. Hands start automatically when bets are ready.";
+    activeCopy.textContent = "Join a table to play. Every hand needs fresh bets unless auto bet is turned on.";
     leaveBtn.hidden = true;
     if (reportBtn) reportBtn.hidden = true;
     setReportModalOpen(false);
@@ -727,6 +871,10 @@
                 <span class="blackjack-table-stat-value">${table.player_count}/${table.max_players}</span>
               </div>
               <div class="blackjack-table-stat">
+                <span class="blackjack-table-stat-label">Observers</span>
+                <span class="blackjack-table-stat-value">${table.observer_count || 0}</span>
+              </div>
+              <div class="blackjack-table-stat">
                 <span class="blackjack-table-stat-label">Minimum Bet</span>
                 <span class="blackjack-table-stat-value">${formatNumber(table.min_bet)}</span>
               </div>
@@ -740,7 +888,8 @@
               </div>
             </div>
             <div class="blackjack-actions">
-              <button class="blackjack-button alt" data-open-table="${table.id}" type="button">${table.viewer_joined ? "Open" : "Join"}</button>
+              <button class="blackjack-button alt" data-open-table="${table.id}" type="button">${table.viewer_joined || table.viewer_observing ? "Open" : "Watch"}</button>
+              ${table.viewer_joined ? "" : `<button class="blackjack-button" data-join-table="${table.id}" type="button">Join table</button>`}
               ${isAdmin ? `<button class="blackjack-button" data-delete-table="${table.id}" type="button">Delete</button>` : ""}
             </div>
           </div>
@@ -750,14 +899,25 @@
       lobbyList.querySelectorAll("[data-open-table]").forEach((button) => {
         button.addEventListener("click", async function () {
           const tableId = this.getAttribute("data-open-table");
-          const label = this.textContent.trim().toLowerCase();
           try {
-            if (label === "join") {
-              await api("/api/blackjack/join", {
-                method: "POST",
-                body: JSON.stringify({ table_id: tableId }),
-              });
-            }
+            activeTableId = tableId;
+            updateUrl();
+            await refreshTable();
+            await refreshLobby();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      });
+
+      lobbyList.querySelectorAll("[data-join-table]").forEach((button) => {
+        button.addEventListener("click", async function () {
+          const tableId = this.getAttribute("data-join-table");
+          try {
+            await api("/api/blackjack/join", {
+              method: "POST",
+              body: JSON.stringify({ table_id: tableId }),
+            });
             activeTableId = tableId;
             updateUrl();
             await refreshTable();
@@ -951,3 +1111,5 @@
     }
   }, 1000);
 })();
+
+

@@ -329,6 +329,7 @@
 
   {% include 'header.html' %}
 
+    {% if easter_live %}
     <div id="easter-site-banner" class="easter-site-banner" hidden>
       <button class="easter-site-banner-close" id="easter-site-banner-close" aria-label="Close banner">✕</button>
 
@@ -349,6 +350,7 @@
         <div class="easter-site-banner-cta">View event →</div>
       </a>
     </div>
+    {% endif %}
   <!-- ✅ Flash messages -->
   {% with messages = get_flashed_messages(with_categories=True) %}
     {% if messages %}
@@ -367,6 +369,7 @@
   {% include 'footer.html' %}
 
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+{% if easter_live %}
 <script>
 (function () {
   const banner = document.getElementById("easter-site-banner");
@@ -389,7 +392,8 @@
     banner.hidden = true;
   });
 })();
-</script>  
+</script>
+{% endif %}
   {% block scripts %}{% endblock %}
 
 </body>

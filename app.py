@@ -828,7 +828,7 @@ def contains_identifying_text(text: str, display_name: str | None, username_tag:
     return False
 
 # ---- Easter event config ----
-EASTER_LIVE = True
+EASTER_LIVE = False
 
 EASTER_EVENT = {
     "title": "Hay Day Easter Egg Hunt",
@@ -2264,7 +2264,10 @@ def inject_maintenance_banner():
         banner = read_maintenance_banner()
     except Exception:
         banner = {"enabled": False, "message": "", "require_ack": False, "ack_key": "default"}
-    return {"maintenance_banner": banner}
+    return {
+        "maintenance_banner": banner,
+        "easter_live": EASTER_LIVE,
+    }
 
 
 def _safe_next_path(value, default="/"):
@@ -4666,12 +4669,21 @@ BOOST_SHOP = {
         "bonus_type": "bee_hunt_coins_pct",
         "bonus_by_level": {1: 20, 5: 30, 10: 45, 20: 60},
     },
+    "message_income_chip": {
+        "name": "Message Income Chip",
+        "price": 40000,
+        "description": "Adds passive message coins while active with a separate daily cap.",
+        "bonus_type": "message_income_flat",
+        "bonus_by_level": {1: 1, 5: 2, 10: 3, 20: 4},
+        "cap_by_level": {1: 120, 5: 180, 10: 260, 20: 350},
+    },
 }
 
 PETSHOP_ITEMS = {
     "daily_coin_chip": {"name": "Daily Coin Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus /daily coins based on pet level."},
     "daily_xp_chip": {"name": "Daily XP Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus /daily XP based on pet level."},
     "bee_hunt_chip": {"name": "Bee Hunt Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus Bee Hunt coins based on pet level."},
+    "message_income_chip": {"name": "Message Income Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds +1/+2/+3/+4 passive message coins by pet level with a separate 120/180/260/350 daily cap."},
     "pet_snack": {"name": "Pet Snack", "price": 800, "type": "consumable", "description": "One-time use. Gives +25 Hunger. Does not give Pet XP."},
     "toy_ball": {"name": "Toy Ball", "price": 1200, "type": "consumable", "description": "One-time use. Gives +25 Happiness. Does not give Pet XP."},
     "bubble_bath": {"name": "Bubble Bath", "price": 1500, "type": "consumable", "description": "One-time use. Gives +30 Cleanliness. Does not give Pet XP."},
@@ -4889,6 +4901,12 @@ def _pet_boost_label(boost_key: str, pet_level: int) -> str:
         return f"+{value} Daily XP"
     if boost["bonus_type"] == "bee_hunt_coins_pct":
         return f"+{value}% Bee Hunt coins"
+    if boost["bonus_type"] == "message_income_flat":
+        cap = 0
+        for req_level in sorted(boost.get("cap_by_level", {}).keys()):
+            if int(pet_level) >= req_level:
+                cap = boost["cap_by_level"][req_level]
+        return f"+{value} message coins | cap {cap}/day"
     return "Unknown boost"
 
 
@@ -8590,8 +8608,7 @@ BLACKJACK_MAX_BET = 250000
 BLACKJACK_DEALER_ID = 1332629757828792450
 BLACKJACK_DEALER_NAME = "Holy Moly"
 BLACKJACK_DEFAULT_TURN_TIME_SECONDS = 60
-BLACKJACK_AUTO_START_SECONDS = 10
-BLACKJACK_AUTO_REDEAL_SECONDS = 10
+BLACKJACK_BETTING_WINDOW_SECONDS = 20
 BLACKJACK_IDLE_CLOSE_SECONDS = 300
 BLACKJACK_CHAT_LIMIT = 80
 
@@ -8745,32 +8762,33 @@ def _bj_add_chat_message(table, *, kind, text, user_id=None, username=None, avat
     table["chat"] = chat[-BLACKJACK_CHAT_LIMIT:]
 
 
-def _bj_schedule_start(table, *, seconds=BLACKJACK_AUTO_START_SECONDS, force=False):
+def _bj_schedule_start(table, *, seconds=BLACKJACK_BETTING_WINDOW_SECONDS, force=False):
     if table.get("phase") == "player_turns":
-        table["auto_start_at"] = None
         return
-
-    has_ready_bet = any(int(player.get("bet", 0) or 0) > 0 for player in table.get("players", []))
-    if not has_ready_bet:
-        table["auto_start_at"] = None
-        if table.get("phase") != "settled":
-            table["phase"] = "lobby"
-            table["status"] = "waiting"
-        return
-
-    if force or not isinstance(table.get("auto_start_at"), datetime):
-        table["auto_start_at"] = _bj_now() + timedelta(seconds=max(3, int(seconds or BLACKJACK_AUTO_START_SECONDS)))
-    if table.get("phase") != "settled":
-        table["phase"] = "waiting"
+    if not table.get("players"):
+        table["phase"] = "lobby"
         table["status"] = "waiting"
-        table["message"] = f"Next hand starts in {max(3, int(seconds or BLACKJACK_AUTO_START_SECONDS))} seconds."
+        table["auto_start_at"] = None
+        table["auto_redeal_at"] = None
+        table["message"] = "Waiting for players to join the table."
+        return
+
+    seconds = max(5, int(seconds or BLACKJACK_BETTING_WINDOW_SECONDS))
+    target_time = _bj_now() + timedelta(seconds=seconds)
+    if force or not isinstance(table.get("auto_start_at"), datetime):
+        table["auto_start_at"] = target_time
+    table["auto_redeal_at"] = None
+    table["phase"] = "betting"
+    table["status"] = "waiting"
+    table["message"] = f"Betting is open. Place bets in the next {seconds} seconds."
 
 
 def _bj_idle_should_close(table, *, now=None):
     if table.get("phase") in {"player_turns", "settled"}:
         return False
     players = table.get("players", [])
-    if not players:
+    observers = table.get("observers", [])
+    if not players and not observers:
         return True
     if any(int(player.get("reserved_bet", 0) or 0) > 0 for player in players):
         return False
@@ -8781,6 +8799,34 @@ def _bj_idle_should_close(table, *, now=None):
     if not reference:
         return False
     return (now - reference).total_seconds() >= BLACKJACK_IDLE_CLOSE_SECONDS
+
+
+def _bj_finalize_betting_window(table):
+    removed_players = []
+    kept_players = []
+    for player in table.get("players", []):
+        if int(player.get("bet", 0) or 0) > 0:
+            kept_players.append(player)
+            continue
+        removed_players.append(player)
+        _bj_move_player_to_observers(
+            table,
+            player,
+            reason=f"{player.get('username')} missed the betting window and moved to observer.",
+        )
+    table["players"] = kept_players
+    table["auto_start_at"] = None
+    if not kept_players:
+        table["phase"] = "lobby"
+        table["status"] = "waiting"
+        table["message"] = "Betting window closed. No seated players were ready."
+        return False, removed_players
+    return True, removed_players
+
+
+def _bj_all_seated_players_ready(table):
+    players = table.get("players", [])
+    return bool(players) and all(int(player.get("bet", 0) or 0) > 0 for player in players)
 
 
 def _bj_debit_user(user_id, amount, *, source, meta=None):
@@ -8823,6 +8869,69 @@ def _bj_find_player(table, user_id):
         if int(player.get("user_id", 0)) == wanted:
             return index, player
     return None, None
+
+
+def _bj_find_observer(table, user_id):
+    wanted = int(user_id)
+    for index, observer in enumerate(table.get("observers", [])):
+        if int(observer.get("user_id", 0)) == wanted:
+            return index, observer
+    return None, None
+
+
+def _bj_make_seat_member(profile, *, min_bet, session_start_balance=None, waiting_status="waiting"):
+    user_id = int(profile.get("user_id") or profile.get("_id") or 0)
+    return {
+        "user_id": user_id,
+        "username": profile["username"],
+        "avatar_url": profile["avatar_url"],
+        "joined_at": _bj_now(),
+        "session_start_balance": int(session_start_balance if session_start_balance is not None else _bj_current_balance(user_id)),
+        "bet": 0,
+        "next_bet": 0,
+        "reserved_bet": 0,
+        "auto_bet_enabled": False,
+        "auto_bet_amount": int(min_bet),
+        "hands": [],
+        "active_hand_index": 0,
+        "round_status": waiting_status,
+    }
+
+
+def _bj_make_observer(profile):
+    user_id = int(profile.get("user_id") or profile.get("_id") or 0)
+    return {
+        "user_id": user_id,
+        "username": profile["username"],
+        "avatar_url": profile["avatar_url"],
+        "joined_at": _bj_now(),
+    }
+
+
+def _bj_move_player_to_observers(table, player, *, reason=None):
+    if not player:
+        return
+    table.setdefault("observers", [])
+    observer_index, _ = _bj_find_observer(table, player.get("user_id"))
+    observer = {
+        "user_id": int(player.get("user_id", 0) or 0),
+        "username": player.get("username"),
+        "avatar_url": player.get("avatar_url"),
+        "joined_at": _bj_now(),
+    }
+    if observer_index is None:
+        table["observers"].append(observer)
+    else:
+        table["observers"][observer_index] = observer
+    if reason:
+        _bj_add_chat_message(
+            table,
+            kind="system",
+            text=reason,
+            user_id=player.get("user_id"),
+            username=player.get("username"),
+            avatar_url=player.get("avatar_url"),
+        )
 
 
 def _bj_active_hand(player):
@@ -8963,12 +9072,14 @@ def _bj_table_state(table, viewer_id=None):
             "username": player.get("username"),
             "avatar_url": player.get("avatar_url"),
             "bet": int(player.get("bet", 0) or 0),
-            "next_bet": int(player.get("next_bet", player.get("bet", 0)) or 0),
+            "next_bet": int(player.get("next_bet", 0) or 0),
             "reserved_bet": int(player.get("reserved_bet", 0) or 0),
             "insurance_bet": int(player.get("insurance_bet", 0) or 0),
             "insurance_state": player.get("insurance_state"),
             "active_hand_index": int(player.get("active_hand_index", 0) or 0),
             "round_status": player.get("round_status", "waiting"),
+            "auto_bet_enabled": bool(player.get("auto_bet_enabled")),
+            "auto_bet_amount": int(player.get("auto_bet_amount", table.get("min_bet", 1)) or table.get("min_bet", 1)),
             "is_owner": int(player.get("user_id")) == int(table.get("owner_id", 0)),
             "is_turn": viewer_id is not None and int(player.get("user_id")) == int(table.get("current_turn_user_id") or 0),
             "hands": [_bj_serialize_hand(hand) for hand in player.get("hands", [])],
@@ -8978,11 +9089,25 @@ def _bj_table_state(table, viewer_id=None):
             serialized_player["session_start_balance"] = session_start_balance
             serialized_player["session_pnl"] = int((viewer_balance or 0) - session_start_balance)
         players.append(serialized_player)
+    observers = [
+        {
+            "user_id": int(observer.get("user_id", 0) or 0),
+            "username": observer.get("username"),
+            "avatar_url": observer.get("avatar_url"),
+            "is_owner": int(observer.get("user_id", 0) or 0) == int(table.get("owner_id", 0) or 0),
+        }
+        for observer in table.get("observers", [])
+    ]
 
     viewer_player = None
     for player in players:
         if viewer_id is not None and player["user_id"] == viewer_id:
             viewer_player = player
+            break
+    viewer_observer = None
+    for observer in observers:
+        if viewer_id is not None and observer["user_id"] == viewer_id:
+            viewer_observer = observer
             break
 
     return {
@@ -9006,7 +9131,10 @@ def _bj_table_state(table, viewer_id=None):
         "dealer": _bj_dealer_view(table),
         "dealer_profile": _bj_dealer_profile(),
         "players": players,
+        "observers": observers,
         "viewer_player": viewer_player,
+        "viewer_observer": viewer_observer,
+        "viewer_role": "player" if viewer_player else ("observer" if viewer_observer else "guest"),
         "chat": [
             {
                 "id": message.get("id"),
@@ -9170,6 +9298,16 @@ def _bj_settle_round(table):
         player["round_status"] = "done"
         player["reserved_bet"] = 0
         player["insurance_bet"] = 0
+        staged_next_bet = int(player.get("next_bet", 0) or 0)
+        auto_bet_enabled = bool(player.get("auto_bet_enabled"))
+        auto_bet_amount = int(player.get("auto_bet_amount", 0) or 0)
+        if staged_next_bet > 0:
+            player["bet"] = staged_next_bet
+        elif auto_bet_enabled and auto_bet_amount > 0:
+            player["bet"] = auto_bet_amount
+        else:
+            player["bet"] = 0
+        player["next_bet"] = 0
 
     table["phase"] = "settled"
     table["status"] = "waiting"
@@ -9177,12 +9315,12 @@ def _bj_settle_round(table):
     table["current_turn_user_id"] = None
     table["turn_deadline_at"] = None
     table["settled_at"] = _bj_now()
-    table["auto_redeal_at"] = table["settled_at"] + timedelta(seconds=BLACKJACK_AUTO_REDEAL_SECONDS)
-    table["message"] = f"Round settled. Next hand starts in {BLACKJACK_AUTO_REDEAL_SECONDS} seconds."
+    table["auto_redeal_at"] = None
+    _bj_schedule_start(table, force=True)
     _bj_log_table_event(
         table,
         "round_settled",
-        details=f"Dealer finished on {int(dealer_state.get('total', 0) or 0)}. Next hand in {BLACKJACK_AUTO_REDEAL_SECONDS}s.",
+        details=f"Dealer finished on {int(dealer_state.get('total', 0) or 0)}. Betting reopened.",
         meta={
             "dealer_total": int(dealer_state.get("total", 0) or 0),
             "dealer_blackjack": bool(dealer_state.get("blackjack")),
@@ -9210,9 +9348,7 @@ def _bj_start_round(table):
         player["insurance_bet"] = 0
         player["insurance_state"] = "unavailable"
         player["round_status"] = "waiting"
-        bet = int(player.get("next_bet", player.get("bet", 0)) or 0)
-        player["bet"] = bet
-        player["next_bet"] = bet
+        bet = int(player.get("bet", 0) or 0)
         if bet <= 0:
             continue
 
@@ -9236,6 +9372,7 @@ def _bj_start_round(table):
             hand["stood"] = True
         player["hands"] = [hand]
         player["reserved_bet"] = bet
+        player["bet"] = 0
         player["round_status"] = "done" if _bj_player_is_done(player) else "playing"
         active_players.append(player)
 
@@ -9335,26 +9472,16 @@ def _bj_progress_table(table):
         changed = True
         now = _bj_now()
 
-    auto_redeal_at = _bj_as_utc(table.get("auto_redeal_at"))
-    if table.get("phase") == "settled" and auto_redeal_at and auto_redeal_at <= now:
-        if _bj_claim_due_transition(table, allowed_phases={"settled"}, due_field="auto_redeal_at"):
+    auto_start_at = _bj_as_utc(table.get("auto_start_at"))
+    if table.get("phase") in {"lobby", "waiting", "betting"} and auto_start_at and auto_start_at <= now:
+        if _bj_claim_due_transition(table, allowed_phases={"lobby", "waiting", "betting"}, due_field="auto_start_at"):
+            ready, _removed_players = _bj_finalize_betting_window(table)
+            if not ready:
+                changed = True
+                return changed
             ok, message = _bj_start_round(table)
             if not ok:
                 table["message"] = message
-            changed = True
-
-    auto_start_at = _bj_as_utc(table.get("auto_start_at"))
-    if table.get("phase") in {"lobby", "waiting"} and auto_start_at and auto_start_at <= now:
-        if _bj_claim_due_transition(table, allowed_phases={"lobby", "waiting"}, due_field="auto_start_at"):
-            ok, message = _bj_start_round(table)
-            if not ok:
-                if any(int(player.get("bet", 0) or 0) > 0 for player in table.get("players", [])):
-                    _bj_schedule_start(table, force=True)
-                else:
-                    table["phase"] = "lobby"
-                    table["status"] = "waiting"
-                    table["auto_start_at"] = None
-                    table["message"] = message
             changed = True
 
     return changed
@@ -9466,8 +9593,10 @@ def api_blackjack_lobby():
             "turn_time_seconds": _bj_turn_time_seconds(table.get("turn_time_seconds")),
             "max_players": int(table.get("max_players", 5) or 5),
             "player_count": len(table.get("players", [])),
+            "observer_count": len(table.get("observers", [])),
             "auto_start_at": _bj_as_utc(table.get("auto_start_at")).isoformat() if _bj_as_utc(table.get("auto_start_at")) else None,
             "viewer_joined": any(int(p.get("user_id", 0)) == viewer_id for p in table.get("players", [])),
+            "viewer_observing": any(int(o.get("user_id", 0)) == viewer_id for o in table.get("observers", [])),
             "updated_at": _bj_as_utc(table.get("updated_at")).isoformat() if _bj_as_utc(table.get("updated_at")) else None,
         })
 
@@ -9499,19 +9628,8 @@ def api_blackjack_create():
         max_players = 4
     turn_time_seconds = _bj_turn_time_seconds(data.get("turn_time_seconds", BLACKJACK_DEFAULT_TURN_TIME_SECONDS))
 
-    player = {
-        "user_id": user_id,
-        "username": profile["username"],
-        "avatar_url": profile["avatar_url"],
-        "joined_at": _bj_now(),
-        "session_start_balance": _bj_current_balance(user_id),
-        "bet": min_bet,
-        "next_bet": min_bet,
-        "reserved_bet": 0,
-        "hands": [],
-        "active_hand_index": 0,
-        "round_status": "waiting",
-    }
+    profile_with_id = {**profile, "user_id": user_id}
+    player = _bj_make_seat_member(profile_with_id, min_bet=min_bet)
     table = {
         "name": name or "Farm Table",
         "table_code": secrets.token_hex(3).upper(),
@@ -9528,16 +9646,18 @@ def api_blackjack_create():
         "dealer_hand": [],
         "current_turn_index": None,
         "current_turn_user_id": None,
-        "auto_start_at": _bj_now() + timedelta(seconds=BLACKJACK_AUTO_START_SECONDS),
+        "auto_start_at": None,
+        "auto_redeal_at": None,
         "chat": [],
         "players": [player],
+        "observers": [],
         "created_at": _bj_now(),
         "updated_at": _bj_now(),
     }
     _bj_add_chat_message(
         table,
         kind="system",
-        text=f"{profile['username']} opened the table. First hand starts in {BLACKJACK_AUTO_START_SECONDS} seconds.",
+        text=f"{profile['username']} opened the table. Place bets to start the first hand.",
         user_id=user_id,
         username=profile["username"],
         avatar_url=profile["avatar_url"],
@@ -9551,6 +9671,8 @@ def api_blackjack_create():
         username=profile["username"],
         details=f"Created table with minimum bet {min_bet:,}, {max_players} seats, turn time {turn_time_seconds}s.",
     )
+    _bj_schedule_start(table, force=True)
+    _bj_save_table(table)
     return jsonify({"ok": True, "table_id": str(result.inserted_id)})
 
 
@@ -9570,29 +9692,27 @@ def api_blackjack_join():
     _, existing = _bj_find_player(table, user_id)
     if existing:
         return jsonify({"ok": True, "table_id": table_id})
+    observer_index, existing_observer = _bj_find_observer(table, user_id)
 
     if len(table.get("players", [])) >= int(table.get("max_players", 5) or 5):
         return jsonify({"error": "That table is full"}), 400
 
     profile = _bj_user_profile(user_id)
     waiting_status = "waiting_next_hand" if table.get("phase") == "player_turns" else "waiting"
-    table.setdefault("players", []).append({
-        "user_id": user_id,
-        "username": profile["username"],
-        "avatar_url": profile["avatar_url"],
-        "joined_at": _bj_now(),
-        "session_start_balance": _bj_current_balance(user_id),
-        "bet": int(table.get("min_bet", 1) or 1),
-        "next_bet": int(table.get("min_bet", 1) or 1),
-        "reserved_bet": 0,
-        "hands": [],
-        "active_hand_index": 0,
-        "round_status": waiting_status,
-    })
+    profile_with_id = {**profile, "user_id": user_id}
+    table.setdefault("players", []).append(
+        _bj_make_seat_member(
+            profile_with_id,
+            min_bet=int(table.get("min_bet", 1) or 1),
+            waiting_status=waiting_status,
+        )
+    )
+    if observer_index is not None:
+        table["observers"].pop(observer_index)
     table["message"] = (
-        f"{profile['username']} joined the table and will play next hand."
+        f"{profile['username']} joined the table and can bet for this window."
         if waiting_status == "waiting_next_hand"
-        else f"{profile['username']} joined the table."
+        else f"{profile['username']} took a seat at the table."
     )
     _bj_add_chat_message(
         table,
@@ -9603,10 +9723,57 @@ def api_blackjack_join():
         avatar_url=profile["avatar_url"],
     )
     if table.get("phase") != "player_turns":
-        _bj_schedule_start(table, force=True)
+        _bj_schedule_start(table, force=False)
+        if table.get("phase") == "betting" and _bj_all_seated_players_ready(table):
+            table["auto_start_at"] = None
+            ok, message = _bj_start_round(table)
+            table["message"] = message if not ok else table.get("message")
     _bj_log_table_event(
         table,
         "player_joined",
+        user_id=user_id,
+        username=profile["username"],
+        details=table["message"],
+    )
+    _bj_save_table(table)
+    return jsonify({"ok": True, "table_id": table_id})
+
+
+@csrf.exempt
+@app.post("/api/blackjack/observe")
+def api_blackjack_observe():
+    if "discord_id" not in session:
+        return jsonify({"error": "Login required"}), 401
+
+    data = request.get_json(silent=True) or {}
+    table_id = (data.get("table_id") or "").strip()
+    table = _bj_load_table_or_404(table_id, progress=True)
+    if not table:
+        return jsonify({"error": "Table not found"}), 404
+
+    user_id = int(session["discord_id"])
+    _, player = _bj_find_player(table, user_id)
+    if player is not None:
+        return jsonify({"ok": True, "table_id": table_id})
+    _, observer = _bj_find_observer(table, user_id)
+    if observer is not None:
+        return jsonify({"ok": True, "table_id": table_id})
+
+    profile = _bj_user_profile(user_id)
+    profile_with_id = {**profile, "user_id": user_id}
+    table.setdefault("observers", []).append(_bj_make_observer(profile_with_id))
+    table["message"] = f"{profile['username']} is watching the table."
+    _bj_add_chat_message(
+        table,
+        kind="system",
+        text=table["message"],
+        user_id=user_id,
+        username=profile["username"],
+        avatar_url=profile["avatar_url"],
+    )
+    _bj_log_table_event(
+        table,
+        "observer_joined",
         user_id=user_id,
         username=profile["username"],
         details=table["message"],
@@ -9629,35 +9796,46 @@ def api_blackjack_leave():
 
     user_id = int(session["discord_id"])
     index, player = _bj_find_player(table, user_id)
-    if player is None:
+    observer_index, observer = _bj_find_observer(table, user_id)
+    if player is None and observer is None:
         return jsonify({"ok": True})
-    if table.get("phase") == "player_turns" and int(player.get("reserved_bet", 0) or 0) > 0:
+    if player is not None and table.get("phase") == "player_turns" and int(player.get("reserved_bet", 0) or 0) > 0:
         return jsonify({"error": "Finish the current hand before leaving"}), 400
 
-    table["players"].pop(index)
-    if not table["players"]:
+    departing = player or observer
+    if player is not None:
+        table["players"].pop(index)
+    elif observer_index is not None:
+        table.setdefault("observers", []).pop(observer_index)
+
+    if not table.get("players") and not table.get("observers"):
         _bj_log_table_event(
             table,
             "table_closed",
             user_id=user_id,
-            username=player.get("username"),
-            details=f"{player.get('username')} left and the table closed.",
+            username=departing.get("username"),
+            details=f"{departing.get('username')} left and the table closed.",
         )
         _bj_tables_col().delete_one({"_id": table["_id"]})
         return jsonify({"ok": True, "deleted": True})
 
     if int(table.get("owner_id", 0) or 0) == user_id:
-        new_owner = table["players"][0]
-        table["owner_id"] = int(new_owner.get("user_id"))
-        table["owner_name"] = new_owner.get("username")
-    table["message"] = f"{player.get('username')} left the table."
+        new_owner = (table.get("players") or table.get("observers") or [None])[0]
+        if new_owner:
+            table["owner_id"] = int(new_owner.get("user_id"))
+            table["owner_name"] = new_owner.get("username")
+    table["message"] = f"{departing.get('username')} left the table."
     if table.get("phase") != "player_turns":
-        _bj_schedule_start(table, force=True)
+        _bj_schedule_start(table, force=False)
+        if table.get("phase") == "betting" and _bj_all_seated_players_ready(table):
+            table["auto_start_at"] = None
+            ok, message = _bj_start_round(table)
+            table["message"] = message if not ok else table.get("message")
     _bj_log_table_event(
         table,
         "player_left",
         user_id=user_id,
-        username=player.get("username"),
+        username=departing.get("username"),
         details=table["message"],
     )
     _bj_save_table(table)
@@ -9711,17 +9889,19 @@ def api_blackjack_bet():
     has_reserved_bet = int(player.get("reserved_bet", 0) or 0) > 0
 
     if has_reserved_bet:
-        # Current hand is already locked, only change the next hand bet
         player["next_bet"] = bet
         table["message"] = f"{player.get('username')} set next hand bet to {bet:,}."
     else:
-        # No locked hand yet, so update both current/default and next hand
         player["bet"] = bet
-        player["next_bet"] = bet
+        player["next_bet"] = 0
         table["message"] = f"{player.get('username')} set a bet of {bet:,}."
 
     if not has_reserved_bet and table.get("phase") not in {"player_turns", "insurance"}:
-        _bj_schedule_start(table, force=True)
+        _bj_schedule_start(table, force=False)
+        if table.get("phase") == "betting" and _bj_all_seated_players_ready(table):
+            table["auto_start_at"] = None
+            ok, message = _bj_start_round(table)
+            table["message"] = message if not ok else table.get("message")
         
     _bj_log_table_event(
         table,
@@ -9730,6 +9910,67 @@ def api_blackjack_bet():
         username=player.get("username"),
         details=table["message"],
                 meta={"bet": bet, "next_hand_only": has_reserved_bet},
+    )
+    _bj_save_table(table)
+    return jsonify({"ok": True})
+
+
+@csrf.exempt
+@app.post("/api/blackjack/auto-bet")
+def api_blackjack_auto_bet():
+    if "discord_id" not in session:
+        return jsonify({"error": "Login required"}), 401
+
+    data = request.get_json(silent=True) or {}
+    table_id = (data.get("table_id") or "").strip()
+    table = _bj_load_table_or_404(table_id, progress=True)
+    if not table:
+        return jsonify({"error": "Table not found"}), 404
+
+    user_id = int(session["discord_id"])
+    _, player = _bj_find_player(table, user_id)
+    if player is None:
+        return jsonify({"error": "Join the table first"}), 400
+
+    enabled = bool(data.get("enabled"))
+    try:
+        amount = int(data.get("amount", 0) or 0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid auto bet amount"}), 400
+
+    min_bet = int(table.get("min_bet", 1) or 1)
+    if enabled:
+        if amount < min_bet:
+            return jsonify({"error": f"Minimum bet is {min_bet}"}), 400
+        if amount > BLACKJACK_MAX_BET:
+            return jsonify({"error": f"Maximum bet is {BLACKJACK_MAX_BET}"}), 400
+    else:
+        amount = max(0, amount)
+
+    player["auto_bet_enabled"] = enabled
+    player["auto_bet_amount"] = amount if amount > 0 else int(player.get("auto_bet_amount", min_bet) or min_bet)
+    if int(player.get("reserved_bet", 0) or 0) <= 0:
+        if enabled:
+            player["bet"] = amount
+        if table.get("phase") not in {"player_turns", "insurance"}:
+            _bj_schedule_start(table, force=False)
+            if table.get("phase") == "betting" and _bj_all_seated_players_ready(table):
+                table["auto_start_at"] = None
+                ok, message = _bj_start_round(table)
+                table["message"] = message if not ok else table.get("message")
+
+    table["message"] = (
+        f"{player.get('username')} enabled auto bet at {amount:,}."
+        if enabled
+        else f"{player.get('username')} turned auto bet off."
+    )
+    _bj_log_table_event(
+        table,
+        "auto_bet_updated",
+        user_id=user_id,
+        username=player.get("username"),
+        details=table["message"],
+        meta={"enabled": enabled, "amount": amount},
     )
     _bj_save_table(table)
     return jsonify({"ok": True})

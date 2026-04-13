@@ -35,13 +35,6 @@
         <li class="dropdown {% if request.path.startswith('/giveaways') or request.path.startswith('/live-auctions') or request.path.startswith('/easter') or request.path.startswith('/competition') or request.path.startswith('/leaderboard') or request.path.startswith('/auctions') %}active{% endif %}">
           <a href="#">Community & Events ▼</a>
           <ul class="dropdown-content">
-            <li>
-              <a href="/easter" class="easter-nav-item">
-                <img src="{{ url_for('static', filename='img/easter/egg1.png') }}" class="nav-egg">
-                Easter Event
-                <img src="{{ url_for('static', filename='img/easter/egg2.png') }}" class="nav-egg">
-              </a>
-            </li>
             <li><a href="/giveaways">Giveaways</a></li>
             <li><a href="/auctions">Live Auctions</a></li>
             <li><a href="/leaderboard">Leaderboards</a></li>
@@ -52,7 +45,7 @@
         <li class="dropdown {% if request.path.startswith('/blackjack') %}active{% endif %}">
           <a href="#">Games ▼</a>
           <ul class="dropdown-content">
-            <li><a href="#">Blackjack</a></li>
+            <li><a href="/blackjack">Blackjack</a></li>
           </ul>
         </li>
 
