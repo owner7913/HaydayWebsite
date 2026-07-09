@@ -1,95 +1,854 @@
 {% extends 'base.html' %}
 
-{% block title %}Competition — Admin{% endblock %}
+{% block title %}Competition Admin{% endblock %}
 
 {% block head_extra %}
-{# Any page-specific CSS could go here, but your theme.css is already in base.html #}
+<style>
+  .comp-admin {
+    max-width: 1280px;
+    margin: calc(126px + var(--maint-banner-height, 0px)) auto 56px;
+    padding: 0 20px;
+    color: #eef2f7;
+    color-scheme: dark;
+  }
+
+  body.light .comp-admin {
+    color: #18212f;
+  }
+
+  .ca-shell {
+    display: grid;
+    gap: 18px;
+  }
+
+  .ca-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: end;
+    padding: 22px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    background:
+      linear-gradient(135deg, rgba(42,52,66,.92), rgba(24,30,38,.96)),
+      radial-gradient(500px 220px at 90% 10%, rgba(71,160,120,.20), transparent 60%);
+    box-shadow: 0 18px 42px rgba(0,0,0,.22);
+  }
+
+  body.light .ca-hero {
+    background:
+      linear-gradient(135deg, #ffffff, #f4f7fb),
+      radial-gradient(500px 220px at 90% 10%, rgba(35,130,95,.13), transparent 60%);
+    border-color: #dbe2ea;
+    box-shadow: 0 12px 30px rgba(21,35,55,.10);
+  }
+
+  .ca-kicker {
+    margin: 0 0 8px;
+    color: #9fd3b7;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  body.light .ca-kicker {
+    color: #1d7e5b;
+  }
+
+  .ca-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .ca-title {
+    margin: 0;
+    font-size: clamp(28px, 4vw, 42px);
+    line-height: 1.05;
+    letter-spacing: 0;
+  }
+
+  .ca-phase {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: capitalize;
+  }
+
+  .ca-phase.is-submit { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
+  .ca-phase.is-voting { background: rgba(59,130,246,.18); border-color: rgba(59,130,246,.35); }
+  .ca-phase.is-results { background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.38); }
+  body.light .ca-phase { color: #102030; background: #eef4f7; border-color: #d6e1e8; }
+
+  .ca-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .ca-btn,
+  .ca-select,
+  .ca-input,
+  .ca-textarea {
+    min-height: 38px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    font: inherit;
+  }
+
+  .ca-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 14px;
+    text-decoration: none;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .ca-btn:hover { background: rgba(255,255,255,.12); }
+  .ca-btn-primary { background: #1f8a61; border-color: #2fbf86; color: #fff; }
+  .ca-btn-primary:hover { background: #24976c; }
+  .ca-btn-danger { background: #9f2f36; border-color: #cf555d; color: #fff; }
+  .ca-btn-danger:hover { background: #b23840; }
+  .ca-btn-ghost { background: transparent; }
+  .ca-btn-small { min-height: 34px; padding: 0 11px; font-size: 13px; }
+
+  .ca-select,
+  .ca-input,
+  .ca-textarea {
+    width: 100%;
+    padding: 0 12px;
+    outline: none;
+  }
+
+  .ca-select {
+    color-scheme: dark;
+  }
+
+  .ca-select option,
+  .ca-select optgroup {
+    background: #1f2732;
+    color: #f8fafc;
+  }
+
+  .ca-select option:checked {
+    background: #1f8a61;
+    color: #fff;
+  }
+
+  .ca-textarea {
+    min-height: 86px;
+    padding-top: 10px;
+    resize: vertical;
+  }
+
+  body.light .ca-btn,
+  body.light .ca-select,
+  body.light .ca-input,
+  body.light .ca-textarea {
+    background: #fff;
+    color: #17202d;
+    border-color: #cfd8e3;
+  }
+
+  body.light .ca-btn-primary {
+    background: #1f8a61;
+    border-color: #20865f;
+    color: #fff;
+  }
+
+  body.light .ca-btn-danger {
+    background: #9f2f36;
+    border-color: #a93c44;
+    color: #fff;
+  }
+
+  .ca-toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 260px) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 8px;
+    background: rgba(255,255,255,.04);
+  }
+
+  body.light .ca-toolbar {
+    background: #fff;
+    border-color: #dce4ec;
+  }
+
+  .ca-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .ca-stat {
+    min-height: 84px;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.045);
+  }
+
+  body.light .ca-stat {
+    background: #fff;
+    border-color: #dce4ec;
+  }
+
+  .ca-stat span {
+    display: block;
+    margin-bottom: 8px;
+    color: rgba(238,242,247,.72);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  body.light .ca-stat span { color: #687586; }
+
+  .ca-stat strong {
+    font-size: 30px;
+    line-height: 1;
+  }
+
+  .ca-segment {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    background: rgba(0,0,0,.16);
+  }
+
+  body.light .ca-segment {
+    background: #eef3f7;
+    border-color: #d8e1ea;
+  }
+
+  .ca-segment button {
+    min-height: 30px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .ca-segment button.is-active {
+    background: #fff;
+    color: #18212f;
+  }
+
+  .ca-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 16px;
+  }
+
+  .ca-entry {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 8px;
+    background: rgba(255,255,255,.045);
+  }
+
+  body.light .ca-entry {
+    background: #fff;
+    border-color: #dce4ec;
+  }
+
+  .ca-entry.is-banned {
+    border-color: rgba(239,68,68,.45);
+  }
+
+  .ca-media {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 10;
+    background: #111;
+    overflow: hidden;
+  }
+
+  .ca-media img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  .ca-badge-row {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 10px;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .ca-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: rgba(14,20,28,.84);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .ca-badge-danger { background: rgba(154,40,48,.92); }
+  .ca-body {
+    display: grid;
+    gap: 14px;
+    padding: 15px;
+  }
+
+  .ca-entry-head {
+    display: grid;
+    gap: 8px;
+  }
+
+  .ca-user-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .ca-user {
+    min-width: 0;
+    font-weight: 900;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ca-meta {
+    color: rgba(238,242,247,.70);
+    font-size: 12px;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  body.light .ca-meta { color: #687586; }
+
+  .ca-caption {
+    min-height: 22px;
+    font-weight: 700;
+  }
+
+  .ca-actions {
+    display: grid;
+    gap: 10px;
+  }
+
+  .ca-caption-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .ca-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .ca-button-row form {
+    display: inline-flex;
+    margin: 0;
+  }
+
+  .ca-moderate {
+    border-top: 1px solid rgba(255,255,255,.10);
+    padding-top: 12px;
+  }
+
+  body.light .ca-moderate {
+    border-top-color: #dde5ed;
+  }
+
+  .ca-moderate summary {
+    cursor: pointer;
+    font-weight: 900;
+    color: #ffb4b9;
+  }
+
+  body.light .ca-moderate summary { color: #9f2f36; }
+
+  .ca-moderate-form {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .ca-label {
+    display: grid;
+    gap: 6px;
+    color: rgba(238,242,247,.78);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  body.light .ca-label { color: #647184; }
+
+  .ca-impact {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(239,68,68,.28);
+    background: rgba(239,68,68,.10);
+    color: #ffd6d9;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  body.light .ca-impact {
+    color: #7d2028;
+    background: #fff1f2;
+    border-color: #f0c2c7;
+  }
+
+  .ca-section {
+    display: grid;
+    gap: 12px;
+  }
+
+  .ca-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ca-section-title {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .ca-empty {
+    padding: 18px;
+    border: 1px dashed rgba(255,255,255,.18);
+    border-radius: 8px;
+    color: rgba(238,242,247,.72);
+  }
+
+  body.light .ca-empty {
+    color: #687586;
+    border-color: #cad5df;
+  }
+
+  .ca-ban-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.10);
+  }
+
+  .ca-ban-table th,
+  .ca-ban-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    text-align: left;
+    vertical-align: top;
+    font-size: 14px;
+  }
+
+  .ca-ban-table th {
+    color: rgba(238,242,247,.75);
+    font-size: 12px;
+    text-transform: uppercase;
+    background: rgba(255,255,255,.05);
+  }
+
+  body.light .ca-ban-table {
+    border-color: #dce4ec;
+  }
+
+  body.light .ca-ban-table th,
+  body.light .ca-ban-table td {
+    border-bottom-color: #e7edf3;
+  }
+
+  body.light .ca-ban-table th {
+    color: #687586;
+    background: #f3f6f9;
+  }
+
+  .ca-status {
+    display: inline-flex;
+    min-height: 24px;
+    align-items: center;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.09);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: capitalize;
+  }
+
+  .ca-status.sent { background: rgba(34,197,94,.18); color: #b8ffd1; }
+  .ca-status.failed { background: rgba(239,68,68,.18); color: #ffc8cc; }
+  body.light .ca-status.sent { color: #17663f; }
+  body.light .ca-status.failed { color: #8d252c; }
+
+  body.light .comp-admin {
+    color: #eef2f7;
+  }
+
+  body.light .ca-hero {
+    background:
+      linear-gradient(135deg, rgba(42,52,66,.92), rgba(24,30,38,.96)),
+      radial-gradient(500px 220px at 90% 10%, rgba(71,160,120,.20), transparent 60%);
+    border-color: rgba(255,255,255,.12);
+    box-shadow: 0 18px 42px rgba(0,0,0,.22);
+  }
+
+  body.light .ca-kicker { color: #9fd3b7; }
+  body.light .ca-phase { color: #fff; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); }
+  body.light .ca-phase.is-submit { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
+  body.light .ca-phase.is-voting { background: rgba(59,130,246,.18); border-color: rgba(59,130,246,.35); }
+  body.light .ca-phase.is-results { background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.38); }
+
+  body.light .ca-btn,
+  body.light .ca-select,
+  body.light .ca-input,
+  body.light .ca-textarea {
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    border-color: rgba(255,255,255,.14);
+  }
+
+  body.light .ca-btn:hover { background: rgba(255,255,255,.12); }
+  body.light .ca-btn-primary { background: #1f8a61; border-color: #2fbf86; color: #fff; }
+  body.light .ca-btn-danger { background: #9f2f36; border-color: #cf555d; color: #fff; }
+
+  body.light .ca-toolbar,
+  body.light .ca-stat,
+  body.light .ca-entry {
+    background: rgba(255,255,255,.045);
+    border-color: rgba(255,255,255,.10);
+  }
+
+  body.light .ca-segment {
+    background: rgba(0,0,0,.16);
+    border-color: rgba(255,255,255,.12);
+  }
+
+  body.light .ca-segment button.is-active {
+    background: #fff;
+    color: #18212f;
+  }
+
+  body.light .ca-stat span,
+  body.light .ca-meta,
+  body.light .ca-label,
+  body.light .ca-empty {
+    color: rgba(238,242,247,.72);
+  }
+
+  body.light .ca-moderate { border-top-color: rgba(255,255,255,.10); }
+  body.light .ca-moderate summary { color: #ffb4b9; }
+  body.light .ca-impact {
+    color: #ffd6d9;
+    background: rgba(239,68,68,.10);
+    border-color: rgba(239,68,68,.28);
+  }
+
+  body.light .ca-ban-table { border-color: rgba(255,255,255,.10); }
+  body.light .ca-ban-table th,
+  body.light .ca-ban-table td { border-bottom-color: rgba(255,255,255,.08); }
+  body.light .ca-ban-table th {
+    color: rgba(238,242,247,.75);
+    background: rgba(255,255,255,.05);
+  }
+
+  body.light .ca-status.sent { color: #b8ffd1; }
+  body.light .ca-status.failed { color: #ffc8cc; }
+
+  @media (max-width: 900px) {
+    .ca-hero,
+    .ca-toolbar {
+      grid-template-columns: 1fr;
+    }
+    .ca-hero-actions {
+      justify-content: flex-start;
+    }
+    .ca-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 560px) {
+    .comp-admin {
+      padding: 0 12px;
+      margin-top: calc(112px + var(--maint-banner-height, 0px));
+    }
+    .ca-hero,
+    .ca-toolbar,
+    .ca-stat,
+    .ca-body {
+      padding: 14px;
+    }
+    .ca-stats,
+    .ca-grid,
+    .ca-caption-form {
+      grid-template-columns: 1fr;
+    }
+    .ca-ban-table {
+      display: block;
+      overflow-x: auto;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-<main class="container mx-auto px-4 py-6" style="margin-top:80px">
-  <!-- Sticky toolbar -->
-  <div class="adm-toolbar">
-    <div class="adm-toolbar-left">
-      <h1 class="page-title">Competition — {{ comp_id }}</h1>
-      <span class="badge {{ 'badge-green' if phase=='submit' else ('badge-blue' if phase=='voting' else 'badge' ) }}">
-        {{ phase|capitalize }}
-      </span>
-    </div>
-    <div class="adm-toolbar-right">
-      <input id="adm-search" class="input" type="text" placeholder="Search caption / user…" autocomplete="off">
-      <a class="btn" href="{{ url_for('admin_panel') }}">Back to Admin</a>
-    </div>
-  </div>
+<main class="comp-admin">
+  <div class="ca-shell">
+    <section class="ca-hero">
+      <div>
+        <p class="ca-kicker">Farm Design Contest</p>
+        <div class="ca-title-row">
+          <h1 class="ca-title">Competition Admin</h1>
+          <span class="ca-phase is-{{ phase }}">{{ phase }}</span>
+        </div>
+        <div class="ca-meta">Month: {{ comp_id }}</div>
+      </div>
+      <div class="ca-hero-actions">
+        <form method="get" action="{{ url_for('admin_competition') }}">
+          <select class="ca-select" name="comp_id" onchange="this.form.submit()" aria-label="Competition month">
+            {% for month in month_options %}
+              <option value="{{ month }}" {% if month == comp_id %}selected{% endif %}>{{ month }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        <a class="ca-btn ca-btn-ghost" href="{{ url_for('competition_gallery') }}">Gallery</a>
+        <a class="ca-btn ca-btn-ghost" href="{{ url_for('competition_results', comp_id=comp_id) }}">Results</a>
+        <a class="ca-btn ca-btn-primary" href="{{ url_for('admin_panel') }}">Admin Home</a>
+      </div>
+    </section>
 
-  <!-- Grid -->
-  <div id="adm-grid" class="adm-grid">
-    {% for e in entries %}
-      <article class="entry-card" data-user="{{ (user_map.get(e.user_id|string) or {}).get('display_name') or e.username or e.user_id }}" data-caption="{{ e.caption or '' }}">
-        <a class="entry-media" href="{{ e.image_url }}" target="_blank" rel="noopener">
-          <img src="{{ e.thumb_url or e.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
-        </a>
+    <section class="ca-stats" aria-label="Competition stats">
+      <div class="ca-stat"><span>Entries</span><strong>{{ stats.entries }}</strong></div>
+      <div class="ca-stat"><span>Submitters</span><strong>{{ stats.submitters }}</strong></div>
+      <div class="ca-stat"><span>Votes</span><strong>{{ stats.votes }}</strong></div>
+      <div class="ca-stat"><span>Monthly bans</span><strong>{{ stats.bans }}</strong></div>
+    </section>
 
-        <div class="entry-body">
-          <div class="entry-title">
-            <div class="caption-line">
-              <strong>Caption:</strong>
-              <span class="caption-text">{{ e.caption or '—' }}</span>
-            </div>
-            <span class="votes-pill" title="Total votes">{{ vote_counts.get(e._id|string, 0) }}</span>
-          </div>
+    <section class="ca-toolbar" aria-label="Entry filters">
+      <input id="ca-search" class="ca-input" type="search" placeholder="Search user, Discord ID, caption, or entry ID" autocomplete="off">
+      <div class="ca-segment" role="group" aria-label="Entry status filter">
+        <button class="is-active" type="button" data-filter="all">All</button>
+        <button type="button" data-filter="active">Active</button>
+        <button type="button" data-filter="banned">Banned</button>
+      </div>
+      <a class="ca-btn ca-btn-ghost" href="{{ url_for('admin_competition', comp_id=comp_id) }}">Refresh</a>
+    </section>
 
-          <div class="entry-meta">
-            {% set u = user_map.get(e.user_id|string) %}
-            {% if u and u.get('avatar') %}
-              <img class="avatar" src="{{ u.avatar }}" alt="" referrerpolicy="no-referrer">
-            {% endif %}
-            <div class="meta-lines">
-              <div><strong>Submitted by:</strong> {{ (u.get('display_name') if u else None) or e.username or e.user_id }}</div>
-              <div class="muted">ID: {{ e._id }} • {{ e.created_at }}</div>
-            </div>
-          </div>
+    <section class="ca-section">
+      <div class="ca-section-head">
+        <h2 class="ca-section-title">Submissions</h2>
+        <span class="ca-meta" id="ca-visible-count">{{ entries|length }} visible</span>
+      </div>
 
-          <!-- Single form, two actions (save / delete) -->
-          <form class="entry-actions" method="post"
-                action="{{ url_for('admin_competition_caption', entry_id=e._id, comp_id=comp_id) }}">
-            <input class="input input-sm" type="text" name="caption" maxlength="35"
-                   value="{{ e.caption or '' }}" placeholder="Edit caption">
-
-            <div class="action-buttons">
-              <a class="btn btn-ghost" href="{{ url_for('admin_competition_votes', entry_id=e._id) }}">
-                View voters
+      {% if entries|length == 0 %}
+        <div class="ca-empty">No submissions found for {{ comp_id }}.</div>
+      {% else %}
+        <div id="ca-grid" class="ca-grid">
+          {% for e in entries %}
+            {% set user_id = e.user_id|string %}
+            {% set u = user_map.get(user_id) %}
+            {% set ban = ban_map.get(user_id) %}
+            {% set display_name = (u.get('display_name') if u else None) or e.display_name or e.username or user_id %}
+            {% set entry_id = e._id|string %}
+            <article class="ca-entry {% if ban %}is-banned{% endif %}"
+                     data-status="{{ 'banned' if ban else 'active' }}"
+                     data-search="{{ display_name }} {{ user_id }} {{ e.caption or '' }} {{ entry_id }}">
+              <a class="ca-media" href="{{ e.image_url }}" target="_blank" rel="noopener">
+                <img src="{{ e.thumb_url or e.image_url }}" alt="{{ e.caption or 'Competition submission' }}" loading="lazy" referrerpolicy="no-referrer">
+                <div class="ca-badge-row">
+                  <span class="ca-badge">{{ vote_counts.get(entry_id, 0) }} votes</span>
+                  {% if ban %}<span class="ca-badge ca-badge-danger">Banned</span>{% endif %}
+                </div>
               </a>
 
-              <button class="btn btn-primary" type="submit">Save caption</button>
+              <div class="ca-body">
+                <div class="ca-entry-head">
+                  <div class="ca-user-line">
+                    <div class="ca-user" title="{{ display_name }}">{{ display_name }}</div>
+                    <a class="ca-btn ca-btn-small ca-btn-ghost" href="{{ url_for('admin_competition_votes', entry_id=e._id) }}">Voters</a>
+                  </div>
+                  <div class="ca-meta">
+                    Discord ID: {{ user_id }}<br>
+                    Entry ID: {{ entry_id }}<br>
+                    Submitted: {{ e.created_at.strftime('%b %d, %Y %H:%M') if e.created_at else 'Unknown' }}
+                  </div>
+                  <div class="ca-caption">{{ e.caption or 'No caption' }}</div>
+                </div>
 
-              <button class="btn btn-danger" type="submit"
-                      formaction="{{ url_for('admin_competition_delete', entry_id=e._id, comp_id=comp_id) }}"
-                      formmethod="post"
-                      onclick="return confirm('Delete this entry and its votes?');">
-                Delete
-              </button>
-            </div>
-          </form>
+                <div class="ca-actions">
+                  <form class="ca-caption-form" method="post" action="{{ url_for('admin_competition_caption', entry_id=e._id, comp_id=comp_id) }}">
+                    <input class="ca-input" type="text" name="caption" maxlength="35" value="{{ e.caption or '' }}" placeholder="Edit caption">
+                    <button class="ca-btn ca-btn-primary" type="submit">Save</button>
+                  </form>
+
+                  <div class="ca-button-row">
+                    <form method="post" action="{{ url_for('admin_competition_delete', entry_id=e._id, comp_id=comp_id) }}"
+                          onsubmit="return confirm('Delete this entry and remove its votes? This does not ban the user or revoke coins.');">
+                      <button class="ca-btn ca-btn-small ca-btn-ghost" type="submit">Delete only</button>
+                    </form>
+                    <a class="ca-btn ca-btn-small ca-btn-ghost" href="{{ e.image_url }}" target="_blank" rel="noopener">Open image</a>
+                  </div>
+
+                  <details class="ca-moderate">
+                    <summary>Remove, ban, warn, and revoke coins</summary>
+                    <form class="ca-moderate-form" method="post"
+                          action="{{ url_for('admin_competition_moderate', entry_id=e._id, comp_id=comp_id) }}"
+                          onsubmit="return confirm('Remove this user from {{ comp_id }}, ban them from re-entering this month, DM a warning, and revoke the submit reward?');">
+                      <label class="ca-label">
+                        Reason
+                        <select class="ca-select" name="reason_code" required>
+                          {% for code, label in moderation_reasons.items() %}
+                            <option value="{{ code }}">{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                      </label>
+                      <label class="ca-label">
+                        Staff note
+                        <textarea class="ca-textarea" name="staff_note" maxlength="500" placeholder="Optional extra context for the warning"></textarea>
+                      </label>
+                      <div class="ca-impact">
+                        Removes every {{ comp_id }} submission from this user, removes votes on those entries, blocks re-entry this month, revokes the 10,000 coin submit reward if it was claimed, and asks the bot to DM this image to the user.
+                      </div>
+                      <button class="ca-btn ca-btn-danger" type="submit">Confirm moderation</button>
+                    </form>
+                  </details>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
         </div>
-      </article>
-    {% endfor %}
+      {% endif %}
+    </section>
+
+    <section class="ca-section">
+      <div class="ca-section-head">
+        <h2 class="ca-section-title">Monthly bans</h2>
+        <span class="ca-meta">{{ bans|length }} users</span>
+      </div>
+      {% if bans|length == 0 %}
+        <div class="ca-empty">No users are banned from entering {{ comp_id }}.</div>
+      {% else %}
+        <table class="ca-ban-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Reason</th>
+              <th>Coins</th>
+              <th>Warning</th>
+              <th>Image</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ban in bans %}
+              <tr>
+                <td>
+                  <strong>{{ ban.user_id }}</strong><br>
+                  <span class="ca-meta">{{ ban.banned_at.strftime('%b %d, %Y %H:%M') if ban.banned_at else '' }}</span>
+                </td>
+                <td>{{ ban.reason }}</td>
+                <td>
+                  {% if ban.reward_revoked %}
+                    -{{ "{:,}".format(ban.revoke_amount or 0) }}<br>
+                    <span class="ca-meta">Balance: {{ "{:,}".format(ban.balance_after_revoke or 0) }}</span>
+                  {% else %}
+                    <span class="ca-meta">No reward revoked</span>
+                  {% endif %}
+                </td>
+                <td><span class="ca-status {{ ban.warning_status or 'pending' }}">{{ ban.warning_status or 'pending' }}</span></td>
+                <td>
+                  {% if ban.image_url %}
+                    <a class="ca-btn ca-btn-small ca-btn-ghost" href="{{ ban.image_url }}" target="_blank" rel="noopener">Open</a>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="post" action="{{ url_for('admin_competition_unban', user_id=ban.user_id, comp_id=comp_id) }}"
+                        onsubmit="return confirm('Remove this monthly ban and allow the user to submit again for {{ comp_id }}?');">
+                    <input type="hidden" name="comp_id" value="{{ comp_id }}">
+                    <button class="ca-btn ca-btn-small ca-btn-primary" type="submit">Remove ban</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </section>
   </div>
 </main>
+{% endblock %}
 
-<!-- Page script (kept inline; move to a scripts block if you have one) -->
+{% block scripts %}
 <script>
   (function () {
-    const q = document.getElementById('adm-search');
-    const cards = Array.from(document.querySelectorAll('#adm-grid .entry-card'));
-    if (!q) return;
-    q.addEventListener('input', function () {
-      const s = this.value.trim().toLowerCase();
-      for (const c of cards) {
-        const t = (c.dataset.caption + ' ' + c.dataset.user).toLowerCase();
-        c.style.display = t.includes(s) ? '' : 'none';
+    const input = document.getElementById('ca-search');
+    const cards = Array.from(document.querySelectorAll('#ca-grid .ca-entry'));
+    const count = document.getElementById('ca-visible-count');
+    const filters = Array.from(document.querySelectorAll('.ca-segment button'));
+    let activeFilter = 'all';
+
+    function applyFilters() {
+      const query = (input && input.value ? input.value : '').trim().toLowerCase();
+      let visible = 0;
+
+      for (const card of cards) {
+        const status = card.dataset.status || 'active';
+        const matchesStatus = activeFilter === 'all' || status === activeFilter;
+        const matchesQuery = !query || (card.dataset.search || '').toLowerCase().includes(query);
+        const show = matchesStatus && matchesQuery;
+        card.style.display = show ? '' : 'none';
+        if (show) visible += 1;
       }
-    });
+
+      if (count) count.textContent = visible + ' visible';
+    }
+
+    if (input) input.addEventListener('input', applyFilters);
+    for (const button of filters) {
+      button.addEventListener('click', function () {
+        activeFilter = this.dataset.filter || 'all';
+        for (const b of filters) b.classList.toggle('is-active', b === this);
+        applyFilters();
+      });
+    }
   })();
 </script>
 {% endblock %}

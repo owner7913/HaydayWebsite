@@ -18,6 +18,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
    && update-ca-certificates \
    && rm -rf /var/lib/apt/lists/*
 
+ARG MONGODB_DATABASE_TOOLS_VERSION=100.17.0
+RUN set -eux; \
+    curl -fsSL "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-${MONGODB_DATABASE_TOOLS_VERSION}.tgz" -o /tmp/mongodb-database-tools.tgz; \
+    tar -xzf /tmp/mongodb-database-tools.tgz -C /tmp; \
+    cp /tmp/mongodb-database-tools-*/bin/* /usr/local/bin/; \
+    chmod +x /usr/local/bin/mongo*; \
+    rm -rf /tmp/mongodb-database-tools*
+
 # --- Python deps ---
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

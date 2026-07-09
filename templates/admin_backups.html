@@ -1,0 +1,1804 @@
+{% extends 'base.html' %}
+{% block title %}Backups - Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .dashboard-wrapper {
+    display: flex;
+    min-height: 100vh;
+    margin-top: 78px;
+    background: #edf2ee;
+  }
+
+  .sidebar {
+    width: 240px;
+    background-color: #222;
+    color: white;
+    padding: 20px;
+    font-family: sans-serif;
+    flex: 0 0 auto;
+  }
+
+  .sidebar h2 {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .sidebar a {
+    display: block;
+    color: white;
+    text-decoration: none;
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+
+  .sidebar a:hover,
+  .sidebar a.active {
+    background-color: #333;
+  }
+
+  .dashboard-content {
+    flex: 1;
+    min-width: 0;
+    overflow-x: hidden;
+    padding: 28px;
+    color: #172019;
+  }
+
+  body.dark .dashboard-wrapper {
+    background: #111712;
+  }
+
+  body.dark .dashboard-content {
+    color: #eef8ee;
+  }
+
+  .backup-shell {
+    max-width: 1480px;
+    margin: 0 auto;
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .backup-header,
+  .backup-toolbar,
+  .backup-list-panel,
+  .backup-detail-panel,
+  .backup-section,
+  .backup-status {
+    border: 1px solid rgba(32, 50, 36, .14);
+    background: rgba(255, 255, 255, .9);
+    border-radius: 8px;
+    box-shadow: 0 16px 36px rgba(31, 63, 38, .09);
+  }
+
+  body.dark .backup-header,
+  body.dark .backup-toolbar,
+  body.dark .backup-list-panel,
+  body.dark .backup-detail-panel,
+  body.dark .backup-section,
+  body.dark .backup-status {
+    border-color: rgba(255, 255, 255, .1);
+    background: rgba(24, 31, 25, .92);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, .28);
+  }
+
+  .backup-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+    padding: 22px;
+  }
+
+  .backup-kicker {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #337b43;
+  }
+
+  body.dark .backup-kicker {
+    color: #70c66a;
+  }
+
+  .backup-header h1 {
+    margin: 0;
+    font-size: 30px;
+    line-height: 1.1;
+  }
+
+  .backup-header p {
+    margin: 8px 0 0;
+    color: #667267;
+    line-height: 1.45;
+  }
+
+  body.dark .backup-header p,
+  body.dark .backup-muted,
+  body.dark .backup-empty {
+    color: #aebaaf;
+  }
+
+  .backup-toolbar {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: minmax(150px, 180px) minmax(150px, 180px) minmax(220px, 1fr) minmax(220px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .backup-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .backup-field label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #536257;
+  }
+
+  body.dark .backup-field label {
+    color: #b7c2b8;
+  }
+
+  .backup-field input,
+  .backup-field select,
+  .restore-confirm {
+    min-height: 40px;
+    border: 1px solid rgba(32, 50, 36, .18);
+    border-radius: 6px;
+    background: #fff;
+    color: #172019;
+    padding: 8px 10px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  body.dark .backup-field input,
+  body.dark .backup-field select,
+  body.dark .restore-confirm {
+    border-color: rgba(255, 255, 255, .12);
+    background: #111712;
+    color: #eef8ee;
+  }
+
+  .backup-btn {
+    min-height: 40px;
+    border: 1px solid rgba(32, 50, 36, .16);
+    border-radius: 6px;
+    background: #3f9b50;
+    color: #fff;
+    padding: 8px 14px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .backup-btn:hover {
+    background: #337b43;
+  }
+
+  .backup-btn.secondary {
+    background: #3478db;
+  }
+
+  .backup-btn.secondary:hover {
+    background: #285ea9;
+  }
+
+  .backup-btn.danger {
+    background: #c54747;
+  }
+
+  .backup-btn.danger:hover {
+    background: #9e3434;
+  }
+
+  .backup-btn:disabled {
+    opacity: .58;
+    cursor: not-allowed;
+  }
+
+  .backup-layout {
+    display: grid;
+    grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+    min-width: 0;
+  }
+
+  .backup-list-panel,
+  .backup-detail-panel {
+    padding: 16px;
+    min-width: 0;
+  }
+
+  .backup-detail-panel {
+    overflow: hidden;
+  }
+
+  .backup-panel-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .backup-panel-title h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .backup-muted,
+  .backup-empty {
+    color: #667267;
+    font-size: 13px;
+  }
+
+  .backup-table-wrap {
+    overflow: auto;
+    max-height: 680px;
+  }
+
+  .backup-table,
+  .field-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .backup-table th,
+  .backup-table td,
+  .field-table th,
+  .field-table td {
+    text-align: left;
+    padding: 9px 8px;
+    border-bottom: 1px solid rgba(32, 50, 36, .1);
+    vertical-align: top;
+  }
+
+  body.dark .backup-table th,
+  body.dark .backup-table td,
+  body.dark .field-table th,
+  body.dark .field-table td {
+    border-bottom-color: rgba(255, 255, 255, .09);
+  }
+
+  .backup-table th,
+  .field-table th {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #5e6d62;
+    background: rgba(63, 155, 80, .08);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  body.dark .backup-table th,
+  body.dark .field-table th {
+    color: #aebaaf;
+    background: rgba(112, 198, 106, .08);
+  }
+
+  .backup-row {
+    cursor: pointer;
+  }
+
+  .backup-row:hover,
+  .backup-row.selected {
+    background: rgba(52, 120, 219, .1);
+  }
+
+  body.dark .backup-row:hover,
+  body.dark .backup-row.selected {
+    background: rgba(105, 166, 248, .13);
+  }
+
+  .backup-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    background: rgba(52, 120, 219, .13);
+    color: #285ea9;
+  }
+
+  .backup-chip.database {
+    background: rgba(63, 155, 80, .14);
+    color: #2e783d;
+  }
+
+  .backup-chip.discord {
+    background: rgba(201, 130, 34, .15);
+    color: #9a611a;
+  }
+
+  body.dark .backup-chip.database {
+    color: #8ddf88;
+  }
+
+  body.dark .backup-chip.discord {
+    color: #e0a644;
+  }
+
+  .backup-key {
+    display: block;
+    max-width: 230px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .backup-status {
+    padding: 12px 14px;
+    color: #536257;
+  }
+
+  body.dark .backup-status {
+    color: #b7c2b8;
+  }
+
+  .backup-status.warn {
+    border-color: rgba(201, 130, 34, .4);
+    color: #8c5a18;
+  }
+
+  .backup-status.info {
+    border-color: rgba(52, 120, 219, .3);
+    background: rgba(52, 120, 219, .08);
+  }
+
+  .restore-report {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+    border-color: rgba(63, 155, 80, .34);
+    background: rgba(63, 155, 80, .08);
+  }
+
+  .restore-report-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .restore-report-top h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .restore-report textarea {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    box-sizing: border-box;
+    border: 1px solid rgba(32, 50, 36, .18);
+    border-radius: 6px;
+    background: #fff;
+    color: #172019;
+    padding: 10px;
+    font: 13px/1.45 Consolas, Monaco, monospace;
+  }
+
+  body.dark .backup-status.warn {
+    color: #e0a644;
+  }
+
+  body.dark .backup-status.info {
+    color: #b9d6ff;
+  }
+
+  body.dark .restore-report {
+    border-color: rgba(112, 198, 106, .28);
+    background: rgba(112, 198, 106, .08);
+  }
+
+  body.dark .restore-report textarea {
+    border-color: rgba(255, 255, 255, .12);
+    background: #111712;
+    color: #eef8ee;
+  }
+
+  .backup-section {
+    padding: 16px;
+    margin-top: 14px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .backup-section-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .backup-section-header h3 {
+    margin: 0;
+    font-size: 17px;
+  }
+
+  .backup-section-header p {
+    margin: 5px 0 0;
+  }
+
+  .field-grid {
+    display: grid;
+    min-width: 0;
+    border-top: 1px solid rgba(32, 50, 36, .1);
+  }
+
+  body.dark .field-grid {
+    border-top-color: rgba(255, 255, 255, .09);
+  }
+
+  .field-grid-head,
+  .field-row {
+    display: grid;
+    grid-template-columns: 52px minmax(130px, 200px) minmax(0, 1fr) minmax(0, 1fr) minmax(130px, 160px);
+    gap: 12px;
+    align-items: start;
+    min-width: 0;
+  }
+
+  .field-grid-head {
+    padding: 9px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #5e6d62;
+    background: rgba(63, 155, 80, .08);
+  }
+
+  body.dark .field-grid-head {
+    color: #aebaaf;
+    background: rgba(112, 198, 106, .08);
+  }
+
+  .field-row {
+    padding: 12px 8px;
+    border-bottom: 1px solid rgba(32, 50, 36, .1);
+  }
+
+  body.dark .field-row {
+    border-bottom-color: rgba(255, 255, 255, .09);
+  }
+
+  .field-use,
+  .field-name,
+  .field-value,
+  .field-mode,
+  .value-box {
+    min-width: 0;
+  }
+
+  .field-use {
+    display: flex;
+    align-items: flex-start;
+    padding-top: 2px;
+  }
+
+  .field-name strong {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .field-value-label {
+    display: none;
+    margin-bottom: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #5e6d62;
+  }
+
+  body.dark .field-value-label {
+    color: #aebaaf;
+  }
+
+  .value-inline {
+    display: block;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .value-summary {
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  .value-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    max-height: 78px;
+    overflow: hidden;
+  }
+
+  .value-chip {
+    max-width: 100%;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(52, 120, 219, .12);
+    color: #285ea9;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.dark .value-chip {
+    color: #b9d6ff;
+    background: rgba(105, 166, 248, .15);
+  }
+
+  .value-details {
+    margin-top: 8px;
+  }
+
+  .value-details summary {
+    font-size: 12px;
+    color: #3478db;
+  }
+
+  .value-json {
+    box-sizing: border-box;
+    width: 100%;
+    max-height: 220px;
+    overflow: auto;
+    margin: 8px 0 0;
+    padding: 8px;
+    border-radius: 6px;
+    background: #f3f7f4;
+    color: #172019;
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  body.dark .value-json {
+    background: #111712;
+    color: #eef8ee;
+  }
+
+  .restore-mode {
+    width: 100%;
+    min-height: 34px;
+    border: 1px solid rgba(32, 50, 36, .18);
+    border-radius: 6px;
+    background: #fff;
+    color: #172019;
+    padding: 6px 8px;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+
+  body.dark .restore-mode {
+    border-color: rgba(255, 255, 255, .12);
+    background: #111712;
+    color: #eef8ee;
+  }
+
+  .restore-mode-note {
+    margin-top: 6px;
+    color: #667267;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  body.dark .restore-mode-note {
+    color: #aebaaf;
+  }
+
+  .field-table pre,
+  .raw-json {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    max-height: 240px;
+    overflow: auto;
+    margin: 0;
+    padding: 8px;
+    border-radius: 6px;
+    background: #f3f7f4;
+    color: #172019;
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  body.dark .field-table pre,
+  body.dark .raw-json {
+    background: #111712;
+    color: #eef8ee;
+  }
+
+  .restore-bar {
+    display: grid;
+    grid-template-columns: minmax(180px, 260px) auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    margin-top: 14px;
+  }
+
+  .backup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .backup-loader {
+    display: grid;
+    gap: 12px;
+    padding: 18px;
+    border: 1px solid rgba(52, 120, 219, .24);
+    border-radius: 8px;
+    background: rgba(52, 120, 219, .08);
+  }
+
+  .backup-loader-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: baseline;
+  }
+
+  .backup-loader-title {
+    font-weight: 900;
+    color: #203124;
+  }
+
+  body.dark .backup-loader-title {
+    color: #eef8ee;
+  }
+
+  .backup-loader-percent {
+    font-size: 24px;
+    font-weight: 900;
+    color: #3478db;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .backup-loader-track {
+    width: 100%;
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(32, 50, 36, .12);
+  }
+
+  body.dark .backup-loader-track {
+    background: rgba(255, 255, 255, .12);
+  }
+
+  .backup-loader-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #3f9b50, #3478db);
+    transition: width .35s ease;
+  }
+
+  .backup-loader-steps {
+    display: grid;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .backup-loader-step {
+    color: #667267;
+    font-size: 13px;
+  }
+
+  body.dark .backup-loader-step {
+    color: #aebaaf;
+  }
+
+  details {
+    margin-top: 12px;
+  }
+
+  summary {
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .status-line {
+    min-height: 20px;
+    font-size: 13px;
+  }
+
+  @media (max-width: 980px) {
+    .dashboard-wrapper {
+      flex-direction: column;
+    }
+
+    .sidebar {
+      width: auto;
+    }
+
+    .sidebar a {
+      display: inline-block;
+    }
+
+    .dashboard-content {
+      padding: 18px;
+    }
+
+    .backup-header,
+    .backup-toolbar,
+    .backup-layout,
+    .restore-bar {
+      grid-template-columns: 1fr;
+    }
+
+    .backup-layout {
+      display: grid;
+    }
+
+    .backup-header {
+      display: grid;
+    }
+
+    .backup-table-wrap {
+      max-height: 420px;
+    }
+
+    .field-grid-head {
+      display: none;
+    }
+
+    .field-row {
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .field-value {
+      grid-column: 2;
+    }
+
+    .field-mode {
+      grid-column: 2;
+    }
+
+    .field-value-label {
+      display: block;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper backup-admin">
+  {% include 'sidepanel.html' %}
+
+  <main class="dashboard-content">
+    <div class="backup-shell">
+      <section class="backup-header">
+        <div>
+          <p class="backup-kicker">Admin tools</p>
+          <h1>Backups</h1>
+          <p>Bucket: <strong>{{ backup_bucket }}</strong></p>
+        </div>
+        <button class="backup-btn secondary" type="button" id="refreshBtn">Refresh</button>
+      </section>
+
+      {% if not mongorestore_available %}
+      <div class="backup-status warn">
+        Database archive inspection needs <code>mongorestore</code>. The updated Docker image installs it; local runs may only list backups until the tool is available.
+      </div>
+      {% endif %}
+
+      <section class="backup-toolbar">
+        <div class="backup-field">
+          <label for="typeFilter">Type</label>
+          <select id="typeFilter">
+            <option value="all">All backups</option>
+            <option value="database">Database</option>
+            <option value="discord">Discord</option>
+          </select>
+        </div>
+        <div class="backup-field">
+          <label for="dateFilter">Date</label>
+          <input type="date" id="dateFilter">
+        </div>
+        <div class="backup-field">
+          <label for="userIdInput">Backup user ID</label>
+          <input id="userIdInput" inputmode="numeric" placeholder="154282062973501441">
+        </div>
+        <div class="backup-field">
+          <label for="targetUserIdInput">Transfer to user ID</label>
+          <input id="targetUserIdInput" inputmode="numeric" placeholder="Blank = same user">
+        </div>
+        <button class="backup-btn" type="button" id="inspectBtn">Inspect Selected</button>
+      </section>
+
+      <div class="backup-layout">
+        <section class="backup-list-panel">
+          <div class="backup-panel-title">
+            <h2>Backup Files</h2>
+            <span class="backup-muted" id="backupCount">Loading</span>
+          </div>
+          <div class="backup-table-wrap">
+            <table class="backup-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Created</th>
+                  <th>Size</th>
+                </tr>
+              </thead>
+              <tbody id="backupRows">
+                <tr><td colspan="3" class="backup-empty">Loading backups...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="backup-detail-panel">
+          <div class="backup-panel-title">
+            <h2>Inspection</h2>
+            <span class="backup-muted" id="selectedKeyLabel">No backup selected</span>
+          </div>
+          <div id="statusLine" class="status-line backup-muted"></div>
+          <div id="detailPanel" class="backup-empty">Select a backup file, enter a user ID for database restores, and inspect it.</div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+let backups = [];
+let selectedKey = null;
+let selectedType = null;
+let inspectedData = null;
+let lastRestoreResult = null;
+let lastDiscordRoleRestoreResult = null;
+let loaderTimer = null;
+let loaderProgress = 0;
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatDate(value) {
+  if (!value) return "Unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function displayValue(value) {
+  if (value === null || value === undefined) return "<span class='backup-muted'>Not set</span>";
+  if (Array.isArray(value)) {
+    return displayArrayValue(value);
+  }
+  if (typeof value === "object") {
+    return displayObjectValue(value);
+  }
+  return displayScalarValue(value);
+}
+
+function previewValue(value, maxLength = 64) {
+  let text;
+  if (value === null || value === undefined) {
+    text = "Not set";
+  } else if (typeof value === "object") {
+    text = JSON.stringify(value);
+  } else {
+    text = String(value);
+  }
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1)}...`;
+}
+
+function rawValueMarkup(value, label = "Show raw") {
+  const raw = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return `
+    <details class="value-details">
+      <summary>${escapeHtml(label)}</summary>
+      <pre class="value-json">${escapeHtml(raw)}</pre>
+    </details>
+  `;
+}
+
+function displayArrayValue(value) {
+  const count = value.length;
+  const previewItems = value.slice(0, 10).map((item) => {
+    const preview = previewValue(item);
+    return `<span class="value-chip" title="${escapeHtml(previewValue(item, 180))}">${escapeHtml(preview)}</span>`;
+  }).join("");
+  const remaining = count > 10
+    ? `<span class="backup-muted">+ ${escapeHtml(count - 10)} more</span>`
+    : "";
+
+  return `
+    <div class="value-box">
+      <div class="value-summary">${escapeHtml(count)} item${count === 1 ? "" : "s"}</div>
+      ${count ? `<div class="value-chips">${previewItems}${remaining}</div>` : ""}
+      ${rawValueMarkup(value)}
+    </div>
+  `;
+}
+
+function displayObjectValue(value) {
+  const keys = Object.keys(value);
+  const chips = keys.slice(0, 8).map((key) => (
+    `<span class="value-chip" title="${escapeHtml(previewValue(value[key], 180))}">${escapeHtml(key)}: ${escapeHtml(previewValue(value[key], 42))}</span>`
+  )).join("");
+  const remaining = keys.length > 8
+    ? `<span class="backup-muted">+ ${escapeHtml(keys.length - 8)} more</span>`
+    : "";
+
+  return `
+    <div class="value-box">
+      <div class="value-summary">${escapeHtml(keys.length)} field${keys.length === 1 ? "" : "s"}</div>
+      ${keys.length ? `<div class="value-chips">${chips}${remaining}</div>` : ""}
+      ${rawValueMarkup(value)}
+    </div>
+  `;
+}
+
+function displayScalarValue(value) {
+  const text = String(value);
+  const fullText = escapeHtml(text);
+  if (text.length <= 140) {
+    return `<span class="value-inline">${fullText}</span>`;
+  }
+
+  return `
+    <div class="value-box">
+      <span class="value-inline">${escapeHtml(previewValue(text, 140))}</span>
+      ${rawValueMarkup(text, "Show full value")}
+    </div>
+  `;
+}
+
+function restoreModeMarkup(section, field) {
+  if (!field.available) {
+    return "<span class='backup-muted'>Unavailable</span>";
+  }
+  if (!field.additive) {
+    return "<span class='backup-muted'>Replace only</span>";
+  }
+
+  const xpNote = section.id === "level" && field.field === "xp"
+    ? "<div class='restore-mode-note'>Add mode recalculates the level from the new total XP.</div>"
+    : "";
+  return `
+    <select
+      class="restore-mode"
+      data-section="${escapeHtml(section.id)}"
+      data-field="${escapeHtml(field.field)}"
+      aria-label="Restore action for ${escapeHtml(field.label)}"
+    >
+      <option value="replace">Replace</option>
+      <option value="add">Add to current</option>
+    </select>
+    ${field.add_preview ? `<div class="restore-mode-note">${escapeHtml(field.add_preview)}</div>` : ""}
+    ${xpNote}
+  `;
+}
+
+function ticketValue(value) {
+  if (value === null || value === undefined) return "not set";
+  if (typeof value === "number") return value.toLocaleString();
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (typeof value === "object") return "updated data";
+
+  const text = String(value);
+  if (text.length <= 80) return text;
+  return `${text.slice(0, 77)}...`;
+}
+
+function ticketCode(value) {
+  return `\`${ticketValue(value).replaceAll("`", "'")}\``;
+}
+
+function ticketFieldLabel(row, field) {
+  return row.field_labels?.[field] || field;
+}
+
+function buildDiscordRestoreMessage(result) {
+  const sourceId = result.source_user_id || inspectedData?.source_user_id || inspectedData?.user_id || sourceUserId();
+  const targetId = result.target_user_id || result.user_id || inspectedData?.target_user_id || targetUserId();
+  const backupName = (result.key || selectedKey || "").split("/").pop() || "selected backup";
+  const lines = [
+    "**Backup restore completed**",
+    `Backup user: <@${sourceId}> (${sourceId})`,
+    `Restored to: <@${targetId}> (${targetId})`,
+    `Backup: \`${backupName.replaceAll("`", "'")}\``,
+    "",
+    "**Updated fields:**"
+  ];
+
+  const restoredRows = (result.updates || []).filter((row) => row.status === "restored");
+  if (!restoredRows.length) {
+    lines.push("- No fields were updated.");
+  }
+
+  restoredRows.forEach((row) => {
+    lines.push(`- **${row.label || row.section || "Backup section"}**`);
+    (row.fields || []).forEach((field) => {
+      const operation = row.operations?.[field] || "replace";
+      const details = row.operation_details?.[field] || {};
+      const label = ticketFieldLabel(row, field);
+
+      if (operation === "add") {
+        lines.push(
+          `  - ${label}: ${ticketCode(details.live_value)} + ${ticketCode(details.backup_value)} -> ${ticketCode(details.new_value)}`
+        );
+      } else if (operation === "recalculate_from_added_xp") {
+        lines.push(
+          `  - ${label}: ${ticketCode(row.before?.[field])} -> ${ticketCode(row.restored?.[field])} (recalculated from total XP)`
+        );
+      } else {
+        lines.push(
+          `  - ${label}: ${ticketCode(row.before?.[field])} -> ${ticketCode(row.restored?.[field])}`
+        );
+      }
+    });
+  });
+
+  const skippedLines = [];
+  (result.updates || []).forEach((row) => {
+    if (row.status === "skipped") {
+      skippedLines.push(`- ${row.label || row.section}: ${row.reason || "skipped"}`);
+    }
+    (row.skipped_fields || []).forEach((field) => {
+      skippedLines.push(`- ${row.label || row.section}: ${ticketFieldLabel(row, field)} skipped`);
+    });
+  });
+
+  if (skippedLines.length) {
+    lines.push("", "**Skipped:**", ...skippedLines);
+  }
+
+  return lines.join("\n");
+}
+
+function restoreReportHtml(result) {
+  if (!result) return "";
+  const message = buildDiscordRestoreMessage(result);
+  return `
+    <section class="backup-status restore-report">
+      <div class="restore-report-top">
+        <div>
+          <h3>Discord ticket update</h3>
+          <p class="backup-muted">Copy this into the ticket after checking the restored values.</p>
+        </div>
+        <button class="backup-btn secondary" type="button" id="copyRestoreMessageBtn">Copy</button>
+      </div>
+      <textarea id="restoreDiscordMessage" readonly>${escapeHtml(message)}</textarea>
+      <div class="backup-muted" id="copyRestoreMessageStatus"></div>
+    </section>
+  `;
+}
+
+async function copyRestoreMessage() {
+  const textarea = document.getElementById("restoreDiscordMessage");
+  const status = document.getElementById("copyRestoreMessageStatus");
+  if (!textarea) return;
+
+  try {
+    await navigator.clipboard.writeText(textarea.value);
+  } catch (err) {
+    textarea.focus();
+    textarea.select();
+    document.execCommand("copy");
+    textarea.setSelectionRange(0, 0);
+  }
+
+  if (status) status.textContent = "Copied to clipboard.";
+}
+
+function roleListText(roles) {
+  if (!roles || !roles.length) return "None";
+  return roles.map((role) => `- ${role.name || role.id} (${role.id})`).join("\n");
+}
+
+function buildDiscordRoleRestoreMessage(result) {
+  const bot = result?.bot || {};
+  const sourceId = result?.source_user_id || inspectedData?.source_user_id || inspectedData?.member?.id || sourceUserId();
+  const targetId = result?.target_user_id || result?.user_id || inspectedData?.target_user_id || targetUserId();
+  const backupName = (result?.key || inspectedData?.key || selectedKey || "").split("/").pop() || "selected Discord backup";
+  const lines = [
+    "**Discord roles restored from backup**",
+    `Backup user: <@${sourceId}> (${sourceId})`,
+    `Sent to: <@${targetId}> (${targetId})`,
+    `Backup: \`${backupName.replaceAll("`", "'")}\``,
+    "",
+    `Added roles (${(bot.added_roles || []).length}):`,
+    roleListText(bot.added_roles || []),
+    "",
+    `Already had (${(bot.already_had_roles || []).length}):`,
+    roleListText(bot.already_had_roles || []),
+  ];
+
+  if ((bot.skipped_roles || []).length) {
+    lines.push("", `Skipped (${bot.skipped_roles.length}):`);
+    lines.push(...bot.skipped_roles.map((role) => `- ${role.name || role.id} (${role.id}) - ${role.reason || "skipped"}`));
+  }
+
+  return lines.join("\n");
+}
+
+function discordRoleRestoreReportHtml(result) {
+  if (!result) return "";
+  const message = buildDiscordRoleRestoreMessage(result);
+  return `
+    <section class="backup-status restore-report">
+      <div class="restore-report-top">
+        <div>
+          <h3>Discord role ticket update</h3>
+          <p class="backup-muted">Copy this after checking the bot result.</p>
+        </div>
+        <button class="backup-btn secondary" type="button" id="copyDiscordRoleMessageBtn">Copy</button>
+      </div>
+      <textarea id="discordRoleRestoreMessage" readonly>${escapeHtml(message)}</textarea>
+      <div class="backup-muted" id="copyDiscordRoleMessageStatus"></div>
+    </section>
+  `;
+}
+
+function databaseBackupRoleIds(data) {
+  const ids = [];
+  (data.sections || []).forEach((section) => {
+    if (!["username", "website_user"].includes(section.id)) return;
+    (section.fields || []).forEach((field) => {
+      if (field.field !== "roles" || !Array.isArray(field.backup_value)) return;
+      field.backup_value.forEach((roleId) => {
+        const text = String(roleId || "").trim();
+        if (/^\d+$/.test(text) && !ids.includes(text)) {
+          ids.push(text);
+        }
+      });
+    });
+  });
+  return ids;
+}
+
+function databaseRoleRestoreHtml(data, result = null) {
+  const roleIds = databaseBackupRoleIds(data);
+  if (!roleIds.length) return "";
+
+  return `
+    <section class="backup-section">
+      <div class="backup-section-header">
+        <div>
+          <h3>Send Cached Roles to Discord</h3>
+          <p class="backup-muted">${escapeHtml(roleIds.length)} cached role ID${roleIds.length === 1 ? "" : "s"} found in this database backup. The bot will add missing roles only.</p>
+        </div>
+      </div>
+      ${discordRoleRestoreReportHtml(result)}
+      <div class="restore-bar">
+        <input class="restore-confirm" id="discordRoleConfirm" placeholder="Type RESTORE ROLES">
+        <button class="backup-btn danger" type="button" id="restoreDiscordRolesBtn">Send Roles to Discord</button>
+        <span class="backup-muted">Uses cached role IDs from the database backup. Deleted, managed, already-held, and too-high roles are skipped.</span>
+      </div>
+    </section>
+  `;
+}
+
+async function copyDiscordRoleRestoreMessage() {
+  const textarea = document.getElementById("discordRoleRestoreMessage");
+  const status = document.getElementById("copyDiscordRoleMessageStatus");
+  if (!textarea) return;
+
+  try {
+    await navigator.clipboard.writeText(textarea.value);
+  } catch (err) {
+    textarea.focus();
+    textarea.select();
+    document.execCommand("copy");
+    textarea.setSelectionRange(0, 0);
+  }
+
+  if (status) status.textContent = "Copied to clipboard.";
+}
+
+function typeLabel(type) {
+  return type === "database" ? "database - user stats" : "discord - server";
+}
+
+function backupTimestamp(value) {
+  const date = new Date(value || "");
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function findNearestDatabaseBackup(referenceCreatedAt) {
+  const referenceTime = backupTimestamp(referenceCreatedAt);
+  const databaseBackups = backups.filter((backup) => backup.type === "database");
+  if (!databaseBackups.length) return null;
+  if (!referenceTime) return databaseBackups[0];
+
+  return databaseBackups
+    .map((backup) => ({
+      backup,
+      diff: Math.abs((backupTimestamp(backup.created_at || backup.last_modified) ?? 0) - referenceTime)
+    }))
+    .sort((a, b) => a.diff - b.diff)[0]?.backup || null;
+}
+
+function setStatus(message, isError = false) {
+  const el = document.getElementById("statusLine");
+  el.textContent = message || "";
+  el.style.color = isError ? "#c54747" : "";
+}
+
+function loaderMarkup(title, steps = []) {
+  return `
+    <div class="backup-loader" role="status" aria-live="polite">
+      <div class="backup-loader-top">
+        <div>
+          <div class="backup-loader-title">${escapeHtml(title)}</div>
+          <div class="backup-muted" id="loaderPhase">${escapeHtml(steps[0] || "Starting...")}</div>
+        </div>
+        <div class="backup-loader-percent"><span id="loaderPercent">0</span>%</div>
+      </div>
+      <div class="backup-loader-track" aria-hidden="true">
+        <div class="backup-loader-fill" id="loaderFill"></div>
+      </div>
+      <div class="backup-loader-steps">
+        ${(steps || []).map((step) => `<div class="backup-loader-step">${escapeHtml(step)}</div>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function updateLoader(percent, phase) {
+  loaderProgress = Math.max(0, Math.min(100, Math.round(percent)));
+  const percentEl = document.getElementById("loaderPercent");
+  const fillEl = document.getElementById("loaderFill");
+  const phaseEl = document.getElementById("loaderPhase");
+  if (percentEl) percentEl.textContent = String(loaderProgress);
+  if (fillEl) fillEl.style.width = `${loaderProgress}%`;
+  if (phaseEl && phase) phaseEl.textContent = phase;
+}
+
+function startLoader(title, steps = []) {
+  stopLoader(false);
+  loaderProgress = 0;
+  document.getElementById("detailPanel").innerHTML = loaderMarkup(title, steps);
+  updateLoader(5, steps[0] || "Starting...");
+
+  loaderTimer = window.setInterval(() => {
+    const next = loaderProgress < 35
+      ? loaderProgress + 4
+      : loaderProgress < 72
+        ? loaderProgress + 2
+        : loaderProgress < 92
+          ? loaderProgress + 1
+          : loaderProgress;
+    const phaseIndex = Math.min(
+      steps.length - 1,
+      Math.floor((next / 100) * Math.max(steps.length, 1))
+    );
+    updateLoader(Math.min(next, 92), steps[phaseIndex] || "Still working...");
+  }, 700);
+}
+
+function stopLoader(complete = true) {
+  if (loaderTimer) {
+    window.clearInterval(loaderTimer);
+    loaderTimer = null;
+  }
+  if (complete) {
+    updateLoader(100, "Done");
+  }
+}
+
+async function requestJson(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken,
+      ...(options.headers || {})
+    }
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+function sourceUserId() {
+  return document.getElementById("userIdInput").value.trim();
+}
+
+function targetUserId() {
+  return document.getElementById("targetUserIdInput").value.trim() || sourceUserId();
+}
+
+function isTransferMode(sourceId = sourceUserId(), targetId = targetUserId()) {
+  return Boolean(sourceId && targetId && sourceId !== targetId);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForBackupJob(jobId) {
+  let polls = 0;
+  while (true) {
+    await sleep(1800);
+    const job = await requestJson(`/api/admin/backups/jobs/${encodeURIComponent(jobId)}`, { method: "GET" });
+    polls += 1;
+
+    if (job.status === "done") {
+      updateLoader(98, "Preparing results...");
+      return job.result;
+    }
+    if (job.status === "error") {
+      throw new Error(job.error || "Backup job failed.");
+    }
+
+    const nextPercent = Math.min(92, Math.max(loaderProgress + 1, 12 + polls * 2));
+    updateLoader(nextPercent, job.message || "Still inspecting the backup...");
+  }
+}
+
+async function inspectDatabaseBackup(key, userId, targetId) {
+  const job = await requestJson("/api/admin/backups/inspect/start", {
+    method: "POST",
+    body: JSON.stringify({ key, user_id: userId, target_user_id: targetId })
+  });
+  updateLoader(8, job.message || "Database inspection started...");
+  return waitForBackupJob(job.job_id);
+}
+
+async function loadBackups() {
+  setStatus("Loading backups...");
+  document.getElementById("backupRows").innerHTML = "<tr><td colspan='3' class='backup-empty'>Loading backups...</td></tr>";
+  try {
+    const data = await requestJson("/api/admin/backups", { method: "GET" });
+    backups = data.backups || [];
+    renderBackups();
+    setStatus("");
+  } catch (err) {
+    document.getElementById("backupRows").innerHTML = `<tr><td colspan="3" class="backup-empty">${escapeHtml(err.message)}</td></tr>`;
+    document.getElementById("backupCount").textContent = "Unavailable";
+    setStatus(err.message, true);
+  }
+}
+
+function filteredBackups() {
+  const type = document.getElementById("typeFilter").value;
+  const date = document.getElementById("dateFilter").value;
+  return backups.filter((backup) => {
+    if (type !== "all" && backup.type !== type) return false;
+    if (date && backup.date !== date) return false;
+    return true;
+  });
+}
+
+function renderBackups() {
+  const rows = filteredBackups();
+  document.getElementById("backupCount").textContent = `${rows.length} shown`;
+  const tbody = document.getElementById("backupRows");
+  if (!rows.length) {
+    tbody.innerHTML = "<tr><td colspan='3' class='backup-empty'>No backups match the filters.</td></tr>";
+    return;
+  }
+
+  tbody.innerHTML = rows.map((backup) => `
+    <tr class="backup-row ${backup.key === selectedKey ? "selected" : ""}" data-key="${escapeHtml(backup.key)}" data-type="${escapeHtml(backup.type)}">
+      <td>
+        <span class="backup-chip ${escapeHtml(backup.type)}">${escapeHtml(typeLabel(backup.type))}</span>
+        <span class="backup-key" title="${escapeHtml(backup.key)}">${escapeHtml(backup.name)}</span>
+      </td>
+      <td>${escapeHtml(formatDate(backup.created_at || backup.last_modified))}</td>
+      <td>${escapeHtml(backup.size_mb)} MB</td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".backup-row").forEach((row) => {
+    row.addEventListener("click", () => selectBackup(row.dataset.key, row.dataset.type));
+  });
+}
+
+function selectBackup(key, type) {
+  selectedKey = key;
+  selectedType = type;
+  inspectedData = null;
+  lastRestoreResult = null;
+  lastDiscordRoleRestoreResult = null;
+  document.getElementById("selectedKeyLabel").textContent = key;
+  document.getElementById("detailPanel").innerHTML = "Ready to inspect.";
+  renderBackups();
+}
+
+async function inspectSelected(options = {}) {
+  const preserveRestoreResult = options?.preserveRestoreResult === true;
+  if (!preserveRestoreResult) {
+    lastRestoreResult = null;
+    lastDiscordRoleRestoreResult = null;
+  }
+  if (!selectedKey) {
+    setStatus("Select a backup first.", true);
+    return;
+  }
+  const userId = sourceUserId();
+  const targetId = targetUserId();
+  const btn = document.getElementById("inspectBtn");
+  btn.disabled = true;
+  setStatus("");
+  const steps = selectedType === "database"
+    ? [
+        "Downloading backup archive from R2...",
+        "Restoring user collections into a temporary database...",
+        "Finding this Discord ID in the backup...",
+        "Comparing backup values with live values...",
+        "Preparing restore checkboxes..."
+      ]
+    : [
+        "Downloading Discord snapshot from R2...",
+        "Reading member and role data...",
+        "Preparing server snapshot view..."
+      ];
+  startLoader(
+    selectedType === "database" ? "Loading user backup" : "Loading Discord snapshot",
+    steps
+  );
+  try {
+    if (selectedType === "database") {
+      inspectedData = await inspectDatabaseBackup(selectedKey, userId, targetId);
+    } else {
+      inspectedData = await requestJson("/api/admin/backups/inspect", {
+        method: "POST",
+        body: JSON.stringify({ key: selectedKey, user_id: userId, target_user_id: targetId })
+      });
+    }
+    stopLoader(true);
+    if (inspectedData.type === "database") {
+      renderDatabaseInspect(inspectedData, lastRestoreResult);
+    } else {
+      renderDiscordInspect(inspectedData, lastDiscordRoleRestoreResult);
+    }
+    setStatus("");
+  } catch (err) {
+    stopLoader(false);
+    document.getElementById("detailPanel").innerHTML = `<div class="backup-empty">${escapeHtml(err.message)}</div>`;
+    setStatus(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderDatabaseInspect(data, restoreResult = null) {
+  const sourceId = data.source_user_id || data.user_id;
+  const targetId = data.target_user_id || sourceId;
+  const transferLine = sourceId !== targetId
+    ? `<br>Transfer target: <strong>${escapeHtml(targetId)}</strong>`
+    : "";
+  const sectionsHtml = (data.sections || []).map((section) => {
+    const rows = (section.fields || []).map((field) => `
+      <div class="field-row">
+        <label class="field-use" title="${field.available ? "Restore this field" : "No backup value available"}">
+          <input
+            type="checkbox"
+            class="restore-field"
+            data-section="${escapeHtml(section.id)}"
+            data-field="${escapeHtml(field.field)}"
+            ${field.available ? "" : "disabled"}
+          >
+        </label>
+        <div class="field-name">
+          <strong>${escapeHtml(field.label)}</strong>
+          <span class="backup-muted">${escapeHtml(field.field)}</span>
+        </div>
+        <div class="field-value">
+          <div class="field-value-label">Backup value</div>
+          ${displayValue(field.backup_value)}
+        </div>
+        <div class="field-value">
+          <div class="field-value-label">Live value</div>
+          ${displayValue(field.live_value)}
+        </div>
+        <div class="field-mode">
+          <div class="field-value-label">Action</div>
+          ${restoreModeMarkup(section, field)}
+        </div>
+      </div>
+    `).join("");
+
+    return `
+      <section class="backup-section">
+        <div class="backup-section-header">
+          <div>
+            <h3>${escapeHtml(section.label)}</h3>
+            <p class="backup-muted">${escapeHtml(section.source)}</p>
+          </div>
+          <span class="backup-chip ${section.found_in_backup ? "database" : ""}">
+            ${section.found_in_backup ? "Found in backup" : "Missing in backup"}
+          </span>
+        </div>
+        <div class="field-grid">
+          <div class="field-grid-head">
+            <span>Use</span>
+            <span>Field</span>
+            <span>Backup value</span>
+            <span>Live value</span>
+            <span>Action</span>
+          </div>
+          ${rows}
+        </div>
+        <details>
+          <summary>Raw documents</summary>
+          <p class="backup-muted">Backup document</p>
+          <pre class="raw-json">${escapeHtml(JSON.stringify(section.backup_doc || null, null, 2))}</pre>
+          <p class="backup-muted">Live document</p>
+          <pre class="raw-json">${escapeHtml(JSON.stringify(section.live_doc || null, null, 2))}</pre>
+        </details>
+      </section>
+    `;
+  }).join("");
+
+  document.getElementById("detailPanel").innerHTML = `
+    <div class="backup-status">
+      Backup: <strong>${escapeHtml(data.key)}</strong><br>
+      Backup user: <strong>${escapeHtml(sourceId)}</strong>${transferLine} - Created: ${escapeHtml(formatDate(data.created_at))}
+    </div>
+    ${restoreReportHtml(restoreResult)}
+    ${sectionsHtml}
+    ${databaseRoleRestoreHtml(data, lastDiscordRoleRestoreResult)}
+    <div class="restore-bar">
+      <input class="restore-confirm" id="restoreConfirm" placeholder="Type RESTORE">
+      <button class="backup-btn danger" type="button" id="restoreBtn">Restore Selected Fields</button>
+      <span class="backup-muted">Only checked fields are updated. Replace is default; add mode adds supported numbers to the live value. XP add recalculates level.</span>
+    </div>
+  `;
+  document.getElementById("restoreBtn").addEventListener("click", restoreSelected);
+  document.getElementById("copyRestoreMessageBtn")?.addEventListener("click", copyRestoreMessage);
+  document.getElementById("restoreDiscordRolesBtn")?.addEventListener("click", restoreDiscordRoles);
+  document.getElementById("copyDiscordRoleMessageBtn")?.addEventListener("click", copyDiscordRoleRestoreMessage);
+}
+
+function renderDiscordInspect(data, roleRestoreResult = null) {
+  const sourceId = data.source_user_id || sourceUserId();
+  const targetId = data.target_user_id || targetUserId();
+  const transferLine = sourceId && targetId && sourceId !== targetId
+    ? `<br>Transfer target: <strong>${escapeHtml(targetId)}</strong>`
+    : "";
+  const nearestDatabase = findNearestDatabaseBackup(data.created_at || data.meta?.created_at_utc);
+  const nearestDatabaseHtml = nearestDatabase
+    ? `<button class="backup-btn secondary" type="button" id="nearestDatabaseBtn">Inspect nearest database backup</button>
+       <span class="backup-muted">${escapeHtml(nearestDatabase.name)} - ${escapeHtml(formatDate(nearestDatabase.created_at || nearestDatabase.last_modified))}</span>`
+    : `<span class="backup-muted">No database backup was found in the list.</span>`;
+  const roleCount = (data.member_role_ids || []).length;
+  const roleRestoreHtml = data.member && roleCount
+    ? `
+      <section class="backup-section">
+        <div class="backup-section-header">
+          <div>
+            <h3>Restore Discord Roles</h3>
+            <p class="backup-muted">${escapeHtml(roleCount)} role ID${roleCount === 1 ? "" : "s"} found in this member snapshot. The bot will add missing roles only.</p>
+          </div>
+        </div>
+        ${discordRoleRestoreReportHtml(roleRestoreResult)}
+        <div class="restore-bar">
+          <input class="restore-confirm" id="discordRoleConfirm" placeholder="Type RESTORE ROLES">
+          <button class="backup-btn danger" type="button" id="restoreDiscordRolesBtn">Restore Discord Roles</button>
+          <span class="backup-muted">Deleted, managed, already-held, and too-high roles are skipped and reported.</span>
+        </div>
+      </section>
+    `
+    : "";
+
+  const countRows = Object.entries(data.counts || {}).map(([key, value]) => `
+    <tr><td>${escapeHtml(key)}</td><td>${escapeHtml(value)}</td></tr>
+  `).join("");
+  const memberHtml = data.member
+    ? `
+      <section class="backup-section">
+        <div class="backup-section-header">
+          <div>
+            <h3>Member Snapshot</h3>
+            <p class="backup-muted">${escapeHtml(data.member.name || data.member.id)}</p>
+          </div>
+        </div>
+        <pre class="raw-json">${escapeHtml(JSON.stringify(data.member, null, 2))}</pre>
+        <p class="backup-muted">Roles</p>
+        <pre class="raw-json">${escapeHtml(JSON.stringify(data.member_roles || [], null, 2))}</pre>
+      </section>
+    `
+    : `<div class="backup-status">No member was found for the entered user ID in this Discord snapshot.</div>`;
+
+  document.getElementById("detailPanel").innerHTML = `
+    <div class="backup-status">
+      Backup: <strong>${escapeHtml(data.key)}</strong><br>
+      Backup user: <strong>${escapeHtml(sourceId || "Not set")}</strong>${transferLine}<br>
+      Created: ${escapeHtml(formatDate(data.created_at || data.meta?.created_at_utc))}
+    </div>
+    <div class="backup-status info" style="margin-top: 12px;">
+      This is a Discord server snapshot. It stores roles, channels, emojis, and basic member role IDs.
+      Level, XP, streak, coins, pets, birthdays, and website profile data are in the green database backups.
+      <div class="backup-actions">${nearestDatabaseHtml}</div>
+    </div>
+    <section class="backup-section">
+      <div class="backup-section-header">
+        <div>
+          <h3>Discord Snapshot</h3>
+          <p class="backup-muted">${escapeHtml(data.guild?.name || data.meta?.guild_name || "Unknown guild")}</p>
+        </div>
+      </div>
+      <table class="field-table">
+        <thead><tr><th>Area</th><th>Count</th></tr></thead>
+        <tbody>${countRows}</tbody>
+      </table>
+      <details>
+        <summary>Guild metadata</summary>
+        <pre class="raw-json">${escapeHtml(JSON.stringify({ meta: data.meta, guild: data.guild }, null, 2))}</pre>
+      </details>
+    </section>
+    ${memberHtml}
+    ${roleRestoreHtml}
+  `;
+
+  if (nearestDatabase) {
+    document.getElementById("nearestDatabaseBtn")?.addEventListener("click", () => {
+      selectBackup(nearestDatabase.key, nearestDatabase.type);
+      inspectSelected();
+    });
+  }
+  document.getElementById("restoreDiscordRolesBtn")?.addEventListener("click", restoreDiscordRoles);
+  document.getElementById("copyDiscordRoleMessageBtn")?.addEventListener("click", copyDiscordRoleRestoreMessage);
+}
+
+async function restoreDiscordRoles() {
+  if (!inspectedData || !["discord", "database"].includes(inspectedData.type)) return;
+  const userId = inspectedData.source_user_id || inspectedData.user_id || sourceUserId();
+  const targetId = inspectedData.target_user_id || targetUserId();
+  if (!userId) {
+    setStatus("Enter a Discord user ID before restoring Discord roles.", true);
+    return;
+  }
+
+  const confirm = document.getElementById("discordRoleConfirm")?.value.trim() || "";
+  const btn = document.getElementById("restoreDiscordRolesBtn");
+  btn.disabled = true;
+  setStatus("");
+  startLoader("Restoring Discord roles", [
+    inspectedData.type === "database" ? "Reading cached role IDs from the database backup..." : "Reading role IDs from the Discord backup...",
+    "Calling the bot webhook...",
+    "Adding missing roles in Discord...",
+    "Preparing the ticket update..."
+  ]);
+
+  try {
+    const result = await requestJson("/api/admin/backups/restore-discord-roles", {
+      method: "POST",
+      body: JSON.stringify({
+        key: inspectedData.key,
+        user_id: userId,
+        target_user_id: targetId,
+        confirm
+      })
+    });
+    lastDiscordRoleRestoreResult = result;
+    stopLoader(true);
+    const added = result.bot?.added_roles?.length || 0;
+    const skipped = result.bot?.skipped_roles?.length || 0;
+    setStatus(`Discord role restore complete. ${added} added, ${skipped} skipped.`);
+    if (inspectedData.type === "database") {
+      renderDatabaseInspect(inspectedData, lastRestoreResult);
+    } else {
+      renderDiscordInspect(inspectedData, result);
+    }
+  } catch (err) {
+    stopLoader(false);
+    if (inspectedData.type === "database") {
+      renderDatabaseInspect(inspectedData, lastRestoreResult);
+    } else {
+      renderDiscordInspect(inspectedData, lastDiscordRoleRestoreResult);
+    }
+    setStatus(err.message, true);
+  } finally {
+    const freshBtn = document.getElementById("restoreDiscordRolesBtn");
+    if (freshBtn) freshBtn.disabled = false;
+  }
+}
+
+function collectSelections() {
+  const selections = {};
+  document.querySelectorAll(".restore-field:checked").forEach((input) => {
+    const section = input.dataset.section;
+    const field = input.dataset.field;
+    const modeEl = document.querySelector(`.restore-mode[data-section="${section}"][data-field="${field}"]`);
+    if (!selections[section]) selections[section] = {};
+    selections[section][field] = modeEl?.value || "replace";
+  });
+  return selections;
+}
+
+async function restoreSelected() {
+  if (!inspectedData || inspectedData.type !== "database") return;
+  const selections = collectSelections();
+  const selectedCount = Object.values(selections).reduce((sum, fields) => sum + Object.keys(fields).length, 0);
+  if (!selectedCount) {
+    setStatus("Select at least one field to restore.", true);
+    return;
+  }
+  const confirm = document.getElementById("restoreConfirm").value.trim();
+  const btn = document.getElementById("restoreBtn");
+  btn.disabled = true;
+  setStatus("");
+  startLoader("Restoring selected fields", [
+    "Downloading the backup again...",
+    "Reading selected fields...",
+    "Applying replace and add rules...",
+    "Writing the final values to live MongoDB...",
+    "Saving restore audit log...",
+    "Reloading comparison view..."
+  ]);
+  try {
+    const result = await requestJson("/api/admin/backups/restore", {
+      method: "POST",
+      body: JSON.stringify({
+        key: inspectedData.key,
+        user_id: inspectedData.source_user_id || inspectedData.user_id,
+        target_user_id: inspectedData.target_user_id || targetUserId(),
+        selections,
+        confirm
+      })
+    });
+    const restored = (result.updates || []).filter((row) => row.status === "restored");
+    lastRestoreResult = result;
+    stopLoader(true);
+    setStatus(`Restore complete. ${restored.length} section(s) updated.`);
+    await inspectSelected({ preserveRestoreResult: true });
+  } catch (err) {
+    stopLoader(false);
+    setStatus(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("refreshBtn").addEventListener("click", loadBackups);
+document.getElementById("inspectBtn").addEventListener("click", inspectSelected);
+document.getElementById("typeFilter").addEventListener("change", renderBackups);
+document.getElementById("dateFilter").addEventListener("change", renderBackups);
+document.getElementById("userIdInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") inspectSelected();
+});
+document.getElementById("targetUserIdInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") inspectSelected();
+});
+
+loadBackups();
+</script>
+{% endblock %}

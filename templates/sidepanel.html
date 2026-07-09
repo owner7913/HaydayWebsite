@@ -1,16 +1,18 @@
 <!-- templates/sidepanel.html -->
     <aside class="sidebar">
       <h2>Dashboard</h2>
-      <a href="/dashboard">Bot Settings</a>
-      <a href="/dashboard/pets">Pets</a>
+      <a href="/dashboard" class="{% if request.path == '/dashboard' %}active{% endif %}">Bot Settings</a>
+      <a href="/dashboard/ticket-archives" class="{% if request.path.startswith('/dashboard/ticket-archives') %}active{% endif %}">Ticket Archives</a>
+      <a href="/dashboard/pets" class="{% if request.path.startswith('/dashboard/pets') %}active{% endif %}">Pets</a>
       {% if session.get("staff_role") in ["Owner", "Co-Owner", "Head Admin"] %}
-      <a href="/dashboard/gambling">Gambling</a>
+      <a href="/dashboard/gambling" class="{% if request.path.startswith('/dashboard/gambling') %}active{% endif %}">Gambling</a>
+      <a href="/admin/backups" class="{% if request.path.startswith('/admin/backups') %}active{% endif %}">Backups</a>
       {% endif %}
-      <a href="/giveaway-dashboard">Giveaways</a>
-      <a href="#">Boosters - Not implemted</a>
-      <a href="/admin">Admin Panel</a>
-      <a href="/verification-dashboard">Verifications</a>
-      <a href="/auction-dashboard">Auctions</a>
-      <a href="#">Moderation - Not implemted</a>
-      <a href="/starboard-dashboard">Starboard</a>
+      <a href="/giveaway-dashboard" class="{% if request.path.startswith('/giveaway-dashboard') %}active{% endif %}">Giveaways</a>
+      <a href="#">Boosters - Not implemented</a>
+      <a href="/admin" class="{% if request.path == '/admin' %}active{% endif %}">Admin Panel</a>
+      <a href="/verification-dashboard" class="{% if request.path.startswith('/verification-dashboard') %}active{% endif %}">Verifications</a>
+      <a href="/auction-dashboard" class="{% if request.path.startswith('/auction-dashboard') %}active{% endif %}">Auctions</a>
+      <a href="#">Moderation - Not implemented</a>
+      <a href="/starboard-dashboard" class="{% if request.path.startswith('/starboard-dashboard') %}active{% endif %}">Starboard</a>
     </aside>

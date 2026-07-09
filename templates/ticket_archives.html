@@ -1,0 +1,516 @@
+{% extends 'base.html' %}
+{% block title %}Ticket Archives - HayDay{% endblock %}
+
+{% block head_extra %}
+<style>
+  body {
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  .ticket-archives-content {
+    --ta-bg: #f6f8f5;
+    --ta-surface: #ffffff;
+    --ta-surface-soft: #f0f4f0;
+    --ta-panel: rgba(255, 255, 255, 0.94);
+    --ta-border: rgba(28, 45, 33, 0.12);
+    --ta-border-strong: rgba(37, 92, 55, 0.18);
+    --ta-text: #162018;
+    --ta-muted: #607066;
+    --ta-subtle: #87938b;
+    --ta-accent: #2f8d54;
+    --ta-accent-strong: #247143;
+    --ta-accent-soft: rgba(47, 141, 84, 0.12);
+    --ta-warm-soft: rgba(172, 111, 44, 0.12);
+    --ta-warm-text: #7b4b1f;
+    --ta-shadow: 0 18px 40px rgba(29, 42, 32, 0.08);
+
+    flex: 1;
+    min-width: 0;
+    padding: 34px 40px 48px;
+    background: var(--ta-bg);
+    color: var(--ta-text);
+  }
+
+  body.dark .ticket-archives-content {
+    --ta-bg: #111414;
+    --ta-surface: #1d2021;
+    --ta-surface-soft: #16191a;
+    --ta-panel: rgba(31, 35, 36, 0.96);
+    --ta-border: rgba(255, 255, 255, 0.08);
+    --ta-border-strong: rgba(102, 184, 128, 0.2);
+    --ta-text: #f4f7f2;
+    --ta-muted: #aeb9b1;
+    --ta-subtle: #849089;
+    --ta-accent: #4fb76f;
+    --ta-accent-strong: #64c983;
+    --ta-accent-soft: rgba(79, 183, 111, 0.14);
+    --ta-warm-soft: rgba(214, 151, 79, 0.14);
+    --ta-warm-text: #f1c28b;
+    --ta-shadow: 0 22px 48px rgba(0, 0, 0, 0.26);
+  }
+
+  .dashboard-wrapper .sidebar a {
+    color: inherit;
+  }
+
+  .dashboard-wrapper .sidebar {
+    box-sizing: border-box;
+  }
+
+  .ticket-archives-shell {
+    width: min(100%, 1280px);
+    margin: 0 auto;
+    display: grid;
+    gap: 20px;
+  }
+
+  .ticket-archives-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.72fr);
+    gap: 24px;
+    align-items: end;
+    padding: 4px 2px 2px;
+  }
+
+  .ticket-archives-title {
+    margin: 0;
+    font-size: 34px;
+    line-height: 1.05;
+    letter-spacing: 0;
+    color: var(--ta-text);
+  }
+
+  .ticket-archives-kicker {
+    margin: 0 0 8px;
+    color: var(--ta-accent-strong);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .ticket-archives-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ticket-archive-stat {
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid var(--ta-border-strong);
+    border-radius: 8px;
+    background: var(--ta-panel);
+    box-shadow: var(--ta-shadow);
+  }
+
+  .ticket-archive-stat span {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--ta-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .ticket-archive-stat strong {
+    display: block;
+    color: var(--ta-text);
+    font-size: 25px;
+    line-height: 1;
+  }
+
+  .ticket-archive-search {
+    border: 1px solid var(--ta-border);
+    border-radius: 8px;
+    background: var(--ta-panel);
+    box-shadow: var(--ta-shadow);
+    padding: 10px;
+  }
+
+  .ticket-archive-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .ticket-archive-form input {
+    width: 100%;
+    min-height: 46px;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 15px;
+    background: var(--ta-surface-soft);
+    color: var(--ta-text);
+    outline: none;
+  }
+
+  .ticket-archive-form input:focus {
+    border-color: var(--ta-accent);
+    box-shadow: 0 0 0 3px var(--ta-accent-soft);
+  }
+
+  .ticket-archive-form input::placeholder {
+    color: var(--ta-subtle);
+  }
+
+  .ticket-archive-button {
+    min-height: 46px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 0 16px;
+    font-weight: 800;
+    cursor: pointer;
+    color: #ffffff;
+    background: var(--ta-accent);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  }
+
+  .ticket-archive-button:hover {
+    background: var(--ta-accent-strong);
+    transform: translateY(-1px);
+  }
+
+  .ticket-archive-button.secondary {
+    color: var(--ta-text);
+    background: var(--ta-surface-soft);
+    border-color: var(--ta-border);
+  }
+
+  .ticket-archive-button.secondary:hover {
+    background: var(--ta-accent-soft);
+    border-color: var(--ta-border-strong);
+  }
+
+  .ticket-archive-results {
+    display: grid;
+    gap: 12px;
+  }
+
+  .ticket-archive-result {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--ta-border);
+    border-radius: 8px;
+    background: var(--ta-panel);
+    box-shadow: var(--ta-shadow);
+  }
+
+  .ticket-archive-result::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--ta-accent);
+  }
+
+  .ticket-result-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: 18px 18px 16px 20px;
+  }
+
+  .ticket-result-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .ticket-result-title {
+    margin: 0;
+    color: var(--ta-text);
+    font-size: 20px;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+
+  .ticket-result-sub {
+    margin: 0;
+    color: var(--ta-muted);
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  }
+
+  .ticket-result-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(88px, auto));
+    gap: 8px;
+    align-content: start;
+  }
+
+  .ticket-result-actions .ticket-archive-button {
+    min-height: 40px;
+    padding-inline: 14px;
+  }
+
+  .ticket-result-badges,
+  .ticket-result-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .ticket-result-badges {
+    margin-top: 4px;
+  }
+
+  .ticket-badge,
+  .ticket-fact {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    border-radius: 999px;
+    padding: 0 10px;
+    font-size: 13px;
+    line-height: 1;
+    background: var(--ta-surface-soft);
+    color: var(--ta-text);
+  }
+
+  .ticket-badge {
+    background: var(--ta-accent-soft);
+    color: var(--ta-accent-strong);
+    font-weight: 800;
+  }
+
+  .ticket-badge.status-closed {
+    background: var(--ta-warm-soft);
+    color: var(--ta-warm-text);
+  }
+
+  .ticket-badge.status-open {
+    background: var(--ta-accent-soft);
+    color: var(--ta-accent-strong);
+  }
+
+  .ticket-result-facts {
+    margin-top: 12px;
+  }
+
+  .ticket-fact span {
+    margin-right: 6px;
+    color: var(--ta-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .ticket-snippet {
+    margin: 0;
+    padding: 14px 18px 16px 20px;
+    border-top: 1px solid var(--ta-border);
+    background: var(--ta-surface-soft);
+    color: var(--ta-text);
+    line-height: 1.58;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .ticket-archive-empty {
+    border: 1px solid var(--ta-border);
+    border-radius: 8px;
+    background: var(--ta-panel);
+    box-shadow: var(--ta-shadow);
+    padding: 24px;
+    color: var(--ta-muted);
+  }
+
+  .ticket-archive-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+  }
+
+  .ticket-archive-page-label {
+    color: var(--ta-muted);
+    font-weight: 800;
+  }
+
+  .dashboard-wrapper .sidebar a.active {
+    background: rgba(79, 183, 111, 0.18);
+    color: #ffffff;
+    font-weight: 800;
+  }
+
+  @media (max-width: 1040px) {
+    .ticket-archives-header {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .ticket-archives-meta {
+      max-width: 560px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .ticket-archives-content {
+      padding: 24px 18px 36px;
+    }
+
+    .ticket-archives-meta,
+    .ticket-archive-form,
+    .ticket-result-main {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-result-actions {
+      display: flex;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .ticket-archives-title {
+      font-size: 28px;
+    }
+
+    .ticket-archives-meta {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-result-actions .ticket-archive-button,
+    .ticket-archive-form .ticket-archive-button {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+  {% include 'sidepanel.html' %}
+
+  <main class="ticket-archives-content">
+    <div class="ticket-archives-shell">
+      <section class="ticket-archives-header">
+        <div>
+          <p class="ticket-archives-kicker">Staff dashboard</p>
+          <h1 class="ticket-archives-title">Ticket Archives</h1>
+        </div>
+        <div class="ticket-archives-meta" aria-label="Archive totals">
+          <div class="ticket-archive-stat">
+            <span>Transcripts</span>
+            <strong>{{ stats.total_transcripts }}</strong>
+          </div>
+          <div class="ticket-archive-stat">
+            <span>Matches</span>
+            <strong>{{ total_results }}</strong>
+          </div>
+          <div class="ticket-archive-stat">
+            <span>Tickets</span>
+            <strong>{{ stats.support_tickets }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="ticket-archive-search">
+        <form class="ticket-archive-form" method="get" action="{{ url_for('ticket_archives') }}">
+          <input
+            type="search"
+            name="q"
+            value="{{ query }}"
+            placeholder="Search username, Discord ID, message text, or channel ID"
+            autocomplete="off"
+            aria-label="Search ticket archives"
+          >
+          <button class="ticket-archive-button" type="submit">Search</button>
+          {% if query %}
+            <a class="ticket-archive-button secondary" href="{{ url_for('ticket_archives') }}">Clear</a>
+          {% endif %}
+        </form>
+      </section>
+
+      {% if query and query|length < 2 %}
+        <section class="ticket-archive-empty">Search needs at least 2 characters.</section>
+      {% elif results %}
+        <section class="ticket-archive-results" aria-label="Ticket archive results">
+          {% for ticket in results %}
+            <article class="ticket-archive-result">
+              <div class="ticket-result-main">
+                <div>
+                  <div class="ticket-result-title-row">
+                    <h2 class="ticket-result-title">{{ ticket.title }}</h2>
+                    <span class="ticket-result-sub">{{ ticket.channel_id }}</span>
+                  </div>
+
+                  <div class="ticket-result-badges">
+                    <span class="ticket-badge">{{ ticket.ticket_type }}</span>
+                    <span class="ticket-badge status-{{ ticket.status_key }}">{{ ticket.status }}</span>
+                  </div>
+
+                  <div class="ticket-result-facts">
+                    {% if ticket.username %}
+                      <span class="ticket-fact"><span>Opened</span>{{ ticket.username }}</span>
+                    {% endif %}
+                    {% if ticket.user_id %}
+                      <span class="ticket-fact"><span>User</span>{{ ticket.user_id }}</span>
+                    {% endif %}
+                    {% if ticket.created_at %}
+                      <span class="ticket-fact"><span>Created</span>{{ ticket.created_at }}</span>
+                    {% endif %}
+                    {% if ticket.last_updated %}
+                      <span class="ticket-fact"><span>Updated</span>{{ ticket.last_updated }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="ticket-result-actions">
+                  <a class="ticket-archive-button" href="{{ url_for('ticket_archive_view', channel_id=ticket.channel_id) }}" target="_blank" rel="noopener">View</a>
+                  <a class="ticket-archive-button secondary" href="{{ url_for('ticket_archive_download', channel_id=ticket.channel_id) }}">Download</a>
+                </div>
+              </div>
+
+              <p class="ticket-snippet">{{ ticket.snippet }}</p>
+            </article>
+          {% endfor %}
+        </section>
+
+        {% if total_pages > 1 %}
+          <nav class="ticket-archive-pagination" aria-label="Ticket archive pages">
+            {% if page > 1 %}
+              <a class="ticket-archive-button secondary" href="{{ url_for('ticket_archives', q=query, page=page - 1) }}">Previous</a>
+            {% else %}
+              <span></span>
+            {% endif %}
+            <span class="ticket-archive-page-label">Page {{ page }} of {{ total_pages }}</span>
+            {% if page < total_pages %}
+              <a class="ticket-archive-button secondary" href="{{ url_for('ticket_archives', q=query, page=page + 1) }}">Next</a>
+            {% else %}
+              <span></span>
+            {% endif %}
+          </nav>
+        {% endif %}
+      {% else %}
+        <section class="ticket-archive-empty">
+          {% if query %}
+            No transcripts matched "{{ query }}".
+          {% else %}
+            No transcripts have been saved yet.
+          {% endif %}
+        </section>
+      {% endif %}
+    </div>
+  </main>
+</div>
+{% endblock %}

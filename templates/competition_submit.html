@@ -232,6 +232,7 @@ main.submit-page > section {
       <p class="subtitle">
         This month’s theme is <strong>{{ theme.title }}</strong> — {{ theme.desc }}
       </p>
+      <p class="muted" style="margin-top:8px">Approved submissions earn 10,000 server coins once per month. Troll posts or non-farm-design uploads will be removed and may lead to a competition ban.</p>
       <div class="pills">
         {% if phase == 'submit' %}
           <span class="pill pill-green">Submissions open</span>
@@ -255,6 +256,8 @@ main.submit-page > section {
         <a class="btn btn-primary" href="https://discord.gg/haydayy">📩 Join server</a>
       {% elif submit_status == 'not_verified' %}
         <a class="btn btn-primary" href="https://discord.com/channels/{{ GUILD_ID }}">🔑 Get verified</a>
+      {% elif submit_status == 'banned' %}
+        <a class="btn" href="{{ url_for('competition_gallery') }}">View gallery</a>
       {% endif %}
       {% include 'partials/competition_admin_button.html' %}
     </nav>
@@ -297,11 +300,14 @@ main.submit-page > section {
         </form>
         <p class="muted" style="margin-top:8px">Tip: You can change the title anytime while submissions are open.</p>
         <p class="muted">You can replace your image until submissions close.</p>
+        {% if submit_reward_claimed %}
+          <p class="muted">Your submit reward has been claimed for this month, so deletion is locked to prevent abuse. You can still replace the image or edit the title.</p>
+        {% endif %}
 
         <form action="{{ url_for('competition_delete') }}" method="post"
               onsubmit="return confirm('Are you sure you want to delete your submission?');"
               style="margin-top:10px">
-          <button type="submit" class="btn" style="background:#8b0000;border-color:#700000;color:#fff;">
+          <button type="submit" class="btn" style="background:#8b0000;border-color:#700000;color:#fff;" {% if submit_reward_claimed %}disabled title="Delete is locked after the submit reward is claimed."{% endif %}>
             🗑 Delete submission
           </button>
         </form>
@@ -328,6 +334,7 @@ main.submit-page > section {
 {% if submit_status == "ok" and phase == "submit" %}
   <form class="form-card card same-frame" action="{{ url_for('competition_submit') }}" method="post" enctype="multipart/form-data">
     <h2 class="form-title">Submit your farm design</h2>
+    <p class="muted" style="margin:0 0 12px">Reward: 10,000 server coins for one approved submission this month. Uploads that are troll posts, unrelated images, or not actual farm designs may be removed and can lead to a ban.</p>
 
     <label class="dropzone" id="dropzone">
       <input type="file" name="image" id="fileInput" accept=".png,.jpg,.jpeg" required>
@@ -372,6 +379,13 @@ main.submit-page > section {
         <h3 class="section-title">Get Verified</h3>
         <p class="muted">Finish verification in the server to submit.</p>
         <a class="btn btn-primary" href="https://discord.com/channels/{{ GUILD_ID }}">🔑 Open Discord</a>
+      {% elif submit_status == "banned" %}
+        <h3 class="section-title">Entry blocked this month</h3>
+        <p class="muted">Staff removed your previous submission, so you cannot enter again during this contest month.</p>
+        {% if submission_ban and submission_ban.reason %}
+          <p class="muted"><strong>Reason:</strong> {{ submission_ban.reason }}</p>
+        {% endif %}
+        <a class="btn" href="{{ url_for('competition_gallery') }}">Back to gallery</a>
       {% endif %}
     </section>
   {% elif phase != "submit" %}

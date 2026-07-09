@@ -1,0 +1,1221 @@
+{% extends "base.html" %}
+
+{% block title %}{{ summer_event.title }}{% endblock %}
+
+{% block head_extra %}
+<script>
+  document.documentElement.classList.add("summer-event-doc");
+</script>
+<style>
+  html.summer-event-doc,
+  html.summer-event-doc body {
+    min-height: 100%;
+    background: #f5c86b;
+  }
+
+  html.summer-event-doc body {
+    color: #123d42;
+    overflow-x: hidden;
+  }
+
+  html.summer-event-doc .background-blur,
+  html.summer-event-doc .overlay {
+    display: none;
+  }
+
+  html.summer-event-doc main {
+    min-height: 100vh;
+  }
+
+  html.summer-event-doc footer {
+    display: none;
+  }
+
+  html.summer-event-doc header.site-header {
+    background: rgba(18, 91, 103, .38) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, .24);
+    box-shadow: 0 12px 30px rgba(17, 84, 96, .18);
+    backdrop-filter: blur(18px);
+  }
+
+  html.summer-event-doc header.site-header a {
+    color: #fff;
+    text-shadow: 0 1px 6px rgba(7, 45, 51, .22);
+  }
+
+  html.summer-event-doc .nav-links .active > a,
+  html.summer-event-doc .nav-links a:hover {
+    background: rgba(255, 255, 255, .18);
+  }
+
+  html.summer-event-doc .dropdown-content {
+    background: rgba(14, 76, 86, .94);
+    border: 1px solid rgba(255, 255, 255, .16);
+  }
+
+  html.summer-event-doc .theme-header-decor,
+  html.summer-event-doc .hallo-decor {
+    display: none !important;
+  }
+
+  .summer-shell {
+    --reef: #0d6f81;
+    --water: #1eb6bf;
+    --foam: #fff8df;
+    --sand: #f2c86f;
+    --coral: #f1795d;
+    --leaf: #407b52;
+    position: relative;
+    min-height: 100vh;
+    padding: 118px 22px 58px;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+      linear-gradient(180deg, rgba(255, 248, 223, .24), rgba(255, 248, 223, .09) 46%, rgba(170, 95, 39, .16)),
+      url("{{ url_for('static', filename='img/summer/beach-bg.png') }}");
+    background-size: cover;
+    background-position: center;
+  }
+
+  .summer-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      linear-gradient(115deg, rgba(255, 255, 255, .18) 0 1px, transparent 1px 120px),
+      linear-gradient(90deg, rgba(255, 255, 255, .08), transparent 30%, rgba(255, 255, 255, .10) 60%, transparent);
+    background-size: 220px 100%, 100% 100%;
+    opacity: .36;
+    animation: summerShimmer 13s linear infinite;
+  }
+
+  .summer-shell::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      linear-gradient(180deg, rgba(4, 85, 99, .08), transparent 34%, rgba(111, 62, 23, .08)),
+      repeating-linear-gradient(8deg, rgba(255, 255, 255, .08) 0 1px, transparent 1px 18px);
+    mix-blend-mode: soft-light;
+    pointer-events: none;
+  }
+
+  .summer-water-motion {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(175deg, rgba(255, 255, 255, .18) 0 2px, transparent 2px 42px),
+      repeating-linear-gradient(188deg, rgba(255, 255, 255, .10) 0 1px, transparent 1px 58px);
+    background-size: 240px 170px, 320px 190px;
+    opacity: .32;
+    transform: translate3d(0, 0, 0);
+    animation: tideLines 10s linear infinite;
+  }
+
+  .summer-chicken-float {
+    position: absolute;
+    z-index: 0;
+    left: clamp(8px, 3vw, 58px);
+    top: clamp(205px, 30vh, 280px);
+    width: clamp(120px, 10vw, 178px);
+    height: auto;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 18px 18px rgba(12, 75, 86, .22));
+    animation: chickenFloat 5.6s ease-in-out infinite;
+  }
+
+  .summer-inner {
+    position: relative;
+    z-index: 1;
+    width: min(1180px, 100%);
+    margin: 0 auto;
+  }
+
+  .summer-access-wrap {
+    min-height: calc(100vh - 176px);
+    display: grid;
+    place-items: center;
+  }
+
+  .summer-lock-panel {
+    width: min(500px, 100%);
+    padding: 30px;
+    border-radius: 8px;
+    background: rgba(255, 248, 224, .78);
+    border: 1px solid rgba(255, 255, 255, .66);
+    box-shadow: 0 24px 80px rgba(21, 88, 96, .24);
+    backdrop-filter: blur(18px) saturate(1.08);
+  }
+
+  .summer-kicker {
+    margin: 0 0 10px;
+    color: #bf553d;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+
+  .summer-lock-panel h1,
+  .summer-hero h1 {
+    margin: 0;
+    color: #103f45;
+    font-size: clamp(40px, 8vw, 92px);
+    line-height: .9;
+    letter-spacing: 0;
+    text-wrap: balance;
+    text-shadow: 0 3px 0 rgba(255, 255, 255, .26);
+  }
+
+  .summer-lock-panel p,
+  .summer-hero-copy p {
+    margin: 16px 0 0;
+    color: rgba(18, 61, 66, .82);
+    font-size: clamp(16px, 2vw, 20px);
+    line-height: 1.55;
+  }
+
+  .access-form {
+    display: grid;
+    gap: 12px;
+    margin-top: 24px;
+    padding: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .access-form label {
+    color: #18525a !important;
+    background: transparent !important;
+    border: 0 !important;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .access-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .access-row input {
+    width: 100%;
+    min-height: 52px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid rgba(15, 89, 100, .24) !important;
+    background: rgba(255, 255, 255, .76) !important;
+    color: #123d42 !important;
+    font-size: 18px;
+    font-weight: 800;
+    padding: 0 16px;
+    outline: none;
+    box-shadow: inset 0 2px 10px rgba(17, 88, 96, .08);
+  }
+
+  .access-row input:focus {
+    border-color: rgba(15, 129, 145, .68);
+    box-shadow: 0 0 0 4px rgba(30, 182, 191, .18), inset 0 2px 10px rgba(17, 88, 96, .08);
+  }
+
+  .summer-btn {
+    min-height: 52px;
+    border: 0 !important;
+    border-radius: 8px;
+    padding: 0 18px;
+    color: #fff !important;
+    background: linear-gradient(135deg, #e46346, #ff9a4d) !important;
+    box-shadow: 0 10px 24px rgba(191, 85, 61, .26);
+    font-weight: 900;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+  }
+
+  .summer-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+    box-shadow: 0 14px 30px rgba(191, 85, 61, .32);
+  }
+
+  .summer-btn:disabled {
+    cursor: default;
+    opacity: .68;
+    transform: none;
+  }
+
+  .access-error {
+    margin: 4px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #7d2d24;
+    background: rgba(255, 216, 192, .82);
+    border: 1px solid rgba(191, 85, 61, .25);
+    font-weight: 800;
+  }
+
+  .summer-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 28px;
+    align-items: end;
+    min-height: min(590px, calc(100vh - 148px));
+    padding-bottom: 28px;
+  }
+
+  .summer-hero-copy {
+    max-width: 760px;
+    padding: 34px 0;
+  }
+
+  .summer-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .summer-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    color: #10464e;
+    background: rgba(255, 255, 255, .58);
+    border: 1px solid rgba(255, 255, 255, .62);
+    box-shadow: 0 8px 22px rgba(14, 91, 103, .12);
+    font-weight: 900;
+    font-size: 13px;
+  }
+
+  .tide-board {
+    border-radius: 8px;
+    padding: 18px;
+    background: rgba(255, 248, 224, .62);
+    border: 1px solid rgba(255, 255, 255, .64);
+    box-shadow: 0 24px 70px rgba(16, 77, 87, .22);
+    backdrop-filter: blur(16px);
+  }
+
+  .tide-board h2 {
+    margin: 0 0 14px;
+    color: #11474f;
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+
+  .tide-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .tide-day {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .56);
+    border: 1px solid rgba(255, 255, 255, .56);
+  }
+
+  .tide-date {
+    display: grid;
+    place-items: center;
+    min-height: 50px;
+    border-radius: 8px;
+    color: #fff;
+    background: linear-gradient(160deg, #0d7d91, #27b9bd);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .24);
+    font-size: 12px;
+    font-weight: 900;
+    text-align: center;
+  }
+
+  .tide-day strong {
+    display: block;
+    color: #123d42;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .tide-day span {
+    display: block;
+    margin-top: 2px;
+    color: rgba(18, 61, 66, .68);
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  .scratch-section {
+    padding: 22px 0 36px;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .section-head h2 {
+    margin: 0;
+    color: #103f45;
+    font-size: clamp(28px, 4vw, 48px);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .section-head p {
+    max-width: 470px;
+    margin: 0;
+    color: rgba(18, 61, 66, .76);
+    font-size: 16px;
+    line-height: 1.45;
+    font-weight: 700;
+  }
+
+  .scratch-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .treasure-card {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 126px auto auto auto;
+    gap: 12px;
+    min-width: 0;
+    min-height: 550px;
+    padding: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .76), rgba(255, 247, 221, .86)),
+      linear-gradient(135deg, rgba(30, 182, 191, .18), rgba(241, 121, 93, .12));
+    border: 1px solid rgba(255, 255, 255, .78);
+    box-shadow: 0 22px 55px rgba(27, 88, 94, .22);
+    backdrop-filter: blur(12px) saturate(1.04);
+  }
+
+  .treasure-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(120deg, transparent 0 38%, rgba(255, 255, 255, .24) 42%, transparent 48%),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, .12) 0 1px, transparent 1px 12px);
+    opacity: .45;
+    pointer-events: none;
+  }
+
+  .treasure-card.revealed {
+    border-color: rgba(255, 207, 87, .82);
+    box-shadow: 0 24px 66px rgba(228, 99, 70, .18), 0 0 0 1px rgba(255, 207, 87, .34);
+  }
+
+  .treasure-card.revealed[data-rarity="winner"] .result-surface {
+    background:
+      linear-gradient(135deg, rgba(255, 238, 166, .96), rgba(255, 255, 255, .92)),
+      repeating-linear-gradient(135deg, rgba(255, 191, 64, .20) 0 1px, transparent 1px 12px);
+  }
+
+  .card-topline,
+  .card-foot {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .card-day,
+  .card-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .card-day {
+    color: #fff;
+    background: #0d7d91;
+  }
+
+  .card-status {
+    color: #14535c;
+    background: rgba(255, 255, 255, .68);
+    border: 1px solid rgba(255, 255, 255, .7);
+  }
+
+  .treasure-prop {
+    position: relative;
+    z-index: 1;
+    align-self: center;
+    justify-self: center;
+    display: grid;
+    place-items: center;
+    width: 150px;
+    height: 126px;
+    filter: drop-shadow(0 18px 18px rgba(83, 49, 20, .22));
+  }
+
+  html.summer-event-doc .treasure-card .treasure-prop > img {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 150px;
+    max-height: 126px;
+    object-fit: contain;
+  }
+
+  .treasure-prop::before,
+  .treasure-prop::after,
+  .treasure-prop span,
+  .treasure-prop i {
+    content: "";
+    position: absolute;
+    display: block;
+  }
+
+  .prop-bottle {
+    width: 76px;
+    transform: rotate(-13deg);
+  }
+
+  .prop-bottle span {
+    left: 24px;
+    top: 4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px 6px 2px 2px;
+    background: #ad7043;
+  }
+
+  .prop-bottle::before {
+    left: 12px;
+    top: 26px;
+    width: 54px;
+    height: 78px;
+    border-radius: 26px 26px 20px 20px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .72), rgba(77, 195, 183, .48) 45%, rgba(22, 122, 132, .68));
+    border: 3px solid rgba(255, 255, 255, .82);
+  }
+
+  .prop-bottle::after {
+    left: 28px;
+    top: 44px;
+    width: 20px;
+    height: 44px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .42);
+  }
+
+  .prop-cooler::before {
+    left: 14px;
+    top: 38px;
+    width: 92px;
+    height: 64px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #fffcf0 0 26%, #f1795d 27% 100%);
+    border: 4px solid rgba(255, 255, 255, .92);
+  }
+
+  .prop-cooler::after {
+    left: 30px;
+    top: 20px;
+    width: 56px;
+    height: 36px;
+    border: 8px solid #0d7d91;
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .prop-cooler span {
+    left: 49px;
+    top: 64px;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #fff8df;
+    box-shadow: inset 0 0 0 5px #0d7d91;
+  }
+
+  .prop-chest::before,
+  .prop-sun-chest::before {
+    left: 8px;
+    top: 43px;
+    width: 104px;
+    height: 62px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ad7043 0 18%, #7e4c2c 19% 100%);
+    border: 4px solid #f3b75d;
+  }
+
+  .prop-chest::after,
+  .prop-sun-chest::after {
+    left: 18px;
+    top: 22px;
+    width: 84px;
+    height: 42px;
+    border-radius: 50px 50px 8px 8px;
+    background: linear-gradient(180deg, #c98845, #8d572f);
+    border: 4px solid #f3b75d;
+  }
+
+  .prop-chest span,
+  .prop-sun-chest span {
+    left: 51px;
+    top: 61px;
+    width: 18px;
+    height: 24px;
+    border-radius: 4px;
+    background: #ffe38b;
+    box-shadow: 0 0 0 3px rgba(80, 48, 27, .24);
+  }
+
+  .prop-sun-chest i {
+    left: 24px;
+    top: 2px;
+    width: 72px;
+    height: 72px;
+    border-radius: 999px;
+    background:
+      repeating-conic-gradient(from 0deg, rgba(255, 214, 96, .9) 0 12deg, transparent 12deg 24deg),
+      radial-gradient(circle, rgba(255, 245, 180, .85) 0 34%, transparent 35%);
+    opacity: .72;
+  }
+
+  .treasure-card h3 {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    min-height: 52px;
+    color: #123d42;
+    font-size: 21px;
+    line-height: 1.12;
+    letter-spacing: 0;
+  }
+
+  .treasure-card p {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    min-height: 46px;
+    color: rgba(18, 61, 66, .72);
+    font-size: 14px;
+    line-height: 1.35;
+    font-weight: 700;
+  }
+
+  .scratch-stage {
+    position: relative;
+    z-index: 1;
+    aspect-ratio: 1.5;
+    min-height: 150px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff8df;
+    border: 1px solid rgba(20, 86, 92, .12);
+    box-shadow: inset 0 2px 12px rgba(20, 86, 92, .08);
+  }
+
+  .result-surface {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 8px;
+    padding: 18px;
+    text-align: center;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, .92), rgba(255, 248, 223, .92)),
+      repeating-linear-gradient(135deg, rgba(30, 182, 191, .10) 0 1px, transparent 1px 12px);
+  }
+
+  .result-surface span {
+    color: #bf553d;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+
+  .result-surface strong {
+    color: #103f45;
+    font-size: clamp(20px, 2.2vw, 28px);
+    line-height: 1.05;
+    letter-spacing: 0;
+  }
+
+  .result-surface small {
+    color: rgba(18, 61, 66, .68);
+    font-weight: 800;
+    line-height: 1.3;
+  }
+
+  .scratch-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+    transition: opacity .36s ease, transform .36s ease;
+  }
+
+  .scratch-canvas:active {
+    cursor: grabbing;
+  }
+
+  .treasure-card.revealed .scratch-canvas {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(1.02);
+  }
+
+  .card-foot {
+    margin-top: 2px;
+  }
+
+  .scratch-action {
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 0;
+    color: #fff;
+    background: linear-gradient(135deg, #0d7d91, #27b9bd);
+    box-shadow: 0 8px 18px rgba(13, 125, 145, .20);
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .scratch-action:disabled {
+    opacity: .64;
+    cursor: default;
+  }
+
+  .summer-note {
+    margin-top: 18px;
+    padding: 16px 18px;
+    border-radius: 8px;
+    color: #12444c;
+    background: rgba(255, 248, 224, .62);
+    border: 1px solid rgba(255, 255, 255, .66);
+    backdrop-filter: blur(14px);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+
+  html.summer-event-doc .summer-lock-panel h1,
+  html.summer-event-doc .tide-board h2,
+  html.summer-event-doc .treasure-card h3 {
+    color: #123d42;
+  }
+
+  html.summer-event-doc .summer-hero h1,
+  html.summer-event-doc .section-head h2 {
+    color: #fff;
+    text-shadow: 0 3px 16px rgba(7, 45, 51, .24);
+  }
+
+  @keyframes summerShimmer {
+    from { background-position: 0 0, 0 0; }
+    to { background-position: 220px 0, 0 0; }
+  }
+
+  @keyframes tideLines {
+    from { background-position: 0 0, 0 0; }
+    to { background-position: 240px 90px, -320px 110px; }
+  }
+
+  @keyframes chickenFloat {
+    0%, 100% {
+      transform: translate3d(0, 0, 0) rotate(-2deg);
+    }
+    50% {
+      transform: translate3d(0, -10px, 0) rotate(2deg);
+    }
+  }
+
+  @media (max-width: 1040px) {
+    .summer-hero {
+      grid-template-columns: 1fr;
+      align-items: start;
+      min-height: auto;
+      padding-top: 28px;
+    }
+
+    .tide-board {
+      width: min(620px, 100%);
+    }
+
+    .scratch-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 680px) {
+    .summer-shell {
+      padding: 104px 14px 38px;
+      background-attachment: scroll;
+    }
+
+    .summer-lock-panel {
+      padding: 22px;
+    }
+
+    .access-row {
+      grid-template-columns: 1fr;
+    }
+
+    .summer-hero-copy {
+      padding: 18px 0;
+    }
+
+    .section-head {
+      display: grid;
+      align-items: start;
+    }
+
+    .scratch-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .treasure-card {
+      min-height: 520px;
+    }
+
+    .summer-chicken-float {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .summer-shell::before,
+    .summer-water-motion,
+    .summer-chicken-float {
+      animation: none;
+    }
+
+    .summer-btn,
+    .scratch-canvas {
+      transition: none;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="summer-shell">
+  <div class="summer-water-motion" aria-hidden="true"></div>
+  <img
+    class="summer-chicken-float"
+    src="{{ url_for('static', filename='img/summer/chicken-float.png') }}"
+    alt=""
+    aria-hidden="true"
+  >
+  <div class="summer-inner">
+    {% if not has_access %}
+      <section class="summer-access-wrap" aria-labelledby="summer-access-title">
+        <div class="summer-lock-panel">
+          <p class="summer-kicker">Private event preview</p>
+          <h1 id="summer-access-title">Summer Treasure Hunt</h1>
+          <p>Enter the event code to reach the shoreline.</p>
+
+          <form class="access-form" method="post" action="{{ url_for('summer_event_page') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label for="summer-access-code">Access code</label>
+            <div class="access-row">
+              <input
+                id="summer-access-code"
+                name="access_code"
+                type="password"
+                autocomplete="one-time-code"
+                placeholder="Event code"
+                required
+              >
+              <button class="summer-btn" type="submit">Enter</button>
+            </div>
+            {% if access_error %}
+              <div class="access-error">{{ access_error }}</div>
+            {% endif %}
+          </form>
+        </div>
+      </section>
+    {% else %}
+      <section class="summer-hero" aria-labelledby="summer-title">
+        <div class="summer-hero-copy">
+          <p class="summer-kicker">Hay Day summer event</p>
+          <h1 id="summer-title">Summer Treasure Hunt</h1>
+          <p>{{ summer_event.subtitle }}</p>
+          <div class="summer-meta-row" aria-label="Event details">
+            <span class="summer-pill">{{ summer_event.window }}</span>
+            <span class="summer-pill">4 treasure drops</span>
+            <span class="summer-pill">Scratch reveal</span>
+          </div>
+        </div>
+
+        <aside class="tide-board" aria-label="Treasure schedule">
+          <h2>Treasure Tides</h2>
+          <div class="tide-list">
+            {% for card in summer_event.cards %}
+              <div class="tide-day">
+                <div class="tide-date">{{ card.unlock_label }}</div>
+                <div>
+                  <strong>{{ card.name }}</strong>
+                  <span>{{ card.label }}</span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </aside>
+      </section>
+
+      <section class="scratch-section" aria-labelledby="scratch-title">
+        <div class="section-head">
+          <h2 id="scratch-title">Scratch The Shore</h2>
+          <p>Each treasure starts under a fresh layer of sand. Clear enough of the cover to reveal the result.</p>
+        </div>
+
+        <div class="scratch-grid">
+          {% for card in summer_event.cards %}
+            <article
+              class="treasure-card"
+              data-scratch-card
+              data-rarity="{{ card.rarity }}"
+              data-card-title="{{ card.name }}"
+            >
+              <div class="card-topline">
+                <span class="card-day">Day {{ card.id }}</span>
+                <span class="card-status" data-status>Ready</span>
+              </div>
+
+              <div class="treasure-prop" aria-hidden="true">
+                {% if card.image %}
+                  <img src="{{ url_for('static', filename=card.image) }}" alt="">
+                {% else %}
+                  <div class="treasure-prop prop-{{ card.shape }}">
+                    <i></i>
+                    <span></span>
+                  </div>
+                {% endif %}
+              </div>
+
+              <h3>{{ card.name }}</h3>
+              <p>{{ card.label }}</p>
+
+              <div class="scratch-stage">
+                <div class="result-surface">
+                  <span>Revealed</span>
+                  <strong>{{ card.reward }}</strong>
+                  <small>{{ card.result_line }}</small>
+                </div>
+                <canvas class="scratch-canvas" aria-label="Scratch cover for {{ card.name }}"></canvas>
+              </div>
+
+              <div class="card-foot">
+                <span class="card-status">{{ card.unlock_label }}</span>
+                <button class="scratch-action" type="button" data-auto-scratch>Clear sand</button>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+
+        <div class="summer-note">
+          This is a front-end template preview. The final event can swap these sample results for the same server-side prize draw style used by the Easter event.
+        </div>
+      </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const cards = Array.from(document.querySelectorAll("[data-scratch-card]"));
+  if (!cards.length) return;
+
+  const SAND_COVER_IMAGE_URL = "{{ url_for('static', filename='img/summer/scratch-sand-cover.jpg') }}";
+  const sandCoverImage = new Image();
+  sandCoverImage.decoding = "async";
+  sandCoverImage.src = SAND_COVER_IMAGE_URL;
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const cardStates = new WeakMap();
+
+  function setupCanvas(card) {
+    const canvas = card.querySelector(".scratch-canvas");
+    const stage = canvas.parentElement;
+    const rect = stage.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const state = {
+      canvas,
+      ctx,
+      width,
+      height,
+      dpr,
+      drawing: false,
+      last: null,
+      checks: 0,
+      scratched: false,
+      revealed: false
+    };
+
+    cardStates.set(card, state);
+    drawSandCover(state, card.dataset.cardTitle || "Treasure");
+
+    if (!sandCoverImage.complete) {
+      sandCoverImage.addEventListener("load", () => {
+        const latest = cardStates.get(card);
+        if (latest && !latest.revealed && !latest.scratched) {
+          drawSandCover(latest, card.dataset.cardTitle || "Treasure");
+        }
+      }, { once: true });
+    }
+  }
+
+  function drawImageCover(ctx, image, width, height) {
+    const sourceRatio = image.naturalWidth / image.naturalHeight;
+    const targetRatio = width / height;
+    let sx = 0;
+    let sy = 0;
+    let sw = image.naturalWidth;
+    let sh = image.naturalHeight;
+
+    if (sourceRatio > targetRatio) {
+      sw = image.naturalHeight * targetRatio;
+      sx = (image.naturalWidth - sw) / 2;
+    } else {
+      sh = image.naturalWidth / targetRatio;
+      sy = (image.naturalHeight - sh) / 2;
+    }
+
+    ctx.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+  }
+
+  function drawSandCover(state, title) {
+    const { ctx, width, height } = state;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, width, height);
+
+    if (sandCoverImage.complete && sandCoverImage.naturalWidth > 0) {
+      drawImageCover(ctx, sandCoverImage, width, height);
+    } else {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, "#f7d88d");
+      gradient.addColorStop(1, "#bd7b39");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    ctx.fillStyle = "rgba(62, 38, 22, .12)";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(73, 43, 22, .54)";
+    ctx.font = "900 12px Segoe UI, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.letterSpacing = "2px";
+    ctx.shadowColor = "rgba(255, 238, 190, .65)";
+    ctx.shadowBlur = 5;
+    ctx.fillText("SCRATCH", width / 2, height / 2 - 8);
+
+    ctx.font = "800 12px Segoe UI, Arial, sans-serif";
+    ctx.fillStyle = "rgba(73, 43, 22, .42)";
+    ctx.fillText(title.toUpperCase().slice(0, 22), width / 2, height / 2 + 16);
+    ctx.shadowColor = "transparent";
+  }
+
+  function pointFromEvent(event, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function scratchAt(state, point) {
+    const radius = Math.max(20, Math.min(state.width, state.height) * .105);
+    state.scratched = true;
+    state.ctx.save();
+    state.ctx.globalCompositeOperation = "destination-out";
+    state.ctx.lineCap = "round";
+    state.ctx.lineJoin = "round";
+    state.ctx.lineWidth = radius * 1.65;
+
+    if (state.last) {
+      state.ctx.beginPath();
+      state.ctx.moveTo(state.last.x, state.last.y);
+      state.ctx.lineTo(point.x, point.y);
+      state.ctx.stroke();
+    }
+
+    state.ctx.beginPath();
+    state.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    state.ctx.fill();
+    state.ctx.restore();
+    state.last = point;
+  }
+
+  function clearedRatio(state) {
+    const image = state.ctx.getImageData(0, 0, state.canvas.width, state.canvas.height).data;
+    let cleared = 0;
+    const total = image.length / 4;
+    for (let i = 3; i < image.length; i += 4) {
+      if (image[i] < 70) cleared += 1;
+    }
+    return cleared / total;
+  }
+
+  function revealCard(card) {
+    const state = cardStates.get(card);
+    if (!state || state.revealed) return;
+
+    state.revealed = true;
+    card.classList.add("revealed");
+    card.querySelector("[data-status]").textContent = card.dataset.rarity === "winner" ? "Winner" : "Opened";
+
+    const action = card.querySelector("[data-auto-scratch]");
+    if (action) {
+      action.textContent = "Revealed";
+      action.disabled = true;
+    }
+
+    setTimeout(() => {
+      state.ctx.clearRect(0, 0, state.width, state.height);
+    }, reducedMotion ? 0 : 300);
+  }
+
+  function maybeReveal(card) {
+    const state = cardStates.get(card);
+    if (!state || state.revealed) return;
+    state.checks += 1;
+    if (state.checks % 5 !== 0) return;
+    if (clearedRatio(state) >= .58) revealCard(card);
+  }
+
+  function bindCard(card) {
+    setupCanvas(card);
+    const state = cardStates.get(card);
+    const canvas = state.canvas;
+
+    canvas.addEventListener("pointerdown", (event) => {
+      if (state.revealed) return;
+      event.preventDefault();
+      state.drawing = true;
+      state.last = null;
+      canvas.setPointerCapture?.(event.pointerId);
+      scratchAt(state, pointFromEvent(event, canvas));
+      maybeReveal(card);
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (!state.drawing || state.revealed) return;
+      event.preventDefault();
+      scratchAt(state, pointFromEvent(event, canvas));
+      maybeReveal(card);
+    });
+
+    function stopDrawing(event) {
+      if (!state.drawing) return;
+      state.drawing = false;
+      state.last = null;
+      canvas.releasePointerCapture?.(event.pointerId);
+      if (clearedRatio(state) >= .42) revealCard(card);
+    }
+
+    canvas.addEventListener("pointerup", stopDrawing);
+    canvas.addEventListener("pointercancel", stopDrawing);
+    canvas.addEventListener("pointerleave", () => {
+      state.drawing = false;
+      state.last = null;
+    });
+
+    card.querySelector("[data-auto-scratch]")?.addEventListener("click", () => {
+      autoScratch(card);
+    });
+  }
+
+  function autoScratch(card) {
+    const state = cardStates.get(card);
+    if (!state || state.revealed) return;
+
+    const action = card.querySelector("[data-auto-scratch]");
+    if (action) action.disabled = true;
+
+    const lines = [
+      [{ x: 22, y: state.height * .25 }, { x: state.width - 18, y: state.height * .42 }],
+      [{ x: state.width - 24, y: state.height * .22 }, { x: 24, y: state.height * .62 }],
+      [{ x: 20, y: state.height * .76 }, { x: state.width - 22, y: state.height * .58 }],
+      [{ x: state.width * .22, y: 18 }, { x: state.width * .72, y: state.height - 18 }]
+    ];
+
+    let frame = 0;
+    function step() {
+      const line = lines[frame % lines.length];
+      const progress = Math.min(1, frame / 28);
+      const point = {
+        x: line[0].x + (line[1].x - line[0].x) * progress,
+        y: line[0].y + (line[1].y - line[0].y) * progress
+      };
+      scratchAt(state, point);
+      frame += 1;
+
+      if (frame < 34 && !reducedMotion) {
+        requestAnimationFrame(step);
+      } else {
+        revealCard(card);
+      }
+    }
+
+    step();
+  }
+
+  cards.forEach(bindCard);
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      cards.forEach((card) => {
+        if (!card.classList.contains("revealed")) setupCanvas(card);
+      });
+    }, 150);
+  });
+})();
+</script>
+{% endblock %}

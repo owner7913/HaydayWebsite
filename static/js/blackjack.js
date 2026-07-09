@@ -353,45 +353,7 @@
         </div>
       `;
     }
-
-    const isTurn = table.current_turn_user_id === viewerId;
-    const activeHand = player.hands?.[player.active_hand_index || 0];
-    const canDouble = Boolean(
-      isTurn &&
-      table.phase === "player_turns" &&
-      activeHand &&
-      activeHand.cards?.length === 2 &&
-      !activeHand.doubled &&
-      !activeHand.stood
-    );
-    const canSplit = Boolean(
-      isTurn &&
-      table.phase === "player_turns" &&
-      activeHand &&
-      activeHand.cards?.length === 2 &&
-      String(activeHand.cards?.[0]?.rank || "") === String(activeHand.cards?.[1]?.rank || "")
-    );
-    const canInsurance = Boolean(
-      isTurn &&
-      table.phase === "insurance" &&
-      Math.floor(Number(activeHand?.bet_amount || 0) / 2) > 0 &&
-      player.insurance_state === "pending"
-    );
-
-    return `
-      <div class="blackjack-actions">
-        ${table.phase === "insurance" && isTurn ? `
-          ${canInsurance ? '<button class="blackjack-button" id="blackjack-insurance" type="button">Insurance</button>' : ""}
-          <button class="blackjack-button alt" id="blackjack-no-insurance" type="button">No insurance</button>
-        ` : ""}
-        ${table.phase === "player_turns" && isTurn ? `
-          <button class="blackjack-button" id="blackjack-hit" type="button">Hit</button>
-          <button class="blackjack-button alt" id="blackjack-stand" type="button">Stand</button>
-          ${canDouble ? '<button class="blackjack-button" id="blackjack-double" type="button">Double</button>' : ""}
-          ${canSplit ? '<button class="blackjack-button alt" id="blackjack-split" type="button">Split</button>' : ""}
-        ` : ""}
-      </div>
-    `;
+    return "";
   }
 
   function renderViewerHand(table) {
@@ -410,6 +372,7 @@
 
   function renderSeatBetControls(player, table) {
     if (Number(player.user_id) !== viewerId) return "";
+    if (table.phase !== "betting") return "";
     const isLiveRound = Number(player.reserved_bet || 0) > 0;
     const stagedBet = isLiveRound ? Number(player.next_bet || 0) : Number(player.bet || 0);
     const currentBetPlaced = !isLiveRound && table.phase === "betting" && stagedBet > 0;
@@ -445,6 +408,82 @@
     `;
   }
 
+  function renderSeatAutoBetToggle(player, table) {
+    if (Number(player.user_id) !== viewerId) return "";
+    const rememberedBet = Number(player.next_bet || player.bet || player.auto_bet_amount || table.min_bet || 0);
+    return `
+      <label class="blackjack-seat-auto-toggle" title="Auto bet your selected amount each round">
+        <input id="blackjack-auto-bet-enabled" type="checkbox" ${player.auto_bet_enabled ? "checked" : ""}>
+        <span>Auto</span>
+        <strong>${formatNumber(rememberedBet)}</strong>
+      </label>
+    `;
+  }
+
+  function renderInsuranceMarker(player, table) {
+    const state = String(player.insurance_state || "unavailable");
+    if (state === "unavailable") return "";
+    const labels = {
+      pending: "Ins ?",
+      taken: "Ins ✓",
+      declined: "Ins -",
+      won: "Ins +",
+      lost: "Ins x",
+    };
+    const markerClass = {
+      pending: "pending",
+      taken: "taken",
+      declined: "declined",
+      won: "won",
+      lost: "lost",
+    }[state] || "pending";
+    if (table.phase !== "insurance" && !["taken", "declined", "won", "lost"].includes(state)) return "";
+    return `<div class="blackjack-insurance-marker ${markerClass}">${labels[state] || "Ins"}</div>`;
+  }
+
+  function renderSeatActionControls(player, table) {
+    if (Number(player.user_id) !== viewerId) return "";
+    const isTurn = table.current_turn_user_id === viewerId;
+    const activeHand = player.hands?.[player.active_hand_index || 0];
+    const canDouble = Boolean(
+      isTurn &&
+      table.phase === "player_turns" &&
+      activeHand &&
+      activeHand.cards?.length === 2 &&
+      !activeHand.doubled &&
+      !activeHand.stood
+    );
+    const canSplit = Boolean(
+      isTurn &&
+      table.phase === "player_turns" &&
+      activeHand &&
+      activeHand.cards?.length === 2 &&
+      String(activeHand.cards?.[0]?.rank || "") === String(activeHand.cards?.[1]?.rank || "")
+    );
+    const canInsurance = Boolean(
+      isTurn &&
+      table.phase === "insurance" &&
+      Math.floor(Number(activeHand?.bet_amount || 0) / 2) > 0 &&
+      player.insurance_state === "pending"
+    );
+    if (!isTurn) return renderSeatAutoBetToggle(player, table);
+    return `
+      <div class="blackjack-seat-action-row">
+        ${table.phase === "insurance" ? `
+          ${canInsurance ? '<button class="blackjack-seat-action" id="blackjack-insurance" type="button">Ins</button>' : ""}
+          <button class="blackjack-seat-action alt" id="blackjack-no-insurance" type="button">No</button>
+        ` : ""}
+        ${table.phase === "player_turns" ? `
+          <button class="blackjack-seat-action" id="blackjack-hit" type="button">H</button>
+          <button class="blackjack-seat-action alt" id="blackjack-stand" type="button">S</button>
+          ${canDouble ? '<button class="blackjack-seat-action" id="blackjack-double" type="button">DD</button>' : ""}
+          ${canSplit ? '<button class="blackjack-seat-action alt" id="blackjack-split" type="button">Sp</button>' : ""}
+        ` : ""}
+        ${renderSeatAutoBetToggle(player, table)}
+      </div>
+    `;
+  }
+
   function renderObservers(table) {
     if (!table.observers?.length) {
       return '<div class="blackjack-copy">No observers yet.</div>';
@@ -457,24 +496,6 @@
             <span>${observer.username}${observer.is_owner ? " (host)" : ""}</span>
           </div>
         `).join("")}
-      </div>
-    `;
-  }
-
-  function renderTableAutoBet(table) {
-    const player = table.viewer_player;
-    if (!player) return "";
-    return `
-      <div class="blackjack-auto-bet-box blackjack-auto-bet-table">
-        <label class="blackjack-toggle-row" for="blackjack-auto-bet-enabled">
-          <span>Auto bet every round</span>
-          <input id="blackjack-auto-bet-enabled" type="checkbox" ${player.auto_bet_enabled ? "checked" : ""}>
-        </label>
-        <div class="blackjack-auto-bet-controls">
-          <input class="blackjack-input" id="blackjack-auto-bet-amount" type="number" min="${table.min_bet}" step="1" value="${player.auto_bet_amount || table.min_bet}">
-          <button class="blackjack-button alt" id="blackjack-auto-bet-save" type="button">Save auto bet</button>
-        </div>
-        <div class="blackjack-bet-note">Leave this off if you want a fresh manual bet before every hand.</div>
       </div>
     `;
   }
@@ -500,7 +521,9 @@
           <div class="blackjack-mobile-seat-head">
             <img class="blackjack-avatar ${table.current_turn_user_id === player.user_id ? "turn" : ""}" src="${player.avatar_url}" alt="">
             <div class="blackjack-mobile-seat-name">${player.username}</div>
+            ${renderInsuranceMarker(player, table)}
           </div>
+          ${renderSeatActionControls(player, table)}
           ${player.hands?.length ? `
             <div class="blackjack-hand-stack ${player.hands.length > 1 ? "multi-hand" : ""}">
               ${player.hands.map((seatHand, handIndex) => `
@@ -533,6 +556,7 @@
 
     const playerCount = Math.min(table.players.length, 6);
     const layout = seatOffsets[playerCount] || seatOffsets[6];
+    const seatPhaseOffset = table.phase === "betting" || table.phase === "settled" ? 42 : 0;
 
     const seatScaleByCount = {
       1: 1,
@@ -559,7 +583,7 @@
       const seat = layout[Math.min(layout.length - 1, index)] || { x: 0, y: 0 };
 
       const scaledX = Math.round(seat.x * seatScale);
-      const scaledY = Math.round(seat.y * seatScale);
+      const scaledY = Math.round((seat.y + seatPhaseOffset) * seatScale);
 
       const seatStyle = `
         transform:
@@ -570,7 +594,7 @@
       `;
 
       return `
-        <div class="blackjack-player ${table.current_turn_user_id === player.user_id ? "turn" : ""}" style="${seatStyle}">
+        <div class="blackjack-player ${table.current_turn_user_id === player.user_id ? "turn" : ""} ${table.phase === "betting" || table.phase === "settled" ? "betting-layout" : ""}" style="${seatStyle}">
           ${player.hands?.length ? `
             <div class="blackjack-hand-stack">
               ${player.hands.map((seatHand, handIndex) => `
@@ -589,7 +613,9 @@
             <div class="blackjack-player-avatar-row">
               <img class="blackjack-avatar ${table.current_turn_user_id === player.user_id ? "turn" : ""}" src="${player.avatar_url}" alt="">
               <div class="blackjack-player-name">${player.username}</div>
+              ${renderInsuranceMarker(player, table)}
             </div>
+            ${renderSeatActionControls(player, table)}
           ` : '<div class="blackjack-copy">Waiting for the next hand.</div>'}
           ${renderSeatBetControls(player, table)}
         </div>
@@ -647,7 +673,6 @@
           </div>
           ${renderPlayers(table)}
         </div>
-        ${renderTableAutoBet(table)}
           </div>
           <div class="blackjack-controls-panel">
             <div class="blackjack-seat-meta">
@@ -695,16 +720,16 @@
       });
     });
 
-    document.getElementById("blackjack-auto-bet-save")?.addEventListener("click", async function () {
-      const enabled = Boolean(document.getElementById("blackjack-auto-bet-enabled")?.checked);
-      const amount = Number(document.getElementById("blackjack-auto-bet-amount")?.value || 0);
+    document.getElementById("blackjack-auto-bet-enabled")?.addEventListener("change", async function () {
+      const enabled = Boolean(this.checked);
       try {
         await api("/api/blackjack/auto-bet", {
           method: "POST",
-          body: JSON.stringify({ table_id: activeTableId, enabled, amount }),
+          body: JSON.stringify({ table_id: activeTableId, enabled }),
         });
         await refreshTable();
       } catch (error) {
+        this.checked = !enabled;
         alert(error.message);
       }
     });

@@ -5,6 +5,10 @@ __pycache__/
 .DS_Store
 *.log
 node_modules/
+output/*.err
+output/*.out
+output/admin_competition_preview.html
+output/flask_session/
 
 # Block installers / binaries
 *.exe

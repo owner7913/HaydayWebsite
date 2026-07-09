@@ -58,6 +58,9 @@ Make sure `.env` has:
 ```
 FLASK_ENV=prod
 PORT=8080
+MONGO_URI=<main-site-mongodb-uri>
+TRADING_MONGO_URI=<trading-market-mongodb-uri>
+TRADING_DB_NAME=hayday
 ```
 
 The app will be hosted at `https://<your-app-name>.fly.dev`

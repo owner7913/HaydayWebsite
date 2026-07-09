@@ -761,18 +761,6 @@
           <div class="pet-avatar pet-{{ pet.type }}">
             <div class="pet-shadow"></div>
             <div class="pet-character">
-              {% for item in equipped_cosmetic_items if item.slot in ['back', 'aura'] %}
-                <span class="pet-accessory accessory-{{ item.slot }} accessory-{{ item.key }}">
-                  <picture>
-                    <source srcset="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.webp') }}" type="image/webp">
-                    <img
-                      src="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.png') }}"
-                      alt="{{ item.name }}"
-                      onerror="this.src='{{ url_for('static', filename='img/pet_accessories/' ~ item.fallback_asset) }}'"
-                    >
-                  </picture>
-                </span>
-              {% endfor %}
               <picture>
                 <source srcset="{{ url_for('static', filename='img/pet_moods/' ~ pet.type ~ '/' ~ pet_mood_slug ~ '.webp') }}" type="image/webp">
                 <img
@@ -782,18 +770,6 @@
                   onerror="this.src='{{ url_for('static', filename='img/pets_ai/' ~ pet.type ~ '.png') }}'; this.onerror=function(){this.src='{{ url_for('static', filename='img/pets/' ~ pet.type ~ '.svg') }}';};"
                 >
               </picture>
-              {% for item in equipped_cosmetic_items if item.slot not in ['back', 'aura'] %}
-                <span class="pet-accessory accessory-{{ item.slot }} accessory-{{ item.key }}">
-                  <picture>
-                    <source srcset="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.webp') }}" type="image/webp">
-                    <img
-                      src="{{ url_for('static', filename='img/pet_accessories_ai/' ~ item.asset ~ '.png') }}"
-                      alt="{{ item.name }}"
-                      onerror="this.src='{{ url_for('static', filename='img/pet_accessories/' ~ item.fallback_asset) }}'"
-                    >
-                  </picture>
-                </span>
-              {% endfor %}
             </div>
           </div>
         </div>
@@ -829,7 +805,6 @@
 
         <div class="pet-badges">
           <div class="pet-badge">🪙 {{ coins | format }} coins</div>
-          <div class="pet-badge">🎒 {{ pet.owned_cosmetics|length }} cosmetics</div>
           <div class="pet-badge">✨ {{ pet.owned_boosts|length }} boosts</div>
           <div class="pet-badge">🧺 {{ pet.owned_consumables|length }} consumables</div>
         </div>
@@ -1029,6 +1004,26 @@
                 <p class="pet-summary-copy">Rewards are granted automatically whenever your pet levels up.</p>
               </div>
             </div>
+
+            <div class="pet-summary-card">
+              <div class="pet-summary-top">
+                <div class="pet-item-icon">🪙</div>
+                <div>
+                  <h3 class="pet-summary-title">Care Coins</h3>
+                  <p class="pet-item-meta">Feed, play, and clean payouts</p>
+                </div>
+              </div>
+              <div class="pet-summary-stack">
+                {% if care_reward_preview.rows %}
+                  {% for reward in care_reward_preview.rows %}
+                    <p class="pet-summary-copy">{{ reward.label }}: {{ reward.amount }}</p>
+                  {% endfor %}
+                {% endif %}
+                {% if care_reward_preview.note %}
+                  <p class="pet-summary-copy">{{ care_reward_preview.note }}</p>
+                {% endif %}
+              </div>
+            </div>
           </div>
         </article>
 
@@ -1036,7 +1031,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Customize</h2>
-              <p class="pet-card-subtitle">Update your pet's look and favorite accessories.</p>
+              <p class="pet-card-subtitle">Update your pet's type and profile look.</p>
             </div>
           </div>
 
@@ -1048,7 +1043,7 @@
                   <div class="pet-item-icon">🔄</div>
                   <div>
                     <h3 class="pet-item-name">Change Pet</h3>
-                    <p class="pet-item-meta">Keeps progress and items, clears equipped cosmetics.</p>
+                    <p class="pet-item-meta">Keeps your progress, inventory, and current setup.</p>
                   </div>
                 </div>
                 <select class="pet-select" name="pet_type">
@@ -1059,35 +1054,6 @@
                 <button class="pet-button ghost" type="submit">Switch Pet Type</button>
               </div>
             </form>
-          </div>
-
-          <div style="margin-top: 18px;">
-            <h3 style="margin: 0 0 12px;">Owned Cosmetics</h3>
-            {% if owned_cosmetic_items %}
-              <div class="pet-inventory-grid">
-                {% for item in owned_cosmetic_items %}
-                  <form method="POST" action="{{ url_for('pet_toggle_cosmetic') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="item_key" value="{{ item.key }}">
-                    <div class="pet-item-card">
-                      <div class="pet-item-top">
-                        <div class="pet-item-icon">{{ item.emoji or '🎀' }}</div>
-                        <div>
-                          <h3 class="pet-item-name">{{ item.name }}</h3>
-                          <p class="pet-item-meta">{{ item.slot|title if item.slot else 'Accessory' }}</p>
-                        </div>
-                      </div>
-                      <p class="pet-item-desc">{{ item.description }}</p>
-                      <button class="pet-button {% if item.equipped %}ghost{% else %}soft{% endif %}" type="submit">
-                        {% if item.equipped %}Unequip{% else %}Equip{% endif %}
-                      </button>
-                    </div>
-                  </form>
-                {% endfor %}
-              </div>
-            {% else %}
-              <div class="pet-empty">No cosmetics owned yet. Visit the pet shop below to start styling.</div>
-            {% endif %}
           </div>
         </article>
 
@@ -1243,7 +1209,7 @@
           <div class="pet-card-header">
             <div>
               <h2 class="pet-card-title">Pet Shop</h2>
-              <p class="pet-card-subtitle">Spend your coins on treats, boosts, and fresh new looks. Purchases need a confirmation click.</p>
+              <p class="pet-card-subtitle">Spend your coins on treats and boost chips. Purchases need a confirmation click.</p>
             </div>
             <div class="pet-mood-pill">🪙 {{ coins | format }} coins</div>
           </div>
@@ -1251,21 +1217,20 @@
           <div class="pet-shop-tabs">
             <div class="pet-tab">Boost Chips</div>
             <div class="pet-tab">Consumables</div>
-            <div class="pet-tab">Cosmetics</div>
           </div>
 
           <div class="pet-shop-grid">
             {% for category in shop_categories %}
               {% for key, item in pet_items.items() %}
                 {% if item.type == category %}
-                  {% set is_owned = (category == 'boost' and pet and key in pet.owned_boosts) or (category == 'cosmetic' and pet and key in pet.owned_cosmetics) %}
+                  {% set is_owned = (category == 'boost' and pet and key in pet.owned_boosts) %}
                   <form method="POST" action="{{ url_for('pet_shop_buy') }}" class="pet-shop-form" data-item-name="{{ item.name }}" data-item-price="{{ item.price | format }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="item_key" value="{{ key }}">
                     <div class="pet-shop-card">
                       <div class="pet-item-top">
                         <div class="pet-item-icon">
-                          {% if category == 'boost' %}✨{% elif category == 'consumable' %}🧺{% else %}🎀{% endif %}
+                          {% if category == 'boost' %}✨{% else %}🧺{% endif %}
                         </div>
                         <div>
                           <h3 class="pet-item-name">{{ item.name }}</h3>

@@ -430,6 +430,9 @@ body.dark .vote-btn.primary {
         {% endif %}
         <span class="pill pill-ghost">{{ total }} entries</span>
       </p>
+      {% if phase == 'voting' %}
+        <p class="muted" style="margin-top:10px">Your first vote this month earns 3,000 server coins. Votes can be switched later, but not removed. Vote totals stay hidden until results are announced.</p>
+      {% endif %}
     </div>
 
   <nav class="hero-actions">
@@ -442,8 +445,6 @@ body.dark .vote-btn.primary {
         <a class="btn {% if sort_mode=='random' %}btn-primary{% endif %}"
           {% if sort_mode=='random' %}aria-current="page"{% endif %}
           href="{{ url_for('competition_gallery', sort='random') }}">Random</a>
-        <a class="btn {% if sort_mode=='top' %}btn-primary{% endif %}"
-          href="{{ url_for('competition_gallery', sort='top') }}">Most voted</a>
         <a class="btn {% if sort_mode=='newest' %}btn-primary{% endif %}"
           href="{{ url_for('competition_gallery', sort='newest') }}">Newest</a>
       </div>
@@ -462,18 +463,17 @@ body.dark .vote-btn.primary {
       <img src="{{ e.image_url }}" data-fullsrc="{{ e.image_url }}" alt="{{ e.caption or '' }}" class="js-zoom" loading="lazy">
       {% set e_id = e._id|string %}
       {% set my_current = (my_vote and my_vote.entry_id == e_id) %}
-      {% set votes = (vote_counts.get(e_id, 0) if vote_counts is defined else 0) %}
-
-      <div class="entry-caption">
-        {% if phase == 'voting' or phase == 'results' %}
+      {% if show_vote_counts %}
+        {% set votes = (vote_counts.get(e_id, 0) if vote_counts is defined else 0) %}
+        <div class="entry-caption">
           ❤️ <span class="js-vote-count" data-count="{{ votes }}">{{ votes }}</span>
           <span class="js-vote-suffix">{{ ' vote' if votes == 1 else ' votes' }}</span>
-        {% else %}
-          {% if e.caption %}
-            <span class="entry-title">{{ e.caption|truncate(40, True, '…') }}</span>
-          {% endif %}
-        {% endif %}
-      </div>
+        </div>
+      {% elif e.caption %}
+        <div class="entry-caption">
+          <span class="entry-title">{{ e.caption|truncate(40, True, '…') }}</span>
+        </div>
+      {% endif %}
 
 
       {% if phase == 'voting' %}
@@ -536,6 +536,7 @@ body.dark .vote-btn.primary {
     <div class="card p-4">
       <h3 class="section-title">Change your vote?</h3>
       <p class="muted">You already voted for another entry. Do you want to switch your vote to this image?</p>
+      <p class="muted">Votes can be changed, but they can't be removed once cast.</p>
       <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end">
         <button type="button" class="btn" data-cancel>Keep current</button>
         <button type="button" class="btn btn-primary" data-confirm>Switch vote</button>
@@ -844,4 +845,3 @@ body.dark .vote-btn.primary {
 
 </script>
 {% endblock %}
-

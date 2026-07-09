@@ -417,10 +417,10 @@ body.light .comp-hero{
     <div class="badge-row">
       {% if phase == 'submit' %}
         <span class="badge badge-green">Submissions open</span>
-        <p class="muted">Day 1–{{ SUBMIT_END }}: upload or replace your single image any time.</p>
+        <p class="muted">Day 1–{{ SUBMIT_END }}: upload or replace your single image any time. Approved submissions earn 10,000 server coins once per month.</p>
       {% elif phase == 'voting' %}
         <span class="badge badge-blue">Voting open</span>
-        <p class="muted">Day {{ VOTE_START }}–end of month: cast your vote. One vote per account.</p>
+        <p class="muted">Day {{ VOTE_START }}–end of month: cast your vote. One vote per account, and your first vote earns 3,000 server coins once per month.</p>
       {% else %}
         <span class="badge badge-gray">Results</span>
         <p class="muted">See last month’s winners and full scoreboard.</p>
@@ -458,7 +458,7 @@ body.light .comp-hero{
         <div class="medal gold">1</div>
         <div class="prize-copy">
           <div class="place">1st place</div>
-          <div class="amount">{{ PR.get('first', '1,000,000 coins') }}</div>
+          <div class="amount">{{ PR.get('first', '75k Server coins + 1 month of Discord Nitro') }}</div>
         </div>
       </div>
 
@@ -467,7 +467,7 @@ body.light .comp-hero{
         <div class="medal silver">2</div>
         <div class="prize-copy">
           <div class="place">2nd place</div>
-          <div class="amount">{{ PR.get('second', '700,000 coins') }}</div>
+          <div class="amount">{{ PR.get('second', '50k Server coins') }}</div>
         </div>
       </div>
 
@@ -476,7 +476,7 @@ body.light .comp-hero{
         <div class="medal bronze">3</div>
         <div class="prize-copy">
           <div class="place">3rd place</div>
-          <div class="amount">{{ PR.get('third', '500,000 coins') }}</div>
+          <div class="amount">{{ PR.get('third', '25k Server coins') }}</div>
         </div>
       </div>
     </div>
@@ -489,8 +489,10 @@ body.light .comp-hero{
     <h2 class="section-title">Rules</h2>
     <ul class="list">
       <li>Each participant may submit one image per month (PNG or JPG, up to 25&nbsp;MB).</li>
+      <li>Approved submissions earn 10,000 server coins once per month. Your first vote each month earns 3,000 server coins once per month.</li>
       <li>Your entry may show your entire farm or a focused area of your design.</li>
       <li>All submissions must be original and appropriate. Ineligible or stolen content will be removed.</li>
+      <li>Troll posts, joke entries, unrelated uploads, or anything that is not an actual farm design submission will be removed and may lead to a competition ban or further server punishment.</li>
       <li>Voting is limited to one vote per verified account.</li>
       <li>Vote totals remain hidden until results are officially announced.</li>
       <li><strong>Submissions are completely anonymous.</strong> Do NOT include your name, Discord tag, user ID, or any identifying text in the image, file title, or caption — doing so is a breach of the rules and may result in disqualification or a temporary ban from the competition.</li>

@@ -1,61 +1,329 @@
 {% extends 'base.html' %}
 
-{% block title %}Competition — Voters{% endblock %}
+{% block title %}Competition Voters{% endblock %}
 
 {% block head_extra %}
-{# Extra CSS if needed — theme.css is already in base.html #}
+<style>
+  .votes-admin {
+    max-width: 1120px;
+    margin: calc(126px + var(--maint-banner-height, 0px)) auto 56px;
+    padding: 0 20px;
+    color: #eef2f7;
+    color-scheme: dark;
+  }
+
+  body.light .votes-admin {
+    color: #18212f;
+  }
+
+  .va-shell {
+    display: grid;
+    gap: 18px;
+  }
+
+  .va-hero,
+  .va-entry,
+  .va-list {
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 8px;
+    background: rgba(255,255,255,.045);
+  }
+
+  body.light .va-hero,
+  body.light .va-entry,
+  body.light .va-list {
+    background: #fff;
+    border-color: #dce4ec;
+  }
+
+  .va-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    padding: 20px;
+    background:
+      linear-gradient(135deg, rgba(42,52,66,.92), rgba(24,30,38,.96)),
+      radial-gradient(440px 200px at 88% 12%, rgba(59,130,246,.18), transparent 60%);
+  }
+
+  body.light .va-hero {
+    background:
+      linear-gradient(135deg, #ffffff, #f4f7fb),
+      radial-gradient(440px 200px at 88% 12%, rgba(59,130,246,.13), transparent 60%);
+  }
+
+  .va-kicker {
+    margin: 0 0 8px;
+    color: #99c7ff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  body.light .va-kicker { color: #275da4; }
+
+  .va-title {
+    margin: 0;
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.05;
+    letter-spacing: 0;
+  }
+
+  .va-meta {
+    color: rgba(238,242,247,.72);
+    font-size: 13px;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  body.light .va-meta { color: #687586; }
+
+  .va-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .va-btn {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    text-decoration: none;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .va-btn:hover { background: rgba(255,255,255,.12); }
+  .va-btn-danger { background: #9f2f36; border-color: #cf555d; color: #fff; }
+  .va-btn-danger:hover { background: #b23840; }
+  .va-btn-small { min-height: 34px; padding: 0 11px; font-size: 13px; }
+
+  body.light .va-btn {
+    background: #fff;
+    color: #17202d;
+    border-color: #cfd8e3;
+  }
+
+  body.light .va-btn-danger {
+    background: #9f2f36;
+    border-color: #a93c44;
+    color: #fff;
+  }
+
+  .va-entry {
+    display: grid;
+    grid-template-columns: minmax(260px, 430px) minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .va-media {
+    display: block;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border-radius: 8px;
+    background: #111;
+  }
+
+  .va-media img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  .va-entry-copy {
+    display: grid;
+    align-content: center;
+    gap: 10px;
+  }
+
+  .va-caption {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 900;
+  }
+
+  .va-list {
+    overflow: hidden;
+  }
+
+  .va-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 15px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+
+  body.light .va-list-head {
+    border-bottom-color: #e7edf3;
+  }
+
+  .va-list-head h2 {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .va-voters {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .va-voter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 13px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+
+  body.light .va-voter {
+    border-bottom-color: #edf1f5;
+  }
+
+  .va-voter:last-child {
+    border-bottom: 0;
+  }
+
+  .va-empty {
+    padding: 18px 16px;
+    color: rgba(238,242,247,.72);
+  }
+
+  body.light .va-empty { color: #687586; }
+
+  body.light .votes-admin {
+    color: #eef2f7;
+  }
+
+  body.light .va-hero,
+  body.light .va-entry,
+  body.light .va-list {
+    background: rgba(255,255,255,.045);
+    border-color: rgba(255,255,255,.10);
+  }
+
+  body.light .va-hero {
+    background:
+      linear-gradient(135deg, rgba(42,52,66,.92), rgba(24,30,38,.96)),
+      radial-gradient(440px 200px at 88% 12%, rgba(59,130,246,.18), transparent 60%);
+  }
+
+  body.light .va-kicker { color: #99c7ff; }
+  body.light .va-meta,
+  body.light .va-empty { color: rgba(238,242,247,.72); }
+
+  body.light .va-btn {
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    border-color: rgba(255,255,255,.14);
+  }
+
+  body.light .va-btn:hover { background: rgba(255,255,255,.12); }
+  body.light .va-btn-danger { background: #9f2f36; border-color: #cf555d; color: #fff; }
+  body.light .va-list-head { border-bottom-color: rgba(255,255,255,.08); }
+  body.light .va-voter { border-bottom-color: rgba(255,255,255,.07); }
+
+  @media (max-width: 820px) {
+    .va-hero,
+    .va-entry {
+      grid-template-columns: 1fr;
+    }
+    .va-actions {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .votes-admin {
+      padding: 0 12px;
+      margin-top: calc(112px + var(--maint-banner-height, 0px));
+    }
+    .va-hero,
+    .va-entry {
+      padding: 14px;
+    }
+    .va-voter {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-<main class="container mx-auto px-4 py-6" style="margin-top:80px">
-  <div class="adm-toolbar">
-    <div class="adm-toolbar-left">
-      <h1 class="page-title">Voters</h1>
-      <span class="badge">Entry {{ entry._id }}</span>
-    </div>
-    <div class="adm-toolbar-right">
-      <a class="btn" href="{{ url_for('admin_competition', comp_id=entry.comp_id) }}">Back to Competition</a>
-      <form method="post" action="{{ url_for('admin_competition_vote_delete_all', entry_id=entry._id) }}"
-            onsubmit="return confirm('Delete ALL votes for this entry?');">
-        <button class="btn btn-danger">Delete all votes</button>
-      </form>
-    </div>
-  </div>
+<main class="votes-admin">
+  <div class="va-shell">
+    <section class="va-hero">
+      <div>
+        <p class="va-kicker">Farm Design Contest</p>
+        <h1 class="va-title">Voters</h1>
+        <div class="va-meta">Entry {{ entry._id }} for {{ entry.comp_id }}</div>
+      </div>
+      <div class="va-actions">
+        <a class="va-btn" href="{{ url_for('admin_competition', comp_id=entry.comp_id) }}">Back to Competition</a>
+        <form method="post" action="{{ url_for('admin_competition_vote_delete_all', entry_id=entry._id) }}"
+              onsubmit="return confirm('Delete all votes for this entry?');">
+          <button class="va-btn va-btn-danger" type="submit">Delete all votes</button>
+        </form>
+      </div>
+    </section>
 
-  <div class="entry-card" style="margin-bottom:16px;">
-    <div class="entry-media" style="max-width:560px;">
-      <img src="{{ entry.thumb_url or entry.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
-    </div>
-    <div class="entry-body">
-      <div><strong>Caption:</strong> {{ entry.caption or '—' }}</div>
-      <div class="muted">Submitted by: {{ entry.username or entry.user or entry.user_id }}</div>
-    </div>
-  </div>
+    <section class="va-entry">
+      <a class="va-media" href="{{ entry.image_url }}" target="_blank" rel="noopener">
+        <img src="{{ entry.thumb_url or entry.image_url }}" alt="{{ entry.caption or 'Competition submission' }}" loading="lazy" referrerpolicy="no-referrer">
+      </a>
+      <div class="va-entry-copy">
+        <p class="va-caption">{{ entry.caption or 'No caption' }}</p>
+        <div class="va-meta">
+          Submitted by: {{ entry.username or entry.display_name or entry.user_id }}<br>
+          Discord ID: {{ entry.user_id or 'Unknown' }}
+        </div>
+      </div>
+    </section>
 
-  <div class="card p-3">
-    <h2 class="section-title">Votes ({{ votes|length }})</h2>
-    {% if votes|length == 0 %}
-      <div class="muted">No votes yet.</div>
-    {% else %}
-      <ul style="margin:0; padding-left:0; list-style:none;">
-        {% for v in votes %}
-          <li style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08);">
-            <div style="flex:1 1 auto;">
-              <div><strong>{{ v.voter_name }}</strong> <span class="muted">({{ v.voter_id }})</span></div>
-              <div class="muted">{{ v.created_at or '' }}</div>
-            </div>
-            <form method="post" action="{{ url_for('admin_competition_vote_delete', entry_id=entry._id, vote_id=v._id) }}"
-                  onsubmit="return confirm('Delete this vote?');">
-              <button class="btn btn-danger">Delete</button>
-            </form>
-          </li>
-        {% endfor %}
-      </ul>
-    {% endif %}
+    <section class="va-list">
+      <div class="va-list-head">
+        <h2>Votes</h2>
+        <span class="va-meta">{{ votes|length }} total</span>
+      </div>
+
+      {% if votes|length == 0 %}
+        <div class="va-empty">No votes yet.</div>
+      {% else %}
+        <ul class="va-voters">
+          {% for v in votes %}
+            <li class="va-voter">
+              <div>
+                <strong>{{ v.voter_name }}</strong>
+                <div class="va-meta">
+                  {{ v.voter_id }}<br>
+                  {{ v.created_at.strftime('%b %d, %Y %H:%M') if v.created_at else '' }}
+                </div>
+              </div>
+              <form method="post" action="{{ url_for('admin_competition_vote_delete', entry_id=entry._id, vote_id=v._id) }}"
+                    onsubmit="return confirm('Delete this vote?');">
+                <button class="va-btn va-btn-small va-btn-danger" type="submit">Delete</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
   </div>
 </main>
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 {% endblock %}

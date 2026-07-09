@@ -44,10 +44,14 @@ import email.utils as eut
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib, mimetypes
 from werkzeug.utils import secure_filename
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import boto3
 from botocore.client import Config
 import io
+import gzip
+import shutil
+import subprocess
+import tempfile
 import certifi
 from botocore.config import Config
 import socket as _socket
@@ -83,8 +87,15 @@ if os.getenv("FORCE_IPV4", "0") == "1":
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
-app.config["SESSION_TYPE"] = "redis"
-app.config["SESSION_REDIS"] = redis.from_url(os.environ["REDIS_URL"])
+SESSION_TYPE = os.getenv("SESSION_TYPE", "redis").lower()
+app.config["SESSION_TYPE"] = SESSION_TYPE
+if SESSION_TYPE == "redis":
+    app.config["SESSION_REDIS"] = redis.from_url(os.environ["REDIS_URL"])
+elif SESSION_TYPE == "filesystem":
+    app.config["SESSION_FILE_DIR"] = os.getenv(
+        "SESSION_FILE_DIR",
+        str(Path(app.root_path) / "output" / "flask_session"),
+    )
 app.config["SESSION_PERMANENT"] = True
 app.config["SESSION_USE_SIGNER"] = True
 app.config["SESSION_KEY_PREFIX"] = "hayday_session:"
@@ -98,6 +109,15 @@ oauth_state_serializer = URLSafeSerializer(app.secret_key, salt="discord-oauth-s
 
 
 MONGO_URI = os.getenv("MONGO_URI")
+TRADING_MONGO_URI = os.getenv("TRADING_MONGO_URI") or MONGO_URI
+TRADING_DB_NAME = os.getenv("TRADING_DB_NAME", "hayday")
+TRADING_COLLECTIONS = {
+    "posts": os.getenv("TRADING_POSTS_COLLECTION", "auctions.Trading.posts"),
+    "ticks": os.getenv("TRADING_TICKS_COLLECTION", "auctions.Trading.ticks"),
+    "items": os.getenv("TRADING_ITEMS_COLLECTION", "auctions.Trading.items"),
+    "config": os.getenv("TRADING_CONFIG_COLLECTION", "auctions.Trading.config"),
+    "mp_ticks": os.getenv("TRADING_MP_TICKS_COLLECTION", "auctions.Trading.mp_ticks"),
+}
 LIVE_GIVEAWAYS_CACHE = {
     "expires": 0,
     "payload": None,
@@ -108,9 +128,10 @@ PRODUCTION_DATA_CACHE = {
 }
 COMP_RESULTS_CACHE = {}
 COMP_RESULTS_CACHE_TTL = 60  # seconds
+COMP_SUBMIT_REWARD = 10_000
+COMP_VOTE_REWARD = 3_000
 
-mongo_client = MongoClient(
-    MONGO_URI,
+MONGO_CLIENT_OPTIONS = dict(
     maxPoolSize=100,
     minPoolSize=5,
     serverSelectionTimeoutMS=5000,
@@ -118,10 +139,23 @@ mongo_client = MongoClient(
     socketTimeoutMS=10000,
 )
 
+mongo_client = MongoClient(MONGO_URI, **MONGO_CLIENT_OPTIONS)
+trading_mongo_client = (
+    mongo_client
+    if TRADING_MONGO_URI == MONGO_URI
+    else MongoClient(TRADING_MONGO_URI, **MONGO_CLIENT_OPTIONS)
+)
+
 def get_db(db_name=None):
     if db_name:
         return mongo_client[db_name]
     return mongo_client
+
+def get_trading_db():
+    return trading_mongo_client[TRADING_DB_NAME]
+
+def get_trading_collection(name):
+    return get_trading_db()[TRADING_COLLECTIONS[name]]
 
 # VERY TEMP storage just to see things working locally
 COMP_ENTRIES = {}  # comp_id -> list of {image_url, username, caption, created_at}
@@ -311,6 +345,189 @@ def _vote_counts_for(comp_id: str, client: MongoClient) -> dict[str, int]:
     return {str(d["_id"]): int(d["n"]) for d in col.aggregate(pipeline)}
 
 
+def _competition_reward_claims_col():
+    return get_db("Website")["CompRewardClaims"]
+
+
+def _competition_reward_claim_id(comp_id: str, user_id: str, action: str) -> str:
+    return f"{comp_id}:{action}:{user_id}"
+
+
+def _competition_has_reward_claim(comp_id: str, user_id: str, action: str) -> bool:
+    if not user_id:
+        return False
+    return _competition_reward_claims_col().find_one(
+        {"_id": _competition_reward_claim_id(comp_id, str(user_id), action)},
+        {"_id": 1},
+    ) is not None
+
+
+def _competition_try_grant_reward(comp_id: str, user_id: str, action: str, amount: int, *, meta=None):
+    user_id = str(user_id or "").strip()
+    amount = int(amount or 0)
+    if not user_id or not user_id.isdigit() or amount <= 0:
+        return False, None
+
+    claims_col = _competition_reward_claims_col()
+    claim_id = _competition_reward_claim_id(comp_id, user_id, action)
+    claim_doc = {
+        "_id": claim_id,
+        "comp_id": comp_id,
+        "user_id": user_id,
+        "action": action,
+        "amount": amount,
+        "claimed_at": datetime.now(timezone.utc),
+        "meta": meta or {},
+    }
+    try:
+        claims_col.insert_one(claim_doc)
+    except DuplicateKeyError:
+        return False, None
+
+    new_balance = _gambling_credit_user(
+        int(user_id),
+        amount,
+        source=f"competition_reward:{action}",
+        meta={"comp_id": comp_id, "action": action, **(meta or {})},
+    )
+    claims_col.update_one(
+        {"_id": claim_id},
+        {"$set": {
+            "balance_after": new_balance,
+            "ledger_source": f"competition_reward:{action}",
+        }},
+    )
+    return True, new_balance
+
+
+COMP_MODERATION_REASONS = {
+    "not_decorated": "The submission was removed because it was not a decorated farm design.",
+    "troll": "The submission was removed because it looked like a troll or joke entry.",
+    "inappropriate": "The submission was removed because it did not follow the contest rules.",
+    "other": "The submission was removed because it did not meet this month's contest requirements.",
+}
+
+
+def _competition_bans_col():
+    return get_db("Website")["CompSubmissionBans"]
+
+
+def _competition_ban_id(comp_id: str, user_id: str) -> str:
+    return f"{comp_id}:{str(user_id)}"
+
+
+def _competition_submission_ban(comp_id: str, user_id: str):
+    user_id = str(user_id or "").strip()
+    if not user_id:
+        return None
+    return _competition_bans_col().find_one({"_id": _competition_ban_id(comp_id, user_id)})
+
+
+def _competition_clear_results_cache(comp_id: str):
+    for k in list(COMP_RESULTS_CACHE.keys()):
+        if f":{comp_id}:" in k or k.startswith(f"results:{comp_id}:"):
+            COMP_RESULTS_CACHE.pop(k, None)
+
+
+def _competition_debit_user_allow_negative(user_id, amount, *, source, meta=None):
+    user_id = int(user_id)
+    amount = int(amount)
+    if amount <= 0:
+        raise ValueError("Debit amount must be positive")
+
+    economy_db = get_db("Economy")
+    users_col = economy_db["Users"]
+    ledger_col = economy_db["coin_ledger"]
+
+    user_doc = users_col.find_one_and_update(
+        {"_id": user_id},
+        {"$inc": {"coins": -amount}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    new_balance = int((user_doc or {}).get("coins", 0))
+
+    actor_id = session.get("discord_id")
+    ledger_col.insert_one({
+        "user_id": user_id,
+        "type": "debit",
+        "amount": amount,
+        "balance_after": new_balance,
+        "source": source,
+        "actor_id": int(actor_id) if str(actor_id).isdigit() else None,
+        "related_user_id": None,
+        "meta": meta or {},
+        "ts": datetime.now(timezone.utc),
+    })
+    return new_balance
+
+
+def _competition_revoke_submit_reward(comp_id: str, user_id: str, *, entry_id: str, moderation_id):
+    claims_col = _competition_reward_claims_col()
+    claim_id = _competition_reward_claim_id(comp_id, str(user_id), "submit")
+    claim = claims_col.find_one({"_id": claim_id})
+    if not claim or claim.get("revoked_at"):
+        return {
+            "revoked": False,
+            "amount": 0,
+            "balance_after": None,
+            "claim_id": claim_id,
+        }
+
+    amount = int(claim.get("amount") or COMP_SUBMIT_REWARD)
+    new_balance = _competition_debit_user_allow_negative(
+        user_id,
+        amount,
+        source="competition_reward:submit_revoke",
+        meta={
+            "comp_id": comp_id,
+            "entry_id": entry_id,
+            "claim_id": claim_id,
+            "moderation_id": str(moderation_id),
+        },
+    )
+    claims_col.update_one(
+        {"_id": claim_id},
+        {"$set": {
+            "revoked_at": datetime.now(timezone.utc),
+            "revoked_by": str(session.get("discord_id") or ""),
+            "revoke_reason": "moderated_submission",
+            "revoke_moderation_id": str(moderation_id),
+            "revoke_balance_after": new_balance,
+        }},
+    )
+    return {
+        "revoked": True,
+        "amount": amount,
+        "balance_after": new_balance,
+        "claim_id": claim_id,
+    }
+
+
+def _competition_notify_bot_moderation(payload: dict):
+    bot_base = (os.getenv("BOT_WEBHOOK_URL") or "").rstrip("/")
+    bot_key = os.getenv("BOT_WEBHOOK_KEY", "")
+    if not bot_base or not bot_key:
+        return {"ok": False, "error": "Bot webhook is not configured."}
+
+    try:
+        res = requests.post(
+            f"{bot_base}/webhook/competition/moderation-warning",
+            json=payload,
+            headers={"Authorization": bot_key},
+            timeout=10,
+        )
+        if 200 <= res.status_code < 300:
+            return {"ok": True, "status_code": res.status_code}
+        return {
+            "ok": False,
+            "status_code": res.status_code,
+            "error": res.text[:300],
+        }
+    except requests.RequestException as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def _allowed(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
 
@@ -371,6 +588,11 @@ SCANNER_PATHS = [
     # Misc
     "/test", "/test.php", "/temp", "/backup", "/old", "/dev"
 ]
+
+SCANNER_EXEMPT_PREFIXES = (
+    "/admin/backups",
+    "/api/admin/backups",
+)
 
 
 banned_ips_loaded = False
@@ -503,7 +725,10 @@ def r2_put_object(fileobj, key, content_type):
 def resize_to_max_edge(filestorage, max_edge=3000):
     """Resize if needed and return (BytesIO, content_type, ext). Saves as JPEG 85%."""
     filestorage.stream.seek(0)
-    img = Image.open(filestorage.stream).convert("RGB")
+    try:
+        img = Image.open(filestorage.stream).convert("RGB")
+    except (OSError, UnidentifiedImageError) as exc:
+        raise ValueError("Invalid or corrupted image file.") from exc
     w, h = img.size
     if max(w, h) > max_edge:
         img.thumbnail((max_edge, max_edge), Image.LANCZOS)
@@ -976,6 +1201,60 @@ EASTER_TESTING = {
     "enabled": False,
     "bypass_unlocks": False,
     "force_result": None,
+}
+
+SUMMER_EVENT_ACCESS_CODE = os.getenv("SUMMER_EVENT_ACCESS_CODE", "summer2026").strip().lower()
+
+SUMMER_EVENT = {
+    "title": "Hay Day Summer Treasure Hunt",
+    "subtitle": "Four summer treasures are washing ashore. Scratch away the sand and see what the tide brought in.",
+    "window": "June 21-30",
+    "cards": [
+        {
+            "id": 1,
+            "name": "Shoreline Bottle",
+            "label": "A sealed bottle rolled in with the morning tide.",
+            "unlock_label": "June 21",
+            "shape": "bottle",
+            "image": "img/summer/items/shoreline-bottle.png",
+            "reward": "50 Shovels",
+            "rarity": "winner",
+            "result_line": "The first tide brought farm supplies.",
+        },
+        {
+            "id": 2,
+            "name": "Picnic Cooler",
+            "label": "Packed for a bright day at the beach.",
+            "unlock_label": "June 24",
+            "shape": "cooler",
+            "image": "img/summer/items/picnic-cooler.png",
+            "reward": "No prize this time",
+            "rarity": "bonus",
+            "result_line": "Just warm sand in this one.",
+        },
+        {
+            "id": 3,
+            "name": "Buried Beach Chest",
+            "label": "Half hidden under the dunes and ready to reveal.",
+            "unlock_label": "June 27",
+            "shape": "chest",
+            "image": "img/summer/items/buried-beach-chest.png",
+            "reward": "BEM Set",
+            "rarity": "winner",
+            "result_line": "A proper beach find.",
+        },
+        {
+            "id": 4,
+            "name": "Captain's Sun Chest",
+            "label": "The final treasure, glowing from under the sand.",
+            "unlock_label": "June 30",
+            "shape": "sun-chest",
+            "image": "img/summer/items/captains-sun-chest.png",
+            "reward": "1 Month Nitro",
+            "rarity": "winner",
+            "result_line": "The grand tide saved this one.",
+        },
+    ],
 }
 
 
@@ -1788,6 +2067,974 @@ WIKI_TTL = 60 * 60 * 24  # 24h
 
 def _mongo():
     return get_db()
+
+
+BACKUP_R2_BUCKET = os.getenv("BACKUP_R2_BUCKET") or os.getenv("R2_BACKUP_BUCKET") or "mongo-backups"
+BACKUP_DB_PREFIX = os.getenv("BACKUP_DB_PREFIX", "db").strip("/")
+BACKUP_DISCORD_PREFIX = os.getenv("BACKUP_DISCORD_PREFIX", "discord").strip("/")
+BACKUP_RESTORE_TIMEOUT_SECONDS = int(os.getenv("BACKUP_RESTORE_TIMEOUT_SECONDS", "120"))
+BACKUP_JOB_TTL_SECONDS = int(os.getenv("BACKUP_JOB_TTL_SECONDS", "900"))
+
+BACKUP_COLLECTION_SPECS = [
+    {
+        "id": "level",
+        "label": "Level / XP",
+        "source_db": "hayday",
+        "source_collection": "level",
+        "target_collection": "hayday_level",
+        "id_field": "_id",
+        "id_type": "str",
+        "restore_fields": {
+            "level": "Level",
+            "xp": "Total XP",
+            "message_count": "Message count",
+            "xp_boost_until": "XP boost until",
+            "perm_xp_tier": "Permanent XP tier",
+        },
+    },
+    {
+        "id": "economy",
+        "label": "Economy / Daily / Pet",
+        "source_db": "Economy",
+        "source_collection": "Users",
+        "target_collection": "Economy_Users",
+        "id_field": "_id",
+        "id_type": "int",
+        "restore_fields": {
+            "coins": "Coins",
+            "streak": "Daily streak",
+            "last_daily": "Last daily claim",
+            "daily_upgrade_tier": "Daily upgrade tier",
+            "passive_income_tier": "Passive income tier",
+            "owned_items": "Owned shop items",
+            "double_daily_next": "Double daily pending",
+            "pet": "Pet data",
+        },
+    },
+    {
+        "id": "website_user",
+        "label": "Website Profile",
+        "source_db": "Website",
+        "source_collection": "users",
+        "target_collection": "Website_users",
+        "id_field": "_id",
+        "id_type": "str",
+        "restore_fields": {
+            "hay_day_id": "Hay Day tag",
+            "bio": "Profile bio",
+            "public_profile": "Public profile",
+            "featured_achievement": "Featured achievement",
+            "roles": "Stored role IDs",
+            "auctions_won": "Auctions won",
+            "top_bidder_count": "Top bidder count",
+        },
+    },
+    {
+        "id": "username",
+        "label": "Username Cache",
+        "source_db": "Website",
+        "source_collection": "usernames",
+        "target_collection": "Website_usernames",
+        "id_field": "_id",
+        "id_type": "str",
+        "restore_fields": {
+            "username": "Username",
+            "display_name": "Display name",
+            "avatar": "Avatar URL",
+            "avatar_hash": "Avatar hash",
+            "roles": "Cached role IDs",
+        },
+    },
+    {
+        "id": "mentions",
+        "label": "Mentions",
+        "source_db": "Mentions",
+        "source_collection": "Amount",
+        "target_collection": "Mentions_Amount",
+        "id_field": "id",
+        "id_type": "int",
+        "restore_fields": {
+            "Mentions": "Mention count",
+        },
+    },
+    {
+        "id": "birthday",
+        "label": "Birthday",
+        "source_db": "Birthdays",
+        "source_collection": "Users",
+        "target_collection": "Birthdays_Users",
+        "id_field": "user_id",
+        "id_type": "str",
+        "restore_fields": {
+            "day": "Birthday day",
+            "month": "Birthday month",
+            "timezone": "Birthday timezone",
+        },
+    },
+]
+BACKUP_COLLECTION_SPEC_BY_ID = {spec["id"]: spec for spec in BACKUP_COLLECTION_SPECS}
+BACKUP_ADDITIVE_FIELDS = {
+    "level": {"xp", "message_count"},
+    "economy": {"coins", "streak"},
+    "website_user": {"auctions_won", "top_bidder_count"},
+    "mentions": {"Mentions"},
+}
+
+
+def _backup_can_add_field(spec_id: str, field: str) -> bool:
+    return field in BACKUP_ADDITIVE_FIELDS.get(spec_id, set())
+
+
+def _backup_required_xp(level: int) -> int:
+    level = max(1, int(level))
+    return 100 * (level ** 2) + 100 * level + 100
+
+
+def _backup_level_from_total_xp(total_xp) -> int:
+    try:
+        xp = max(0, int(total_xp or 0))
+    except (TypeError, ValueError):
+        xp = 0
+
+    level = 1
+    while xp >= _backup_required_xp(level):
+        level += 1
+    return level
+
+
+def _backup_numeric_value(value, default=0) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return default
+        return int(float(stripped))
+    raise ValueError("Selected value is not numeric.")
+
+
+def _backup_add_preview(spec_id: str, field: str, backup_doc: dict | None, live_doc: dict | None) -> str | None:
+    if not _backup_can_add_field(spec_id, field) or not _backup_has_field(backup_doc, field):
+        return None
+    try:
+        backup_value = _backup_numeric_value(_backup_get_field(backup_doc, field))
+        live_value = _backup_numeric_value(_backup_get_field(live_doc, field), 0)
+    except (TypeError, ValueError):
+        return None
+
+    added_value = live_value + backup_value
+    if spec_id == "level" and field == "xp":
+        return f"If added: {live_value:,} + {backup_value:,} = {added_value:,} XP, level {_backup_level_from_total_xp(added_value):,}"
+    return f"If added: {live_value:,} + {backup_value:,} = {added_value:,}"
+
+
+def _backup_normalize_restore_selections(selections: dict | None) -> dict[str, dict[str, str]]:
+    cleaned: dict[str, dict[str, str]] = {}
+    for spec_id, fields in (selections or {}).items():
+        spec = BACKUP_COLLECTION_SPEC_BY_ID.get(spec_id)
+        if not spec:
+            continue
+
+        if isinstance(fields, dict):
+            requested = fields.items()
+        elif isinstance(fields, (list, tuple, set)):
+            requested = ((field, "replace") for field in fields)
+        else:
+            continue
+
+        allowed = set(spec["restore_fields"].keys())
+        selected_fields: dict[str, str] = {}
+        for field, mode in requested:
+            if field not in allowed:
+                continue
+            selected_fields[field] = "add" if mode == "add" and _backup_can_add_field(spec_id, field) else "replace"
+
+        if selected_fields:
+            cleaned[spec_id] = selected_fields
+
+    return cleaned
+
+
+def _backup_env_value(*names):
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value.strip()
+    return None
+
+
+def _backup_jobs_collection():
+    return get_db("Website")["backup_jobs"]
+
+
+def _backup_prune_jobs():
+    cutoff = time.time() - BACKUP_JOB_TTL_SECONDS
+    cutoff_date = datetime.fromtimestamp(cutoff, tz=timezone.utc)
+    _backup_jobs_collection().delete_many({"updated_at": {"$lt": cutoff_date}})
+
+
+def _backup_set_job(job_id: str, **updates):
+    updates["updated_at"] = datetime.now(timezone.utc)
+    _backup_jobs_collection().update_one({"_id": job_id}, {"$set": updates})
+
+
+def _backup_public_job(job_id: str) -> dict | None:
+    _backup_prune_jobs()
+    job = _backup_jobs_collection().find_one({"_id": job_id})
+    if not job:
+        return None
+    return {
+        "job_id": job_id,
+        "kind": job.get("kind"),
+        "status": job.get("status"),
+        "message": job.get("message"),
+        "error": job.get("error"),
+        "result": job.get("result"),
+        "created_at": serialize_mongo(job.get("created_at")),
+        "updated_at": serialize_mongo(job.get("updated_at")),
+    }
+
+
+def _backup_start_job(kind: str, message: str, worker):
+    job_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+    _backup_prune_jobs()
+    _backup_jobs_collection().insert_one({
+        "_id": job_id,
+        "kind": kind,
+        "status": "running",
+        "message": message,
+        "created_at": now,
+        "updated_at": now,
+        "actor_id": session.get("discord_id"),
+    })
+
+    def run_job():
+        def update(message_text: str):
+            _backup_set_job(job_id, message=message_text)
+
+        try:
+            with app.app_context():
+                result = worker(update)
+            _backup_set_job(job_id, status="done", message="Done", result=result, error=None)
+        except Exception as exc:
+            app.logger.exception("Backup job %s failed", job_id)
+            _backup_set_job(job_id, status="error", message="Failed", error=str(exc))
+
+    threading.Thread(target=run_job, name=f"backup-job-{job_id[:8]}", daemon=True).start()
+    return _backup_public_job(job_id)
+
+
+def _backup_s3_client():
+    endpoint = _backup_env_value("BACKUP_R2_S3_ENDPOINT", "S3_ENDPOINT", "R2_S3_ENDPOINT")
+    access_key = _backup_env_value("BACKUP_R2_ACCESS_KEY_ID", "S3_KEY", "R2_ACCESS_KEY_ID")
+    secret_key = _backup_env_value("BACKUP_R2_SECRET_ACCESS_KEY", "S3_SECRET", "R2_SECRET_ACCESS_KEY")
+    missing = [
+        label
+        for label, value in (
+            ("BACKUP_R2_S3_ENDPOINT or S3_ENDPOINT", endpoint),
+            ("BACKUP_R2_ACCESS_KEY_ID or S3_KEY", access_key),
+            ("BACKUP_R2_SECRET_ACCESS_KEY or S3_SECRET", secret_key),
+        )
+        if not value
+    ]
+    if missing:
+        raise RuntimeError("Missing backup R2 configuration: " + ", ".join(missing))
+
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="auto",
+        config=Config(s3={"addressing_style": "path"}),
+    )
+
+
+def _backup_key_type(key: str) -> str | None:
+    key = (key or "").strip()
+    if key.startswith(f"{BACKUP_DB_PREFIX}/") and key.endswith(".archive.gz"):
+        return "database"
+    if key.startswith(f"{BACKUP_DISCORD_PREFIX}/") and key.endswith(".json.gz"):
+        return "discord"
+    return None
+
+
+def _backup_validate_key(key: str, expected_type: str | None = None) -> str:
+    key = (key or "").strip()
+    if not key or key.startswith(("/", "\\")) or ".." in key.replace("\\", "/"):
+        raise ValueError("Invalid backup key.")
+    key_type = _backup_key_type(key)
+    if not key_type:
+        raise ValueError("Unsupported backup key.")
+    if expected_type and key_type != expected_type:
+        raise ValueError(f"Expected a {expected_type} backup key.")
+    return key
+
+
+def _backup_parse_timestamp(key: str) -> datetime | None:
+    match = re.search(
+        r"(?:backup|discord-backup)-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)",
+        key or "",
+    )
+    if not match:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%Y-%m-%dT%H-%M-%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _backup_mongorestore_path() -> str | None:
+    configured = os.getenv("MONGORESTORE_BIN", "mongorestore")
+    found = shutil.which(configured)
+    if found:
+        return found
+    configured_path = Path(configured)
+    if configured_path.exists():
+        return str(configured_path)
+    return None
+
+
+def _backup_sanitize_process_output(text: str | None) -> str:
+    text = text or ""
+    if MONGO_URI:
+        text = text.replace(MONGO_URI, "<MONGO_URI>")
+    return text[-1600:]
+
+
+def _backup_trim_value(value, depth=0):
+    value = serialize_mongo(value)
+    if depth > 5:
+        return "..."
+    if isinstance(value, dict):
+        items = list(value.items())
+        trimmed = {k: _backup_trim_value(v, depth + 1) for k, v in items[:80]}
+        if len(items) > 80:
+            trimmed["..."] = f"{len(items) - 80} more fields"
+        return trimmed
+    if isinstance(value, list):
+        trimmed = [_backup_trim_value(v, depth + 1) for v in value[:40]]
+        if len(value) > 40:
+            trimmed.append(f"... {len(value) - 40} more items")
+        return trimmed
+    if isinstance(value, str) and len(value) > 1200:
+        return value[:1200] + "... truncated"
+    return value
+
+
+def _backup_get_field(doc: dict | None, field: str):
+    if not doc:
+        return None
+    return doc.get(field)
+
+
+def _backup_has_field(doc: dict | None, field: str) -> bool:
+    return bool(doc) and field in doc
+
+
+def _backup_user_query(spec: dict, user_id: str) -> dict | None:
+    raw = str(user_id or "").strip()
+    if not raw:
+        return None
+    if spec["id_type"] == "int":
+        if not raw.isdigit():
+            return None
+        value = int(raw)
+    else:
+        value = raw
+    return {spec["id_field"]: value}
+
+
+def _backup_live_doc(spec: dict, user_id: str) -> dict | None:
+    query = _backup_user_query(spec, user_id)
+    if not query:
+        return None
+    return get_db(spec["source_db"])[spec["source_collection"]].find_one(query)
+
+
+def _backup_download_to_temp(key: str) -> str:
+    key_type = _backup_key_type(key)
+    suffix = ".archive.gz" if key_type == "database" else ".json.gz"
+    handle = tempfile.NamedTemporaryFile(prefix="hayday-backup-", suffix=suffix, delete=False)
+    path = handle.name
+    handle.close()
+    _backup_s3_client().download_file(BACKUP_R2_BUCKET, key, path)
+    return path
+
+
+def _backup_restore_collection_from_archive(archive_path: str, temp_db_name: str, spec: dict):
+    restore_bin = _backup_mongorestore_path()
+    if not restore_bin:
+        raise RuntimeError(
+            "MongoDB Database Tools are not installed. Deploy the updated Docker image so mongorestore is available."
+        )
+    if not MONGO_URI:
+        raise RuntimeError("Missing MONGO_URI; cannot inspect database backup archives.")
+
+    source_ns = f"{spec['source_db']}.{spec['source_collection']}"
+    target_ns = f"{temp_db_name}.{spec['target_collection']}"
+    cmd = [
+        restore_bin,
+        f"--uri={MONGO_URI}",
+        f"--archive={archive_path}",
+        "--gzip",
+        f"--nsInclude={source_ns}",
+        f"--nsFrom={source_ns}",
+        f"--nsTo={target_ns}",
+        "--drop",
+        "--noIndexRestore",
+        "--quiet",
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=BACKUP_RESTORE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"mongorestore timed out after {BACKUP_RESTORE_TIMEOUT_SECONDS}s") from exc
+
+    if result.returncode != 0:
+        detail = _backup_sanitize_process_output((result.stderr or "") + "\n" + (result.stdout or ""))
+        raise RuntimeError(f"mongorestore failed for {source_ns}: {detail}")
+
+
+def _backup_restore_collections_from_archive(archive_path: str, temp_db_name: str, specs: list[dict]):
+    restore_bin = _backup_mongorestore_path()
+    if not restore_bin:
+        raise RuntimeError(
+            "MongoDB Database Tools are not installed. Deploy the updated Docker image so mongorestore is available."
+        )
+    if not MONGO_URI:
+        raise RuntimeError("Missing MONGO_URI; cannot inspect database backup archives.")
+    if not specs:
+        return
+
+    cmd = [
+        restore_bin,
+        f"--uri={MONGO_URI}",
+        f"--archive={archive_path}",
+        "--gzip",
+        "--drop",
+        "--noIndexRestore",
+        "--quiet",
+    ]
+    for spec in specs:
+        source_ns = f"{spec['source_db']}.{spec['source_collection']}"
+        target_ns = f"{temp_db_name}.{spec['target_collection']}"
+        cmd.extend([
+            f"--nsInclude={source_ns}",
+            f"--nsFrom={source_ns}",
+            f"--nsTo={target_ns}",
+        ])
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=BACKUP_RESTORE_TIMEOUT_SECONDS * max(1, len(specs)),
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"mongorestore timed out after {BACKUP_RESTORE_TIMEOUT_SECONDS * max(1, len(specs))}s"
+        ) from exc
+
+    if result.returncode == 0:
+        return
+
+    detail = _backup_sanitize_process_output((result.stderr or "") + "\n" + (result.stdout or ""))
+    app.logger.warning("Single-pass mongorestore failed, falling back to per-collection restore: %s", detail)
+    for spec in specs:
+        _backup_restore_collection_from_archive(archive_path, temp_db_name, spec)
+
+
+def _backup_extract_user_documents(
+    key: str,
+    user_id: str,
+    spec_ids: list[str] | None = None,
+    target_user_id: str | None = None,
+) -> dict:
+    key = _backup_validate_key(key, "database")
+    source_user_id = str(user_id or "").strip()
+    target_user_id = str(target_user_id or source_user_id).strip()
+    selected_specs = [
+        BACKUP_COLLECTION_SPEC_BY_ID[spec_id]
+        for spec_id in (spec_ids or [spec["id"] for spec in BACKUP_COLLECTION_SPECS])
+        if spec_id in BACKUP_COLLECTION_SPEC_BY_ID
+    ]
+    if not selected_specs:
+        raise ValueError("No valid backup sections selected.")
+
+    archive_path = None
+    temp_db_name = f"bkp_{uuid.uuid4().hex[:20]}"
+    docs: dict[str, dict] = {}
+
+    try:
+        archive_path = _backup_download_to_temp(key)
+        _backup_restore_collections_from_archive(archive_path, temp_db_name, selected_specs)
+
+        temp_db = mongo_client[temp_db_name]
+        for spec in selected_specs:
+            backup_query = _backup_user_query(spec, source_user_id)
+            backup_doc = temp_db[spec["target_collection"]].find_one(backup_query) if backup_query else None
+            docs[spec["id"]] = {
+                "spec": spec,
+                "backup_doc": backup_doc,
+                "live_doc": _backup_live_doc(spec, target_user_id),
+            }
+    finally:
+        try:
+            mongo_client.drop_database(temp_db_name)
+        except Exception as cleanup_error:
+            app.logger.warning("Failed to drop temporary backup database %s: %s", temp_db_name, cleanup_error)
+        if archive_path:
+            try:
+                os.remove(archive_path)
+            except OSError:
+                pass
+
+    return {
+        "key": key,
+        "type": "database",
+        "created_at": _backup_parse_timestamp(key),
+        "user_id": source_user_id,
+        "source_user_id": source_user_id,
+        "target_user_id": target_user_id,
+        "docs": docs,
+    }
+
+
+def _backup_database_inspect_payload(key: str, user_id: str, target_user_id: str | None = None) -> dict:
+    extracted = _backup_extract_user_documents(key, user_id, target_user_id=target_user_id)
+    sections = []
+    for spec in BACKUP_COLLECTION_SPECS:
+        row = extracted["docs"].get(spec["id"], {})
+        backup_doc = row.get("backup_doc")
+        live_doc = row.get("live_doc")
+        fields = []
+        for field, label in spec["restore_fields"].items():
+            fields.append({
+                "field": field,
+                "label": label,
+                "available": _backup_has_field(backup_doc, field),
+                "additive": _backup_can_add_field(spec["id"], field),
+                "add_preview": _backup_add_preview(spec["id"], field, backup_doc, live_doc),
+                "backup_value": _backup_trim_value(_backup_get_field(backup_doc, field)),
+                "live_value": _backup_trim_value(_backup_get_field(live_doc, field)),
+            })
+        sections.append({
+            "id": spec["id"],
+            "label": spec["label"],
+            "source": f"{spec['source_db']}.{spec['source_collection']}",
+            "found_in_backup": bool(backup_doc),
+            "found_live": bool(live_doc),
+            "fields": fields,
+            "backup_doc": _backup_trim_value(backup_doc),
+            "live_doc": _backup_trim_value(live_doc),
+        })
+
+    return {
+        "ok": True,
+        "type": "database",
+        "key": extracted["key"],
+        "created_at": serialize_mongo(extracted["created_at"]),
+        "user_id": extracted["user_id"],
+        "source_user_id": extracted["source_user_id"],
+        "target_user_id": extracted["target_user_id"],
+        "sections": sections,
+    }
+
+
+def _backup_read_discord_snapshot(key: str) -> dict:
+    key = _backup_validate_key(key, "discord")
+    path = None
+    try:
+        path = _backup_download_to_temp(key)
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            return json.load(fh)
+    finally:
+        if path:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def _backup_discord_inspect_payload(key: str, user_id: str | None = None, target_user_id: str | None = None) -> dict:
+    key = _backup_validate_key(key, "discord")
+    snapshot = _backup_read_discord_snapshot(key)
+    roles = snapshot.get("roles", []) or []
+    role_map = {str(role.get("id")): role for role in roles}
+    member = None
+    member_roles = []
+    member_role_ids = []
+    source_user_id = str(user_id or "").strip()
+    target_user_id = str(target_user_id or source_user_id).strip()
+    if user_id:
+        member = next(
+            (m for m in snapshot.get("members", []) or [] if str(m.get("id")) == source_user_id),
+            None,
+        )
+        if member:
+            member_role_ids = [str(role_id) for role_id in member.get("role_ids", []) or []]
+            member_roles = [
+                role_map.get(str(role_id), {"id": role_id, "name": str(role_id), "color": None})
+                for role_id in member.get("role_ids", []) or []
+            ]
+
+    return {
+        "ok": True,
+        "type": "discord",
+        "key": key,
+        "created_at": serialize_mongo(_backup_parse_timestamp(key)),
+        "meta": snapshot.get("meta", {}),
+        "guild": snapshot.get("guild", {}),
+        "counts": {
+            "roles": len(roles),
+            "categories": len(snapshot.get("categories", []) or []),
+            "text_channels": len(snapshot.get("text_channels", []) or []),
+            "voice_channels": len(snapshot.get("voice_channels", []) or []),
+            "forum_channels": len(snapshot.get("forum_channels", []) or []),
+            "members": len(snapshot.get("members", []) or []),
+            "emojis": len(snapshot.get("emojis", []) or []),
+        },
+        "member": _backup_trim_value(member),
+        "member_roles": _backup_trim_value(member_roles),
+        "member_role_ids": _backup_trim_value(member_role_ids),
+        "source_user_id": source_user_id,
+        "target_user_id": target_user_id,
+    }
+
+
+def _backup_discord_member_role_ids(key: str, user_id: str, target_user_id: str | None = None) -> dict:
+    key = _backup_validate_key(key, "discord")
+    snapshot = _backup_read_discord_snapshot(key)
+    user_id_str = str(user_id or "").strip()
+    target_user_id = str(target_user_id or user_id_str).strip()
+    if not user_id_str:
+        raise ValueError("Enter a Discord user ID before restoring Discord roles.")
+
+    member = next(
+        (m for m in snapshot.get("members", []) or [] if str(m.get("id")) == user_id_str),
+        None,
+    )
+    if not member:
+        raise ValueError("No member was found for that user ID in this Discord snapshot.")
+
+    role_ids = []
+    for role_id in member.get("role_ids", []) or []:
+        role_id_str = str(role_id).strip()
+        if role_id_str and role_id_str not in role_ids:
+            role_ids.append(role_id_str)
+
+    if not role_ids:
+        raise ValueError("This member snapshot does not contain any role IDs to restore.")
+
+    return {
+        "key": key,
+        "created_at": _backup_parse_timestamp(key),
+        "user_id": target_user_id,
+        "source_user_id": user_id_str,
+        "target_user_id": target_user_id,
+        "guild": snapshot.get("guild", {}),
+        "member": member,
+        "role_ids": role_ids,
+    }
+
+
+def _backup_database_member_role_ids(key: str, user_id: str, target_user_id: str | None = None) -> dict:
+    key = _backup_validate_key(key, "database")
+    user_id_str = str(user_id or "").strip()
+    target_user_id = str(target_user_id or user_id_str).strip()
+    if not user_id_str:
+        raise ValueError("Enter a Discord user ID before restoring Discord roles.")
+
+    extracted = _backup_extract_user_documents(key, user_id_str, ["username", "website_user"], target_user_id)
+    role_ids = []
+    sources = []
+
+    for spec_id in ("username", "website_user"):
+        row = extracted["docs"].get(spec_id, {})
+        spec = row.get("spec") or BACKUP_COLLECTION_SPEC_BY_ID.get(spec_id, {})
+        backup_doc = row.get("backup_doc") or {}
+        roles = backup_doc.get("roles") or []
+        if not isinstance(roles, list):
+            continue
+
+        source_added = 0
+        for role_id in roles:
+            role_id_str = str(role_id).strip()
+            if not role_id_str or not role_id_str.isdigit() or role_id_str in role_ids:
+                continue
+            role_ids.append(role_id_str)
+            source_added += 1
+
+        if source_added:
+            sources.append(f"{spec.get('source_db', 'Website')}.{spec.get('source_collection', spec_id)}")
+
+    if not role_ids:
+        raise ValueError("This database backup does not contain cached role IDs for that user.")
+
+    return {
+        "key": key,
+        "created_at": extracted["created_at"],
+        "user_id": target_user_id,
+        "source_user_id": user_id_str,
+        "target_user_id": target_user_id,
+        "guild": {},
+        "member": {},
+        "role_ids": role_ids,
+        "sources": sources,
+    }
+
+
+def _backup_restore_discord_roles(key: str, user_id: str, target_user_id: str | None = None) -> dict:
+    key_type = _backup_key_type(key)
+    if key_type == "discord":
+        snapshot = _backup_discord_member_role_ids(key, user_id, target_user_id)
+    elif key_type == "database":
+        snapshot = _backup_database_member_role_ids(key, user_id, target_user_id)
+    else:
+        raise ValueError("Unsupported backup key.")
+
+    bot_base = (os.getenv("BOT_WEBHOOK_URL") or "").rstrip("/")
+    bot_key = os.getenv("BOT_WEBHOOK_KEY")
+    if not bot_base or not bot_key:
+        raise RuntimeError("Missing BOT_WEBHOOK_URL or BOT_WEBHOOK_KEY on the website.")
+
+    response = requests.post(
+        f"{bot_base}/webhook/backups/restore-roles",
+        headers={"Authorization": bot_key},
+        json={
+            "user_id": snapshot["user_id"],
+            "role_ids": snapshot["role_ids"],
+            "backup_key": snapshot["key"],
+            "staff_id": session.get("discord_id"),
+            "staff_username": session.get("username"),
+            "reason": f"Restored from backup dashboard by {session.get('username') or session.get('discord_id') or 'website staff'}",
+        },
+        timeout=35,
+    )
+    try:
+        bot_result = response.json()
+    except ValueError:
+        bot_result = {"error": response.text[:1000]}
+
+    if response.status_code >= 400 or bot_result.get("success") is False:
+        raise RuntimeError(bot_result.get("error") or f"Bot role restore failed with HTTP {response.status_code}.")
+
+    result = {
+        "ok": True,
+        "type": "discord_roles",
+        "key": snapshot["key"],
+        "created_at": serialize_mongo(snapshot["created_at"]),
+        "user_id": snapshot["user_id"],
+        "source_user_id": snapshot["source_user_id"],
+        "target_user_id": snapshot["target_user_id"],
+        "role_ids": snapshot["role_ids"],
+        "bot": bot_result,
+    }
+
+    get_db("Website")["backup_restores"].insert_one({
+        "backup_key": snapshot["key"],
+        "backup_created_at": snapshot["created_at"],
+        "user_id": snapshot["target_user_id"],
+        "source_user_id": snapshot["source_user_id"],
+        "target_user_id": snapshot["target_user_id"],
+        "actor_id": session.get("discord_id"),
+        "actor_username": session.get("username"),
+        "restore_type": "discord_roles",
+        "role_ids": snapshot["role_ids"],
+        "bot_result": serialize_mongo(bot_result),
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    return result
+
+
+def _backup_list_objects() -> list[dict]:
+    s3 = _backup_s3_client()
+    backups = []
+    for prefix in (f"{BACKUP_DB_PREFIX}/", f"{BACKUP_DISCORD_PREFIX}/"):
+        continuation_token = None
+        while True:
+            kwargs = {"Bucket": BACKUP_R2_BUCKET, "Prefix": prefix, "MaxKeys": 1000}
+            if continuation_token:
+                kwargs["ContinuationToken"] = continuation_token
+            response = s3.list_objects_v2(**kwargs)
+            for obj in response.get("Contents", []) or []:
+                key = obj.get("Key", "")
+                key_type = _backup_key_type(key)
+                if not key_type:
+                    continue
+                created_at = _backup_parse_timestamp(key)
+                backups.append({
+                    "key": key,
+                    "type": key_type,
+                    "name": key.split("/")[-1],
+                    "size_bytes": obj.get("Size", 0),
+                    "size_mb": round((obj.get("Size", 0) or 0) / (1024 * 1024), 2),
+                    "last_modified": serialize_mongo(obj.get("LastModified")),
+                    "created_at": serialize_mongo(created_at),
+                    "date": created_at.date().isoformat() if created_at else None,
+                })
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+            if not continuation_token:
+                break
+
+    backups.sort(key=lambda row: row.get("created_at") or row.get("last_modified") or "", reverse=True)
+    return backups
+
+
+def _backup_restore_selected_fields(
+    key: str,
+    user_id: str,
+    selections: dict,
+    target_user_id: str | None = None,
+) -> dict:
+    source_user_id = str(user_id or "").strip()
+    target_user_id = str(target_user_id or source_user_id).strip()
+    cleaned = _backup_normalize_restore_selections(selections)
+    if not cleaned:
+        raise ValueError("Select at least one restorable field.")
+
+    extracted = _backup_extract_user_documents(key, source_user_id, list(cleaned.keys()), target_user_id)
+    updates = []
+
+    for spec_id, field_modes in cleaned.items():
+        row = extracted["docs"].get(spec_id, {})
+        spec = row.get("spec") or BACKUP_COLLECTION_SPEC_BY_ID[spec_id]
+        backup_doc = row.get("backup_doc")
+        live_doc = row.get("live_doc")
+        query = _backup_user_query(spec, target_user_id)
+
+        if not query or not backup_doc:
+            updates.append({
+                "section": spec_id,
+                "label": spec["label"],
+                "status": "skipped",
+                "reason": "No matching document found in backup.",
+            })
+            continue
+
+        set_values = {}
+        before_values = {}
+        restored_values = {}
+        skipped_fields = []
+        operations = {}
+        operation_details = {}
+        recalculate_level_from_added_xp = False
+
+        for field, mode in field_modes.items():
+            if not _backup_has_field(backup_doc, field):
+                skipped_fields.append(field)
+                continue
+
+            backup_value = _backup_get_field(backup_doc, field)
+            live_value = _backup_get_field(live_doc, field)
+            before_values[field] = _backup_get_field(live_doc, field)
+
+            if mode == "add":
+                try:
+                    backup_number = _backup_numeric_value(backup_value)
+                    live_number = _backup_numeric_value(live_value, 0)
+                except (TypeError, ValueError):
+                    skipped_fields.append(field)
+                    continue
+
+                new_value = live_number + backup_number
+                set_values[field] = new_value
+                restored_values[field] = new_value
+                operations[field] = "add"
+                operation_details[field] = {
+                    "mode": "add",
+                    "backup_value": backup_value,
+                    "live_value": live_value,
+                    "new_value": new_value,
+                }
+                if spec_id == "level" and field == "xp":
+                    recalculate_level_from_added_xp = True
+            else:
+                set_values[field] = backup_value
+                restored_values[field] = backup_value
+                operations[field] = "replace"
+
+        if spec_id == "level" and recalculate_level_from_added_xp and "xp" in set_values:
+            new_level = _backup_level_from_total_xp(set_values["xp"])
+            set_values["level"] = new_level
+            before_values.setdefault("level", _backup_get_field(live_doc, "level"))
+            restored_values["level"] = new_level
+            operations["level"] = "recalculate_from_added_xp"
+            operation_details["level"] = {
+                "mode": "recalculate_from_added_xp",
+                "xp": set_values["xp"],
+                "new_value": new_level,
+            }
+
+        if not set_values:
+            updates.append({
+                "section": spec_id,
+                "label": spec["label"],
+                "status": "skipped",
+                "reason": "Selected fields were not present in backup.",
+                "skipped_fields": skipped_fields,
+            })
+            continue
+
+        collection = get_db(spec["source_db"])[spec["source_collection"]]
+        result = collection.update_one(query, {"$set": set_values}, upsert=True)
+        updates.append({
+            "section": spec_id,
+            "label": spec["label"],
+            "source": f"{spec['source_db']}.{spec['source_collection']}",
+            "status": "restored",
+            "fields": list(set_values.keys()),
+            "field_labels": {
+                field: spec["restore_fields"].get(field, field)
+                for field in set_values.keys()
+            },
+            "skipped_fields": skipped_fields,
+            "matched_count": result.matched_count,
+            "modified_count": result.modified_count,
+            "upserted_id": str(result.upserted_id) if result.upserted_id is not None else None,
+            "before": _backup_trim_value(before_values),
+            "restored": _backup_trim_value(restored_values),
+            "operations": operations,
+            "operation_details": _backup_trim_value(operation_details),
+        })
+
+    get_db("Website")["backup_restores"].insert_one({
+        "backup_key": extracted["key"],
+        "backup_created_at": extracted["created_at"],
+        "user_id": target_user_id,
+        "source_user_id": source_user_id,
+        "target_user_id": target_user_id,
+        "actor_id": session.get("discord_id"),
+        "actor_username": session.get("username"),
+        "selections": cleaned,
+        "updates": serialize_mongo(updates),
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    return {
+        "ok": True,
+        "key": extracted["key"],
+        "user_id": target_user_id,
+        "source_user_id": source_user_id,
+        "target_user_id": target_user_id,
+        "updates": updates,
+    }
 
 
 
@@ -3136,9 +4383,15 @@ def won_giveaways():
     client = get_db()
     col = client["Giveaway"]["current_giveaways"]
 
+    winner_match = [str(discord_id)]
+    try:
+        winner_match.append(int(discord_id))
+    except (TypeError, ValueError):
+        pass
+
     query = {
         "ended": True,
-        "winners": {"$in": [discord_id]}
+        "winners": {"$in": winner_match}
     }
 
     total = col.count_documents(query)
@@ -3381,6 +4634,153 @@ def admin_panel():
     return render_template("admin.html", year=datetime.now().year)
 
 
+@app.route("/admin/backups")
+def admin_backups():
+    if "discord_id" not in session or not is_admin():
+        return "Unauthorized", 403
+    return render_template(
+        "admin_backups.html",
+        year=datetime.now().year,
+        backup_bucket=BACKUP_R2_BUCKET,
+        mongorestore_available=bool(_backup_mongorestore_path()),
+    )
+
+
+@app.get("/api/admin/backups")
+def api_admin_backups_list():
+    if "discord_id" not in session or not is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+    try:
+        return jsonify({
+            "ok": True,
+            "bucket": BACKUP_R2_BUCKET,
+            "mongorestore_available": bool(_backup_mongorestore_path()),
+            "backups": _backup_list_objects(),
+        })
+    except Exception as e:
+        app.logger.exception("Failed to list backups")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/admin/backups/inspect")
+def api_admin_backups_inspect():
+    if "discord_id" not in session or not is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    target_user_id = str(data.get("target_user_id") or user_id).strip()
+    backup_type = _backup_key_type(key)
+
+    try:
+        if backup_type == "database":
+            if not user_id:
+                return jsonify({"error": "Enter a Discord user ID before inspecting a database backup."}), 400
+            return jsonify(_backup_database_inspect_payload(key, user_id, target_user_id))
+        if backup_type == "discord":
+            return jsonify(_backup_discord_inspect_payload(key, user_id or None, target_user_id or None))
+        return jsonify({"error": "Unsupported backup key."}), 400
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        app.logger.exception("Failed to inspect backup %s", key)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/admin/backups/inspect/start")
+def api_admin_backups_inspect_start():
+    if "discord_id" not in session or not is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    target_user_id = str(data.get("target_user_id") or user_id).strip()
+    backup_type = _backup_key_type(key)
+
+    if backup_type != "database":
+        return jsonify({"error": "Background inspection is only needed for database backups."}), 400
+    if not user_id:
+        return jsonify({"error": "Enter a Discord user ID before inspecting a database backup."}), 400
+
+    try:
+        _backup_validate_key(key, "database")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    job = _backup_start_job(
+        "database_inspect",
+        "Queued database backup inspection...",
+        lambda update: (
+            update("Downloading and restoring database backup...") or _backup_database_inspect_payload(key, user_id, target_user_id)
+        ),
+    )
+    return jsonify(job)
+
+
+@app.get("/api/admin/backups/jobs/<job_id>")
+def api_admin_backups_job(job_id):
+    if "discord_id" not in session or not is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    job = _backup_public_job(job_id)
+    if not job:
+        return jsonify({"error": "Backup job expired or was not found."}), 404
+    return jsonify(job)
+
+
+@app.post("/api/admin/backups/restore")
+def api_admin_backups_restore():
+    if "discord_id" not in session or not is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    target_user_id = str(data.get("target_user_id") or user_id).strip()
+    selections = data.get("selections") or {}
+    confirm = (data.get("confirm") or "").strip()
+
+    if confirm != "RESTORE":
+        return jsonify({"error": "Type RESTORE to confirm the selected field restore."}), 400
+    if not user_id:
+        return jsonify({"error": "Missing user ID."}), 400
+
+    try:
+        return jsonify(_backup_restore_selected_fields(key, user_id, selections, target_user_id))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        app.logger.exception("Failed to restore from backup %s for user %s", key, user_id)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/admin/backups/restore-discord-roles")
+def api_admin_backups_restore_discord_roles():
+    if "discord_id" not in session or not is_admin():
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    key = (data.get("key") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    target_user_id = str(data.get("target_user_id") or user_id).strip()
+    confirm = (data.get("confirm") or "").strip()
+
+    if confirm != "RESTORE ROLES":
+        return jsonify({"error": "Type RESTORE ROLES to confirm Discord role restore."}), 400
+    if not user_id:
+        return jsonify({"error": "Missing user ID."}), 400
+
+    try:
+        return jsonify(_backup_restore_discord_roles(key, user_id, target_user_id))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        app.logger.exception("Failed to restore Discord roles from backup %s for user %s", key, user_id)
+        return jsonify({"error": str(e)}), 500
+
+
 
 @csrf.exempt
 @app.post("/easter/track")
@@ -3571,6 +4971,34 @@ def admin_easter_mark_delivered():
         ok=True,
         delivered_by=session.get("display_name") or session.get("username") or session.get("discord_id"),
         delivered_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    )
+
+@app.route("/summer", methods=["GET", "POST"])
+def summer_event_page():
+    access_error = None
+
+    if request.args.get("reset") == "1":
+        session.pop("summer_event_access", None)
+        return redirect(url_for("summer_event_page"))
+
+    if request.method == "POST":
+        submitted_code = (request.form.get("access_code") or "").strip().lower()
+        if secrets.compare_digest(submitted_code, SUMMER_EVENT_ACCESS_CODE):
+            session["summer_event_access"] = True
+            return redirect(url_for("summer_event_page"))
+        access_error = "That code did not open the beach gate."
+
+    return render_template(
+        "summer_event.html",
+        summer_event=SUMMER_EVENT,
+        has_access=bool(session.get("summer_event_access")),
+        access_error=access_error,
+        meta=page_meta(
+            title=SUMMER_EVENT["title"],
+            description=SUMMER_EVENT["subtitle"],
+            image=url_for("static", filename="img/summer/beach-bg.png", _external=True),
+            url=url_for("summer_event_page", _external=True),
+        ),
     )
 
 @csrf.exempt
@@ -3843,17 +5271,31 @@ def admin_competition():
     client = get_db()
     db = client["Website"]
     entries = list(db["CompEntries"].find({"comp_id": comp_id}).sort("created_at", -1))
-    vote_counts = _vote_counts_for(comp_id, client)  # 鈫?reuse
+    vote_counts = _vote_counts_for(comp_id, client)
 
-    # Optional: label "who submitted" via your usernames cache
     ids = [str(e.get("user_id")) for e in entries if e.get("user_id")]
     users = list(db["usernames"].find({"_id": {"$in": ids}}))
     user_map = {u["_id"]: u for u in users}
+    bans = list(db["CompSubmissionBans"].find({"comp_id": comp_id}).sort("banned_at", -1))
+    ban_map = {str(b.get("user_id")): b for b in bans if b.get("user_id")}
+    month_options = sorted(
+        set(db["CompEntries"].distinct("comp_id") + db["CompSubmissionBans"].distinct("comp_id") + [comp_id]),
+        reverse=True,
+    )
+    stats = {
+        "entries": len(entries),
+        "submitters": len(set(ids)),
+        "votes": sum(vote_counts.values()),
+        "bans": len(bans),
+    }
 
     return render_template("admin_competition.html",
                            comp_id=comp_id, phase=phase,
                            entries=entries, vote_counts=vote_counts,
-                           user_map=user_map)
+                           user_map=user_map, ban_map=ban_map,
+                           bans=bans, stats=stats,
+                           month_options=month_options,
+                           moderation_reasons=COMP_MODERATION_REASONS)
 
 @csrf.exempt
 @app.post("/admin/competition/caption/<entry_id>")
@@ -3875,10 +5317,232 @@ def admin_competition_delete(entry_id):
     if not is_staff():
         return "Unauthorized", 403
     db = get_db("Website")
-    db["CompEntries"].delete_one({"_id": ObjectId(entry_id)})
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return "Invalid entry id", 400
+    entry = db["CompEntries"].find_one({"_id": oid})
+    if not entry:
+        flash("Entry was already deleted.", "warning")
+        return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
+    comp_id = entry.get("comp_id") or request.args.get("comp_id")
+    db["CompEntries"].delete_one({"_id": oid})
     db["CompVotes"].delete_many({"entry_id": entry_id})
+    if comp_id:
+        _competition_clear_results_cache(comp_id)
     flash("Entry deleted (votes removed).", "success")
-    return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
+    return redirect(url_for("admin_competition", comp_id=comp_id))
+
+
+@csrf.exempt
+@app.post("/admin/competition/moderate/<entry_id>")
+def admin_competition_moderate(entry_id):
+    if not is_staff():
+        return "Unauthorized", 403
+
+    db = get_db("Website")
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return "Invalid entry id", 400
+
+    entry = db["CompEntries"].find_one({"_id": oid})
+    if not entry:
+        flash("Entry was already deleted.", "warning")
+        return redirect(url_for("admin_competition", comp_id=request.args.get("comp_id")))
+
+    comp_id = str(entry.get("comp_id") or request.args.get("comp_id") or _phase_today()[1])
+    user_id = str(entry.get("user_id") or "").strip()
+    if not user_id:
+        flash("Entry has no user id, so it cannot be monthly-banned.", "error")
+        return redirect(url_for("admin_competition", comp_id=comp_id))
+
+    reason_code = (request.form.get("reason_code") or "other").strip()
+    if reason_code not in COMP_MODERATION_REASONS:
+        reason_code = "other"
+    staff_note = (request.form.get("staff_note") or "").strip()[:500]
+    reason = COMP_MODERATION_REASONS[reason_code]
+    if staff_note:
+        reason = f"{reason} Staff note: {staff_note}"
+
+    now = datetime.now(timezone.utc)
+    actor_id = str(session.get("discord_id") or "")
+    actor_name = session.get("username") or session.get("display_name") or "Website Staff"
+
+    removed_entries = list(db["CompEntries"].find({"comp_id": comp_id, "user_id": user_id}))
+    if not removed_entries:
+        removed_entries = [entry]
+    removed_entry_ids = [str(e["_id"]) for e in removed_entries if e.get("_id")]
+    primary_entry = entry
+
+    moderation_doc = {
+        "comp_id": comp_id,
+        "user_id": user_id,
+        "reason_code": reason_code,
+        "reason": reason,
+        "staff_note": staff_note,
+        "removed_entries": removed_entries,
+        "removed_entry_ids": removed_entry_ids,
+        "primary_image_url": primary_entry.get("image_url", ""),
+        "primary_caption": primary_entry.get("caption", ""),
+        "created_at": now,
+        "created_by": actor_id,
+        "created_by_name": actor_name,
+    }
+    moderation_id = db["CompModerationActions"].insert_one(moderation_doc).inserted_id
+
+    revoke_result = {
+        "revoked": False,
+        "amount": 0,
+        "balance_after": None,
+        "claim_id": _competition_reward_claim_id(comp_id, user_id, "submit"),
+    }
+    if user_id.isdigit():
+        revoke_result = _competition_revoke_submit_reward(
+            comp_id,
+            user_id,
+            entry_id=str(primary_entry["_id"]),
+            moderation_id=moderation_id,
+        )
+
+    votes_removed = 0
+    for removed_entry_id in removed_entry_ids:
+        votes_removed += db["CompVotes"].delete_many({
+            "comp_id": comp_id,
+            "entry_id": removed_entry_id,
+        }).deleted_count
+
+    db["CompEntries"].delete_many({"comp_id": comp_id, "user_id": user_id})
+    _competition_clear_results_cache(comp_id)
+
+    ban_doc = {
+        "comp_id": comp_id,
+        "user_id": user_id,
+        "reason_code": reason_code,
+        "reason": reason,
+        "staff_note": staff_note,
+        "image_url": primary_entry.get("image_url", ""),
+        "caption": primary_entry.get("caption", ""),
+        "entry_id": str(primary_entry["_id"]),
+        "removed_entry_ids": removed_entry_ids,
+        "banned_at": now,
+        "banned_by": actor_id,
+        "banned_by_name": actor_name,
+        "moderation_id": str(moderation_id),
+        "reward_revoked": bool(revoke_result["revoked"]),
+        "revoke_amount": int(revoke_result["amount"]),
+        "balance_after_revoke": revoke_result["balance_after"],
+        "votes_removed": votes_removed,
+        "warning_status": "pending",
+    }
+    db["CompSubmissionBans"].update_one(
+        {"_id": _competition_ban_id(comp_id, user_id)},
+        {"$set": ban_doc, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+
+    warning_message = (
+        f"Your Farm Design Contest submission for {comp_id} was removed. "
+        f"{reason} You cannot submit again during this contest month."
+    )
+    if revoke_result["revoked"]:
+        warning_message += f" The {revoke_result['amount']:,} server coin submission reward was removed from your balance."
+
+    bot_payload = {
+        "type": "competition_submission_moderation",
+        "user_id": user_id,
+        "comp_id": comp_id,
+        "entry_id": str(primary_entry["_id"]),
+        "moderation_id": str(moderation_id),
+        "reason_code": reason_code,
+        "reason": reason,
+        "caption": primary_entry.get("caption", ""),
+        "image_url": primary_entry.get("image_url", ""),
+        "message": warning_message,
+        "reward_revoked": bool(revoke_result["revoked"]),
+        "revoke_amount": int(revoke_result["amount"]),
+        "balance_after_revoke": revoke_result["balance_after"],
+        "moderator_id": actor_id,
+        "moderator_name": actor_name,
+    }
+    notify_result = _competition_notify_bot_moderation(bot_payload)
+    warning_update = {
+        "warning_status": "sent" if notify_result.get("ok") else "failed",
+        "warning_result": notify_result,
+        "warning_checked_at": datetime.now(timezone.utc),
+    }
+    if notify_result.get("ok"):
+        warning_update["warning_sent_at"] = datetime.now(timezone.utc)
+    db["CompSubmissionBans"].update_one(
+        {"_id": _competition_ban_id(comp_id, user_id)},
+        {"$set": warning_update},
+    )
+    db["CompModerationActions"].update_one(
+        {"_id": moderation_id},
+        {"$set": {
+            "revoke_result": revoke_result,
+            "votes_removed": votes_removed,
+            "bot_payload": bot_payload,
+            "bot_notify_result": notify_result,
+        }},
+    )
+
+    coin_text = (
+        f" Removed {revoke_result['amount']:,} coins; new balance {revoke_result['balance_after']:,}."
+        if revoke_result["revoked"]
+        else " No submit reward had been claimed, so no coins were removed."
+    )
+    warn_text = " Discord warning sent." if notify_result.get("ok") else f" Discord warning failed: {notify_result.get('error', 'unknown error')}"
+    flash(f"Submission removed and user banned for {comp_id}.{coin_text}{warn_text}", "success" if notify_result.get("ok") else "warning")
+    return redirect(url_for("admin_competition", comp_id=comp_id))
+
+
+@csrf.exempt
+@app.post("/admin/competition/unban/<user_id>")
+def admin_competition_unban(user_id):
+    if not is_staff():
+        return "Unauthorized", 403
+
+    comp_id = str(request.form.get("comp_id") or request.args.get("comp_id") or _phase_today()[1])
+    user_id = str(user_id or "").strip()
+    if not user_id:
+        return "Missing user id", 400
+
+    db = get_db("Website")
+    ban_id = _competition_ban_id(comp_id, user_id)
+    ban = db["CompSubmissionBans"].find_one({"_id": ban_id})
+    if not ban:
+        flash("That user is not banned for this competition month.", "warning")
+        return redirect(url_for("admin_competition", comp_id=comp_id))
+
+    now = datetime.now(timezone.utc)
+    actor_id = str(session.get("discord_id") or "")
+    actor_name = session.get("username") or session.get("display_name") or "Website Staff"
+
+    reward_claim_reset = False
+    claim_id = _competition_reward_claim_id(comp_id, user_id, "submit")
+    if ban.get("reward_revoked"):
+        claim = db["CompRewardClaims"].find_one({"_id": claim_id}, {"revoked_at": 1})
+        if claim and claim.get("revoked_at"):
+            db["CompRewardClaims"].delete_one({"_id": claim_id})
+            reward_claim_reset = True
+
+    db["CompModerationActions"].insert_one({
+        "type": "ban_lift",
+        "comp_id": comp_id,
+        "user_id": user_id,
+        "ban_id": ban_id,
+        "ban_snapshot": ban,
+        "reward_claim_reset": reward_claim_reset,
+        "created_at": now,
+        "created_by": actor_id,
+        "created_by_name": actor_name,
+    })
+    db["CompSubmissionBans"].delete_one({"_id": ban_id})
+
+    reward_text = " Their submit reward eligibility was reset." if reward_claim_reset else ""
+    flash(f"Monthly competition ban removed for user {user_id}.{reward_text}", "success")
+    return redirect(url_for("admin_competition", comp_id=comp_id))
 
 @app.route("/api/live-auctions")
 def live_auctions():
@@ -4136,6 +5800,9 @@ def handle_scanner_protection():
     internal_ip = request.remote_addr
     path = request.path.lower()
     now = time.time()
+
+    if any(path.startswith(prefix) for prefix in SCANNER_EXEMPT_PREFIXES):
+        return
 
     # Load banned IPs from MongoDB once
     global banned_ips_loaded, BANNED_IPS, BANNED_IPS_LOADED_AT
@@ -4638,6 +6305,14 @@ INTERNAL_STAT_MAX = 100
 NEGLECT_VISIBLE_AVG_THRESHOLD = 10
 RECOVERY_VISIBLE_AVG_THRESHOLD = 30
 NEGLECT_ITEM_LOSS_EVERY_DAYS = 7
+CARE_ACTION_COIN_REWARDS = {
+    "feed": (50, 80),
+    "play": (60, 100),
+    "clean": (65, 110),
+}
+CARE_ACTION_LEVEL_BONUS_BY_LEVEL = {1: 0, 5: 40, 10: 100, 20: 195}
+PET_XP_TREAT_XP = 39
+STARTER_CONSUMABLES = ["pet_snack", "toy_ball", "bubble_bath"]
 
 PET_STARTERS = {
     "cat": {"name": "Cat", "emoji": "🐱", "subtitle": "A sleepy barn sweetheart."},
@@ -4651,16 +6326,16 @@ BOOST_SHOP = {
     "daily_coin_chip": {
         "name": "Daily Coin Chip",
         "price": 40000,
-        "description": "Adds bonus coins to /daily while active.",
+        "description": "Adds a meaningful coin bonus to /daily while active.",
         "bonus_type": "daily_coins_flat",
-        "bonus_by_level": {1: 10, 5: 20, 10: 35, 20: 50},
+        "bonus_by_level": {1: 165, 5: 325, 10: 585, 20: 975},
     },
     "daily_xp_chip": {
         "name": "Daily XP Chip",
         "price": 40000,
-        "description": "Adds bonus XP to /daily while active.",
+        "description": "Adds a meaningful XP bonus to /daily while active.",
         "bonus_type": "daily_xp_flat",
-        "bonus_by_level": {1: 10, 5: 20, 10: 35, 20: 50},
+        "bonus_by_level": {1: 35, 5: 65, 10: 115, 20: 195},
     },
     "bee_hunt_chip": {
         "name": "Bee Hunt Chip",
@@ -4674,31 +6349,20 @@ BOOST_SHOP = {
         "price": 40000,
         "description": "Adds passive message coins while active with a separate daily cap.",
         "bonus_type": "message_income_flat",
-        "bonus_by_level": {1: 1, 5: 2, 10: 3, 20: 4},
-        "cap_by_level": {1: 120, 5: 180, 10: 260, 20: 350},
+        "bonus_by_level": {1: 1, 5: 2, 10: 3, 20: 5},
+        "cap_by_level": {1: 165, 5: 295, 10: 490, 20: 715},
     },
 }
 
 PETSHOP_ITEMS = {
-    "daily_coin_chip": {"name": "Daily Coin Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus /daily coins based on pet level."},
-    "daily_xp_chip": {"name": "Daily XP Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus /daily XP based on pet level."},
-    "bee_hunt_chip": {"name": "Bee Hunt Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds bonus Bee Hunt coins based on pet level."},
-    "message_income_chip": {"name": "Message Income Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds +1/+2/+3/+4 passive message coins by pet level with a separate 120/180/260/350 daily cap."},
+    "daily_coin_chip": {"name": "Daily Coin Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds +165/+325/+585/+975 coins to /daily by pet level."},
+    "daily_xp_chip": {"name": "Daily XP Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds +35/+65/+115/+195 XP to /daily by pet level."},
+    "bee_hunt_chip": {"name": "Bee Hunt Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds +20%/+30%/+45%/+60% Bee Hunt coins by pet level."},
+    "message_income_chip": {"name": "Message Income Chip", "price": 40000, "type": "boost", "description": "Equippable boost. Adds +1/+2/+3/+5 passive message coins with a 165/295/490/715 daily cap."},
     "pet_snack": {"name": "Pet Snack", "price": 800, "type": "consumable", "description": "One-time use. Gives +25 Hunger. Does not give Pet XP."},
     "toy_ball": {"name": "Toy Ball", "price": 1200, "type": "consumable", "description": "One-time use. Gives +25 Happiness. Does not give Pet XP."},
     "bubble_bath": {"name": "Bubble Bath", "price": 1500, "type": "consumable", "description": "One-time use. Gives +30 Cleanliness. Does not give Pet XP."},
-    "pet_xp_treat": {"name": "Pet XP Treat", "price": 5000, "type": "consumable", "description": "One-time use. Gives +25 Pet XP only."},
-    "red_bow": {"name": "Red Bow", "price": 8000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
-    "farmer_hat": {"name": "Farmer Hat", "price": 12000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
-    "flower_crown": {"name": "Flower Crown", "price": 15000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
-    "scholar_glasses": {"name": "Scholar Glasses", "price": 22000, "type": "cosmetic", "description": "Cosmetic only. No gameplay bonus."},
-}
-
-PET_COSMETIC_META = {
-    "red_bow": {"emoji": "🎀", "slot": "head", "asset": "red_bow", "asset_ext": "png", "fallback_asset": "red_bow.svg"},
-    "farmer_hat": {"emoji": "👒", "slot": "head", "asset": "farmer_hat", "asset_ext": "png", "fallback_asset": "farmer_hat.svg"},
-    "flower_crown": {"emoji": "🌸", "slot": "head", "asset": "flower_crown", "asset_ext": "png", "fallback_asset": "flower_crown.svg"},
-    "scholar_glasses": {"emoji": "👓", "slot": "face", "asset": "scholar_glasses", "asset_ext": "png", "fallback_asset": "scholar_glasses.svg"},
+    "pet_xp_treat": {"name": "Pet XP Treat", "price": 5000, "type": "consumable", "description": "One-time use. Gives +39 Pet XP only."},
 }
 
 CONSUMABLE_CAPS = {
@@ -4797,7 +6461,7 @@ def _pet_default(pet_type: str, name: str | None = None) -> dict:
         "hotel_until": None,
         "owned_boosts": [],
         "owned_cosmetics": [],
-        "owned_consumables": [],
+        "owned_consumables": list(STARTER_CONSUMABLES),
         "consumable_daily_uses": {},
         "active_boost_key": None,
         "boost_switch_locked_until": None,
@@ -4805,6 +6469,12 @@ def _pet_default(pet_type: str, name: str | None = None) -> dict:
         "neglected_penalty_weeks_applied": 0,
         "equipped_cosmetics": [],
         "web_style": {"accent_color": "strawberry"},
+        "action_alert_state": {
+            "feed": True,
+            "play": True,
+            "clean": True,
+            "clean_tray": True,
+        },
     }
 
 
@@ -4845,6 +6515,8 @@ def _pet_release_hotel(pet: dict, now: datetime | None = None, force: bool = Fal
     pet["hotel_until"] = None
     pet["neglected_since"] = None
     pet["neglected_penalty_weeks_applied"] = 0
+    pet["last_pet_care_alert_at"] = None
+    _pet_sync_action_alert_state(pet, now)
     return True
 
 
@@ -4892,6 +6564,18 @@ def _pet_get_boost_value(boost_key: str, level: int) -> int:
     return best
 
 
+def _pet_get_boost_cap(boost_key: str, level: int) -> int:
+    boost = BOOST_SHOP.get(boost_key)
+    if not boost:
+        return 0
+
+    best = 0
+    for req_level in sorted(boost.get("cap_by_level", {}).keys()):
+        if int(level) >= req_level:
+            best = boost["cap_by_level"][req_level]
+    return best
+
+
 def _pet_boost_label(boost_key: str, pet_level: int) -> str:
     boost = BOOST_SHOP[boost_key]
     value = _pet_get_boost_value(boost_key, pet_level)
@@ -4902,12 +6586,23 @@ def _pet_boost_label(boost_key: str, pet_level: int) -> str:
     if boost["bonus_type"] == "bee_hunt_coins_pct":
         return f"+{value}% Bee Hunt coins"
     if boost["bonus_type"] == "message_income_flat":
-        cap = 0
-        for req_level in sorted(boost.get("cap_by_level", {}).keys()):
-            if int(pet_level) >= req_level:
-                cap = boost["cap_by_level"][req_level]
-        return f"+{value} message coins | cap {cap}/day"
+        cap = _pet_get_boost_cap(boost_key, pet_level)
+        return f"+{value} Message coins ({cap}/day cap)"
     return "Unknown boost"
+
+
+def _pet_effective_multiplier_from_state(pet: dict) -> float:
+    if _pet_is_neglected(pet):
+        return 0.0
+
+    avg = _pet_visible_average_stats(pet)
+    if avg < 30:
+        return 0.30
+    if avg < 50:
+        return 0.60
+    if avg < 70:
+        return 0.80
+    return 1.00
 
 
 def _pet_care_effectiveness_multiplier(stat_value: int) -> float:
@@ -4920,31 +6615,95 @@ def _pet_care_effectiveness_multiplier(stat_value: int) -> float:
 
 def _pet_clean_tray_rewards(pet_level: int) -> tuple[int, int]:
     if pet_level >= 20:
-        return 400, 175
+        return 1040, 295
     if pet_level >= 10:
-        return 300, 150
+        return 650, 195
     if pet_level >= 5:
-        return 225, 125
-    return 175, 100
+        return 425, 130
+    return 260, 100
 
 
 def _pet_level_up_reward(pet_level: int) -> tuple[int, int]:
     if pet_level >= 20:
-        return 2700, 450
+        return 5850, 975
     if pet_level >= 15:
-        return 1800, 300
+        return 3575, 585
     if pet_level >= 10:
-        return 1200, 225
+        return 2275, 390
     if pet_level >= 5:
-        return 750, 150
-    return 450, 105
+        return 1300, 195
+    return 650, 105
 
 
 def _pet_clean_tray_ready_at(pet: dict) -> datetime | None:
+    if _pet_is_in_hotel(pet):
+        return None
     last_collected = pet.get("last_clean_tray_at")
     if not isinstance(last_collected, datetime):
         return None
     return last_collected + timedelta(hours=CLEAN_TRAY_INTERVAL_HOURS)
+
+
+def _pet_scaled_level_bonus(table: dict[int, int], level: int) -> int:
+    best = 0
+    for req_level in sorted(table.keys()):
+        if int(level) >= req_level:
+            best = int(table[req_level])
+    return best
+
+
+def _pet_care_action_coin_reward(pet: dict, action: str) -> int:
+    if _pet_is_neglected(pet) or _pet_is_in_hotel(pet):
+        return 0
+
+    reward_range = CARE_ACTION_COIN_REWARDS.get(action)
+    if not reward_range:
+        return 0
+
+    base = random.randint(reward_range[0], reward_range[1])
+    level_bonus = _pet_scaled_level_bonus(
+        CARE_ACTION_LEVEL_BONUS_BY_LEVEL,
+        int(pet.get("level", 1)),
+    )
+    amount = base + level_bonus
+    return int(amount * _pet_effective_multiplier_from_state(pet))
+
+
+def _pet_grant_care_action_coin_reward(user_id: int, pet: dict, action: str) -> int:
+    coins = _pet_care_action_coin_reward(pet, action)
+    if coins <= 0:
+        return 0
+
+    _pet_users_col().update_one({"_id": int(user_id)}, {"$inc": {"coins": int(coins)}})
+    return coins
+
+
+def _pet_care_reward_preview(pet: dict) -> dict:
+    if _pet_is_in_hotel(pet):
+        return {"rows": [], "note": "Paused while your pet is in the hotel."}
+    if _pet_is_neglected(pet):
+        return {"rows": [], "note": "Recover your pet above neglect range to earn care coins again."}
+
+    level_bonus = _pet_scaled_level_bonus(
+        CARE_ACTION_LEVEL_BONUS_BY_LEVEL,
+        int(pet.get("level", 1)),
+    )
+    multiplier = _pet_effective_multiplier_from_state(pet)
+    labels = {
+        "feed": "Feed",
+        "play": "Play",
+        "clean": "Clean",
+    }
+
+    rows = []
+    for action, label in labels.items():
+        low, high = CARE_ACTION_COIN_REWARDS[action]
+        low_amt = int((low + level_bonus) * multiplier)
+        high_amt = int((high + level_bonus) * multiplier)
+        rows.append({"label": label, "amount": f"{low_amt}-{high_amt} coins"})
+
+    note = "Better condition raises these rewards." if multiplier < 1 else None
+    return {"rows": rows, "note": note}
 
 
 def _pet_clean_tray_status_text(pet: dict) -> str:
@@ -5173,19 +6932,20 @@ def _pet_load_user(user_id: int):
         if "hotel_until" not in pet:
             pet["hotel_until"] = None
             changed = True
+        if not isinstance(pet.get("action_alert_state"), dict):
+            _pet_sync_action_alert_state(pet)
+            changed = True
         if not isinstance(pet.get("web_style"), dict):
             pet["web_style"] = {"accent_color": "strawberry"}
             changed = True
         elif pet["web_style"].get("accent_color") not in {sw["key"] for sw in PET_STYLE_SWATCHES}:
             pet["web_style"]["accent_color"] = "strawberry"
             changed = True
-        valid_cosmetics = [key for key in pet.get("owned_cosmetics", []) if key in PETSHOP_ITEMS and PETSHOP_ITEMS[key]["type"] == "cosmetic"]
-        if valid_cosmetics != list(pet.get("owned_cosmetics", [])):
-            pet["owned_cosmetics"] = valid_cosmetics
+        if pet.get("owned_cosmetics"):
+            pet["owned_cosmetics"] = []
             changed = True
-        valid_equipped = [key for key in pet.get("equipped_cosmetics", []) if key in valid_cosmetics and key in PET_COSMETIC_META]
-        if valid_equipped != list(pet.get("equipped_cosmetics", [])):
-            pet["equipped_cosmetics"] = valid_equipped
+        if pet.get("equipped_cosmetics"):
+            pet["equipped_cosmetics"] = []
             changed = True
         if _pet_release_hotel(pet):
             changed = True
@@ -5200,18 +6960,6 @@ def _pet_load_user(user_id: int):
 
 def _pet_save(user_id: int, pet: dict):
     _pet_users_col().update_one({"_id": int(user_id)}, {"$set": {"pet": pet}}, upsert=True)
-
-
-def _pet_preview_cosmetics(pet: dict):
-    equipped = []
-    for key in pet.get("equipped_cosmetics", []):
-        if key not in PET_COSMETIC_META:
-            continue
-        item = dict(PETSHOP_ITEMS.get(key, {}))
-        item["key"] = key
-        item.update(PET_COSMETIC_META[key])
-        equipped.append(item)
-    return equipped
 
 
 def _pet_inventory_counts(items: list[str]):
@@ -5264,6 +7012,35 @@ def _pet_care_actions_state(pet: dict):
     return states
 
 
+def _pet_action_ready_state(pet: dict, now: datetime | None = None) -> dict[str, bool]:
+    now = now or _pet_now()
+
+    if _pet_is_in_hotel(pet, now):
+        return {
+            "feed": False,
+            "play": False,
+            "clean": False,
+            "clean_tray": False,
+        }
+
+    last_fed = pet.get("last_fed")
+    last_played = pet.get("last_played")
+    last_cleaned = pet.get("last_cleaned")
+    clean_tray_ready_at = _pet_clean_tray_ready_at(pet)
+    average_condition = _pet_visible_average_stats(pet)
+
+    return {
+        "feed": not isinstance(last_fed, datetime) or (now - last_fed) >= timedelta(hours=4),
+        "play": not isinstance(last_played, datetime) or (now - last_played) >= timedelta(hours=3),
+        "clean": not isinstance(last_cleaned, datetime) or (now - last_cleaned) >= timedelta(hours=6),
+        "clean_tray": average_condition >= CLEAN_TRAY_MIN_AVG and (clean_tray_ready_at is None or clean_tray_ready_at <= now),
+    }
+
+
+def _pet_sync_action_alert_state(pet: dict, now: datetime | None = None):
+    pet["action_alert_state"] = _pet_action_ready_state(pet, now)
+
+
 def _pet_context_from_doc(user_doc: dict):
     pet = user_doc.get("pet")
     coins = int(user_doc.get("coins", 0))
@@ -5272,10 +7049,8 @@ def _pet_context_from_doc(user_doc: dict):
         "coins": coins,
         "pet_items": PETSHOP_ITEMS,
         "pet_starters": PET_STARTERS,
-        "shop_categories": ("boost", "consumable", "cosmetic"),
+        "shop_categories": ("boost", "consumable"),
         "style_swatches": PET_STYLE_SWATCHES,
-        "equipped_cosmetic_items": [],
-        "owned_cosmetic_items": [],
         "owned_boost_items": [],
         "owned_consumable_items": [],
         "active_boost_name": None,
@@ -5304,6 +7079,7 @@ def _pet_context_from_doc(user_doc: dict):
         "clean_tray_status_label": None,
         "next_level_reward_text": None,
         "next_level_reward": None,
+        "care_reward_preview": {"rows": [], "note": None},
     }
 
     if not pet:
@@ -5317,7 +7093,6 @@ def _pet_context_from_doc(user_doc: dict):
     context["visible_cleanliness"] = _pet_visible_stat(int(pet.get("cleanliness", 100)))
     context["visible_average_condition"] = _pet_visible_average_stats(pet)
     context["consumable_counts"] = _pet_inventory_counts(pet.get("owned_consumables", []))
-    context["equipped_cosmetic_items"] = _pet_preview_cosmetics(pet)
     context["care_actions"] = _pet_care_actions_state(pet)
     clean_tray_coins, clean_tray_server_xp = _pet_clean_tray_rewards(int(pet.get("level", 1)))
     clean_tray_ready_at = _pet_clean_tray_ready_at(pet)
@@ -5328,6 +7103,7 @@ def _pet_context_from_doc(user_doc: dict):
     context["hotel_time_left"] = _pet_format_remaining(hotel_until - _pet_now()) if context["hotel_is_active"] and hotel_until else None
     context["hotel_status_text"] = _pet_hotel_status_text(pet)
     context["clean_tray_status_text"] = _pet_clean_tray_status_text(pet)
+    context["care_reward_preview"] = _pet_care_reward_preview(pet)
     context["clean_tray_rewards"] = {"coins": clean_tray_coins, "server_xp": clean_tray_server_xp}
     context["clean_tray_ready_at"] = clean_tray_ready_at
     context["clean_tray_is_ready"] = (
@@ -5346,17 +7122,6 @@ def _pet_context_from_doc(user_doc: dict):
     context["next_level_reward_text"] = _pet_level_up_reward_text(pet)
     next_reward_coins, next_reward_server_xp = _pet_level_up_reward(min(int(pet.get("level", 1)) + 1, 20))
     context["next_level_reward"] = {"coins": next_reward_coins, "server_xp": next_reward_server_xp}
-
-    owned_cosmetic_items = []
-    for key in pet.get("owned_cosmetics", []):
-        if key not in PETSHOP_ITEMS:
-            continue
-        item = dict(PETSHOP_ITEMS.get(key, {}))
-        item["key"] = key
-        item.update(PET_COSMETIC_META.get(key, {}))
-        item["equipped"] = key in pet.get("equipped_cosmetics", [])
-        owned_cosmetic_items.append(item)
-    context["owned_cosmetic_items"] = owned_cosmetic_items
 
     owned_boost_items = []
     for key in pet.get("owned_boosts", []):
@@ -5433,7 +7198,10 @@ def pet_adopt():
     pet = _pet_default(pet_type, custom_name or None)
     _pet_save(discord_id, pet)
     _pet_log(discord_id, "adopt", {"pet_name": pet["name"], "pet_type": pet["type"]})
-    flash(f"✅ You adopted {pet['emoji']} {pet['name']}.", "success")
+    flash(
+        f"✅ You adopted {pet['emoji']} {pet['name']}. Starter kit added: Pet Snack, Toy Ball, and Bubble Bath.",
+        "success",
+    )
     return _pet_flash_redirect()
 
 
@@ -5551,17 +7319,31 @@ def pet_care():
     pet[config["stat"]] = _pet_clamp_internal(int(pet.get(config["stat"], 100)) + gain)
     pet[config["field"]] = now
     _pet_normalize_neglect_state(pet)
+    _pet_sync_action_alert_state(pet, now)
     leveled = _pet_apply_xp(pet, xp_gain)
     reward_coins, reward_server_xp = _pet_grant_level_up_rewards(discord_id, pet, leveled)
+    care_coins = _pet_grant_care_action_coin_reward(discord_id, pet, action)
     _pet_save(discord_id, pet)
-    _pet_log(discord_id, action, {"gain": gain, "xp": xp_gain, "level_rewards_coins": reward_coins, "level_rewards_server_xp": reward_server_xp})
+    _pet_log(
+        discord_id,
+        action,
+        {
+            "gain": gain,
+            "xp": xp_gain,
+            "care_reward_coins": care_coins,
+            "level_rewards_coins": reward_coins,
+            "level_rewards_server_xp": reward_server_xp,
+        },
+    )
 
     level_line = ""
     if leveled:
         level_line = f" Your pet reached level {pet['level']}! +{reward_coins} coins and +{reward_server_xp} server XP."
+    care_reward_line = f" +{care_coins} coins." if care_coins > 0 else ""
+    recover_note = " It is still recovering from neglect." if _pet_is_neglected(pet) else ""
     message = (
         f"You {config['verb']} {pet['name']}. +{gain} {config['label']}. "
-        f"+{0 if _pet_is_neglected(pet) else xp_gain} Pet XP.{level_line}"
+        f"+{0 if _pet_is_neglected(pet) else xp_gain} Pet XP.{care_reward_line}{level_line}{recover_note}"
     )
     flash(message, "success")
     return _pet_flash_redirect()
@@ -5604,6 +7386,7 @@ def pet_clean_tray():
     _pet_add_server_xp(discord_id, server_xp)
 
     pet["last_clean_tray_at"] = now
+    _pet_sync_action_alert_state(pet, now)
     _pet_save(discord_id, pet)
     _pet_log(discord_id, "clean_tray_collect", {"coins": coins, "server_xp": server_xp, "pet_level": int(pet.get("level", 1))})
 
@@ -5651,9 +7434,10 @@ def pet_use_item():
         pet["cleanliness"] = _pet_clamp_internal(int(pet.get("cleanliness", 100)) + 30)
         message = f"✅ {pet['name']} feels fresh after Bubble Bath. +30 Cleanliness."
     elif item == "pet_xp_treat":
-        leveled = _pet_apply_xp(pet, 25)
+        xp_gain = PET_XP_TREAT_XP
+        leveled = _pet_apply_xp(pet, xp_gain)
         reward_coins, reward_server_xp = _pet_grant_level_up_rewards(discord_id, pet, leveled)
-        message = f"✅ {pet['name']} enjoyed a Pet XP Treat. +25 Pet XP."
+        message = f"✅ {pet['name']} enjoyed a Pet XP Treat. +{0 if _pet_is_neglected(pet) else xp_gain} Pet XP."
         if leveled:
             message += f" Your pet reached level {pet['level']}! +{reward_coins} coins and +{reward_server_xp} server XP."
     else:
@@ -5664,52 +7448,10 @@ def pet_use_item():
     pet["owned_consumables"] = owned
     _pet_increment_consumable_use(pet, item)
     _pet_normalize_neglect_state(pet)
+    _pet_sync_action_alert_state(pet)
     _pet_save(discord_id, pet)
     _pet_log(discord_id, "use_item", {"item": item})
     flash(message, "success")
-    return _pet_flash_redirect()
-
-
-@app.post("/profile/pet/cosmetic")
-def pet_toggle_cosmetic():
-    login_redirect = _pet_require_login()
-    if login_redirect:
-        return login_redirect
-
-    discord_id = int(session["discord_id"])
-    item_key = (request.form.get("item_key") or "").strip().lower()
-    user_doc = _pet_load_user(discord_id)
-    pet = user_doc.get("pet")
-    if not pet:
-        flash("❌ Adopt a pet first.", "error")
-        return _pet_flash_redirect()
-
-    if _pet_is_in_hotel(pet):
-        hotel_until = _pet_hotel_until(pet)
-        flash(f"❌ Boost changes are unavailable while {pet['name']} is in the hotel for {_pet_format_remaining(hotel_until - _pet_now())}.", "error")
-        return _pet_flash_redirect()
-
-    if item_key not in pet.get("owned_cosmetics", []):
-        flash("❌ You do not own that cosmetic.", "error")
-        return _pet_flash_redirect()
-    if item_key not in PET_COSMETIC_META:
-        flash("❌ That cosmetic cannot be previewed on web yet.", "error")
-        return _pet_flash_redirect()
-
-    equipped = list(pet.get("equipped_cosmetics", []))
-    if item_key in equipped:
-        equipped.remove(item_key)
-        pet["equipped_cosmetics"] = equipped
-        flash(f"✅ Removed {PETSHOP_ITEMS[item_key]['name']}.", "success")
-    else:
-        slot = PET_COSMETIC_META[item_key]["slot"]
-        equipped = [key for key in equipped if PET_COSMETIC_META.get(key, {}).get("slot") != slot]
-        equipped.append(item_key)
-        pet["equipped_cosmetics"] = equipped
-        flash(f"✅ Equipped {PETSHOP_ITEMS[item_key]['name']}.", "success")
-
-    _pet_save(discord_id, pet)
-    _pet_log(discord_id, "toggle_cosmetic", {"item": item_key})
     return _pet_flash_redirect()
 
 
@@ -5811,11 +7553,10 @@ def pet_change():
     starter = PET_STARTERS[new_type]
     pet["type"] = new_type
     pet["emoji"] = starter["emoji"]
-    pet["equipped_cosmetics"] = []
 
     _pet_save(discord_id, pet)
     _pet_log(discord_id, "change_pet_type", {"old_type": old_type, "new_type": new_type})
-    flash(f"✅ Your pet is now a {starter['name']}. Equipped cosmetics were cleared.", "success")
+    flash(f"✅ Your pet is now a {starter['name']}. Progress and items were kept.", "success")
     return _pet_flash_redirect()
 
 
@@ -5828,13 +7569,13 @@ def pet_shop_buy():
     discord_id = int(session["discord_id"])
     item_key = (request.form.get("item_key") or "").strip().lower()
     if item_key not in PETSHOP_ITEMS:
-        flash("❌ Invalid pet shop item.", "error")
+        flash("Invalid pet shop item.", "error")
         return _pet_flash_redirect()
 
     user_doc = _pet_load_user(discord_id)
     pet = user_doc.get("pet")
     if not pet:
-        flash("❌ Adopt a pet first.", "error")
+        flash("Adopt a pet first.", "error")
         return _pet_flash_redirect()
 
     item_data = PETSHOP_ITEMS[item_key]
@@ -5850,9 +7591,6 @@ def pet_shop_buy():
     if item_type == "boost":
         purchase_query["pet.owned_boosts"] = {"$ne": item_key}
         purchase_update["$addToSet"] = {"pet.owned_boosts": item_key}
-    elif item_type == "cosmetic":
-        purchase_query["pet.owned_cosmetics"] = {"$ne": item_key}
-        purchase_update["$addToSet"] = {"pet.owned_cosmetics": item_key}
     elif item_type == "consumable":
         max_allowed = CONSUMABLE_CAPS.get(item_key, 10)
         purchase_query["$expr"] = {
@@ -5876,28 +7614,25 @@ def pet_shop_buy():
         latest_user_doc = _pet_load_user(discord_id)
         latest_pet = latest_user_doc.get("pet")
         if not latest_pet:
-            flash("❌ Adopt a pet first.", "error")
+            flash("Adopt a pet first.", "error")
             return _pet_flash_redirect()
         if item_type == "boost" and item_key in latest_pet.get("owned_boosts", []):
-            flash("❌ You already own that boost.", "error")
-            return _pet_flash_redirect()
-        if item_type == "cosmetic" and item_key in latest_pet.get("owned_cosmetics", []):
-            flash("❌ You already own that cosmetic.", "error")
+            flash("You already own that boost.", "error")
             return _pet_flash_redirect()
         if item_type == "consumable":
             current_amount = list(latest_pet.get("owned_consumables", [])).count(item_key)
             max_allowed = CONSUMABLE_CAPS.get(item_key, 10)
             if current_amount >= max_allowed:
-                flash(f"❌ You already hold the max amount of {item_data['name']}.", "error")
+                flash(f"You already hold the max amount of {item_data['name']}.", "error")
                 return _pet_flash_redirect()
         if int(latest_user_doc.get("coins", 0)) < price:
-            flash("❌ You do not have enough coins.", "error")
+            flash("You do not have enough coins.", "error")
             return _pet_flash_redirect()
-        flash("❌ Purchase could not be completed. Please try again.", "error")
+        flash("Purchase could not be completed. Please try again.", "error")
         return _pet_flash_redirect()
 
     _pet_log_purchase(discord_id, item_key, price)
-    flash(f"✅ Bought {item_data['name']} for {price:,} coins.", "success")
+    flash(f"Bought {item_data['name']} for {price:,} coins.", "success")
     return _pet_flash_redirect()
 
 
@@ -6125,7 +7860,7 @@ def leaderboard():
         count_cursor = col.aggregate([
             {"$match": {"winners": {"$exists": True}}},
             {"$unwind": "$winners"},
-            {"$group": {"_id": "$winners"}},
+            {"$group": {"_id": {"$toString": "$winners"}}},
             {"$count": "count"}
         ])
         total_users = next(count_cursor, {}).get("count", 0)
@@ -6898,10 +8633,8 @@ def api_trading_overview():
         match["post_type"] = {"$in": ["buy", "sell"]}
 
 
-    c = get_db()
-    db = c["hayday"]
-    ticks = db["auctions.Trading.ticks"]
-    mp_ticks = db["auctions.Trading.mp_ticks"]
+    ticks = get_trading_collection("ticks")
+    mp_ticks = get_trading_collection("mp_ticks")
     display_map, alias_to_key, key_to_filename, key_to_source_url, key_to_image_url = _trading_maps_with_overrides()
 
 
@@ -7159,7 +8892,7 @@ def admin_trading_tick_delete():
     except InvalidId:
         return jsonify(ok=False, error="Invalid tick_id"), 400
 
-    ticks = get_db()["hayday"]["auctions.Trading.ticks"]
+    ticks = get_trading_collection("ticks")
     res = ticks.delete_one({"_id": oid, "guild_id": TRADING_GUILD_ID})
 
     return jsonify(ok=True, deleted=int(res.deleted_count))
@@ -7212,7 +8945,7 @@ def api_trading_item_posts(item_key):
     }
 
     # Return posts for scrolling + jump link
-    ticks = get_db()["hayday"]["auctions.Trading.ticks"]
+    ticks = get_trading_collection("ticks")
     cursor = ticks.find(match).sort("ts", -1).limit(limit)
 
     posts = []
@@ -7297,8 +9030,7 @@ def api_trading_item_history(item_key):
         {"$sort": {"_id.d": 1}},
     ]
 
-    db = get_db("hayday")
-    ticks = db["auctions.Trading.ticks"]
+    ticks = get_trading_collection("ticks")
     rows = list(ticks.aggregate(pipeline))
 
     # date -> { buy: {avg, posts}, sell: {avg, posts} }
@@ -7575,12 +9307,12 @@ def shop():
 @app.route("/buy", methods=["POST"])
 def buy_item():
     if "discord_id" not in session:
-        flash("鈿狅笍 You need to log in to make a purchase.", "error")
+        flash("You need to log in to make a purchase.", "error")
         return redirect(url_for("login", next=url_for("shop")))
 
     item_id = (request.form.get("item_id") or "").strip().lower()
     if not item_id or item_id not in SHOP_ITEMS:
-        flash("鉂?Unknown item.", "error")
+        flash("Unknown item.", "error")
         return redirect(url_for("shop"))
 
     user_id = int(session["discord_id"])
@@ -7592,7 +9324,7 @@ def buy_item():
     print("[SHOP] BOT_BASE_URL=", bot_base, "BOT_WEBHOOK_KEY set?", bool(bot_key))
 
     if not bot_base or not bot_key:
-        flash("鉂?Missing BOT_BASE_URL / BOT_WEBHOOK_KEY on website.", "error")
+        flash("Missing BOT_BASE_URL / BOT_WEBHOOK_KEY on website.", "error")
         return redirect(url_for("shop"))
 
     try:
@@ -7616,10 +9348,10 @@ def buy_item():
     # IMPORTANT: treat error as failure even if success=True
     bot_ok = bool(data.get("ok") or data.get("success"))
     if (not bot_ok) or data.get("error"):
-        flash(f"鉂?Purchase failed: {data.get('error', 'Unknown error')}", "error")
+        flash(f"Purchase failed: {data.get('error', 'Unknown error')}", "error")
         return redirect(url_for("shop"))
 
-    flash(f"✅ Purchase complete: {SHOP_ITEMS[item_id]['name']}", "success")
+    flash(f"Purchase complete: {SHOP_ITEMS[item_id]['name']}", "success")
     return redirect(url_for("shop"))
 
 @app.route("/admin/purchases")
@@ -7928,8 +9660,19 @@ def auction_dashboard():
     user_col = client["Website"]["usernames"]
     log_col = client["Website"]["Logs"]
 
-    active_auctions_all = list(db["auctions"].find({"status": "active"}))
-    active_auctions_json = fix_ids(active_auctions_all)
+    active_auctions_all = list(db["auctions"].find({"status": "active"}).sort("end_time", 1))
+    active_auctions_json = fix_ids([
+        {
+            "message_id": auc.get("message_id"),
+            "item": auc.get("item", ""),
+            "quantity": auc.get("quantity", 1),
+            "current_bid": auc.get("current_bid", 0),
+            "min_increment": auc.get("min_increment", 1),
+            "status": auc.get("status", "active"),
+            "image_url": auc.get("image_url", ""),
+        }
+        for auc in active_auctions_all
+    ])
     active_auctions = active_auctions_all[skip_active : skip_active + limit]
 
     ended_auctions = list(
@@ -7943,8 +9686,9 @@ def auction_dashboard():
         .skip(skip_logs).limit(limit)
     )
     AUCTION_BANNED_ROLE_ID = 1379087489779630121
+    auction_banned_role_ids = [AUCTION_BANNED_ROLE_ID, str(AUCTION_BANNED_ROLE_ID)]
     banned_users = list(
-        user_col.find({"roles": AUCTION_BANNED_ROLE_ID})
+        user_col.find({"roles": {"$in": auction_banned_role_ids}})
         .skip(skip_bans).limit(limit)
     )
 
@@ -7952,7 +9696,7 @@ def auction_dashboard():
     active_total = db["auctions"].count_documents({"status": "active"})
     ended_total = db["auctions"].count_documents({"status": {"$in": ["ended", "no_bids"]}})
     log_total = log_col.count_documents({"type": {"$regex": "^auction_"}})
-    ban_total = user_col.count_documents({"roles": AUCTION_BANNED_ROLE_ID})
+    ban_total = user_col.count_documents({"roles": {"$in": auction_banned_role_ids}})
 
     active_total_pages = max((active_total + limit - 1) // limit, 1)
     ended_total_pages = max((ended_total + limit - 1) // limit, 1)
@@ -7989,6 +9733,10 @@ def auction_dashboard():
         ended_auctions=ended_auctions,
         logs=logs,
         banned_users=banned_users,
+        active_total=active_total,
+        ended_total=ended_total,
+        log_total=log_total,
+        ban_total=ban_total,
         active_page=active_page,
         ended_page=ended_page,
         log_page=log_page,
@@ -7999,6 +9747,27 @@ def auction_dashboard():
         ban_total_pages=ban_total_pages,
         year=datetime.now().year
     )
+
+
+def _notify_auction_bot(webhook_path, payload, timeout=5):
+    base_url = (os.getenv("BOT_WEBHOOK_URL") or os.getenv("WEBHOOK_BASE_URL") or "").rstrip("/")
+    webhook_key = os.getenv("BOT_WEBHOOK_KEY")
+    if not base_url or not webhook_key:
+        print(f"[AUCTION WEBHOOK] Missing BOT_WEBHOOK_URL/WEBHOOK_BASE_URL or BOT_WEBHOOK_KEY for {webhook_path}")
+        return False
+
+    try:
+        response = requests.post(
+            f"{base_url}{webhook_path}",
+            json=payload,
+            headers={"Authorization": webhook_key},
+            timeout=timeout
+        )
+        print(f"[AUCTION WEBHOOK] {webhook_path} -> {response.status_code}")
+        return response.ok
+    except Exception as e:
+        print(f"[AUCTION WEBHOOK] Failed {webhook_path}: {e}")
+        return False
 
 
 @app.route("/api/auction/cancel", methods=["POST"])
@@ -8021,16 +9790,11 @@ def cancel_auction():
 
     col.update_one({"_id": auction["_id"]}, {"$set": {"status": "cancelled"}})
 
-    # Notify bot to delete the Discord message and log
-    requests.post(
-        os.getenv("BOT_WEBHOOK_URL") + "/webhook/cancel-auction",
-        json={
-            "message_id": message_id,
-            "reason": reason,
-        },
-        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-        timeout=5
-    )
+    # Notify bot to delete the Discord message and log.
+    _notify_auction_bot("/webhook/cancel-auction", {
+        "message_id": message_id,
+        "reason": reason,
+    })
 
     return redirect("/auction-dashboard")
 
@@ -8092,7 +9856,7 @@ def edit_auction():
 
         update_fields = {}
         for k, v in data.items():
-            if k == "message_id":
+            if k in ("message_id", "csrf_token"):
                 continue
             if k in ("quantity", "current_bid", "min_increment"):
                 parsed = safe_int(v)
@@ -8108,13 +9872,8 @@ def edit_auction():
 
         col.update_one({"message_id": message_id}, {"$set": update_fields})
 
-        # Notify bot
-        requests.post(
-            os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-auction",
-            json={"message_id": message_id},
-            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-            timeout=5
-        )
+        # Notify bot.
+        _notify_auction_bot("/webhook/refresh-auction", {"message_id": message_id})
         print("[EDIT] Sent webhook for:", message_id)
         return redirect("/auction-dashboard")
 
@@ -8133,22 +9892,14 @@ def remove_buyout():
         return "Missing message_id", 400
 
     client= get_db()
-    col = client["Auction"]["auctions"]
+    col = client["hayday"]["auctions"]
     result = col.update_one(
         {"message_id": int(message_id)},
         {"$unset": {"buyout_offer": ""}}
     )
     print(f"[BUYOUT REMOVE] message_id={message_id} matched={result.matched_count} modified={result.modified_count}")
 
-    # Optionally trigger embed update via webhook
-    try:
-        requests.post(
-            f"{os.getenv('WEBHOOK_BASE_URL')}/webhook/refresh-auction",
-            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-            json={"message_id": message_id}
-        )
-    except Exception as e:
-        print(f"[WARN] Failed to refresh embed: {e}")
+    _notify_auction_bot("/webhook/refresh-auction", {"message_id": message_id})
 
     return redirect("/auction-dashboard")
 
@@ -8168,15 +9919,7 @@ def remove_auction_image():
     )
     print(f"[REMOVE-IMAGE] Result: matched={result.matched_count} modified={result.modified_count}")
 
-    # Optional: refresh bot embed
-    try:
-        requests.post(
-            f"{os.getenv('BOT_WEBHOOK_URL')}/webhook/refresh-auction",
-            headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-            json={"message_id": message_id}
-        )
-    except Exception as e:
-        print("Failed to refresh embed:", e)
+    _notify_auction_bot("/webhook/refresh-auction", {"message_id": message_id})
 
     return redirect("/auction-dashboard")
 
@@ -8202,13 +9945,8 @@ def end_auction_now():
         "$set": {"end_time": datetime.utcnow() - timedelta(seconds=1)}
     })
 
-    # Trigger full auction end logic via bot webhook
-    requests.post(
-        os.getenv("BOT_WEBHOOK_URL") + "/webhook/end-auction",
-        json={"message_id": message_id},
-        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-        timeout=5
-    )
+    # Trigger full auction end logic via bot webhook.
+    _notify_auction_bot("/webhook/end-auction", {"message_id": message_id})
 
     return redirect("/auction-dashboard")
 
@@ -8278,15 +10016,31 @@ def remove_auction_bid(message_id):
     print(f"[REMOVE BID] Mongo matched: {result.matched_count}, modified: {result.modified_count}")
     print(f"[REMOVE BID] New highest_bidder: {highest_bidder}, current_bid: {current_bid}")
 
-    # Trigger refresh
-    refresh_resp = requests.post(
-        os.getenv("BOT_WEBHOOK_URL") + "/webhook/refresh-auction",
-        json={"message_id": message_id},
-        headers={"Authorization": os.getenv("BOT_WEBHOOK_KEY")},
-        timeout=5
-    )
+    _notify_auction_bot("/webhook/refresh-auction", {"message_id": message_id})
+    return redirect("/auction-dashboard")
 
-    print(f"[REMOVE BID] Webhook refresh response: {refresh_resp.status_code}")
+
+@app.route("/api/auction/unban", methods=["POST"])
+def unban_auction_user():
+    if "discord_id" not in session or not is_staff():
+        return "Unauthorized", 403
+
+    user_id = (request.form.get("user_id") or "").strip()
+    if not user_id:
+        return "Missing user_id", 400
+
+    AUCTION_BANNED_ROLE_ID = 1379087489779630121
+    auction_banned_role_ids = [AUCTION_BANNED_ROLE_ID, str(AUCTION_BANNED_ROLE_ID)]
+
+    client = get_db()
+    user_col = client["Website"]["usernames"]
+    result = user_col.update_one(
+        {"_id": user_id},
+        {"$pull": {"roles": {"$in": auction_banned_role_ids}}}
+    )
+    print(f"[AUCTION UNBAN] user_id={user_id} matched={result.matched_count} modified={result.modified_count}")
+
+    _notify_auction_bot("/webhook/auction-unban", {"user_id": user_id})
     return redirect("/auction-dashboard")
 
 
@@ -8410,27 +10164,158 @@ def _gambling_username_map(user_ids):
     }
 
 
-def _build_coinflip_events(*, search_term="", result_filter="all", fetch_limit=600):
+def _parse_gambling_dashboard_date(value):
+    raw_value = (value or "").strip()
+    if not raw_value:
+        return "", None
+
+    try:
+        parsed = date.fromisoformat(raw_value)
+    except ValueError:
+        return "", None
+    return parsed.isoformat(), parsed
+
+
+def _gambling_dashboard_date_bounds(start_value=None, end_value=None):
+    start_raw, start_date_value = _parse_gambling_dashboard_date(start_value)
+    end_raw, end_date_value = _parse_gambling_dashboard_date(end_value)
+
+    start_dt = (
+        datetime.combine(start_date_value, datetime.min.time(), tzinfo=timezone.utc)
+        if start_date_value
+        else None
+    )
+    end_dt = (
+        datetime.combine(end_date_value + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+        if end_date_value
+        else None
+    )
+    return start_raw, end_raw, start_dt, end_dt
+
+
+def _gambling_result_percentages(wins=0, losses=0):
+    wins = int(wins or 0)
+    losses = int(losses or 0)
+    decided_total = wins + losses
+    if decided_total <= 0:
+        return 0.0, 0.0
+    return round((wins / decided_total) * 100, 1), round((losses / decided_total) * 100, 1)
+
+
+def _gambling_coin_side_percentages(head_count=0, tail_count=0):
+    head_count = int(head_count or 0)
+    tail_count = int(tail_count or 0)
+    total = head_count + tail_count
+    if total <= 0:
+        return 0.0, 0.0
+    return round((head_count / total) * 100, 1), round((tail_count / total) * 100, 1)
+
+
+def _gambling_matching_user_ids(search_term):
+    normalized = (search_term or "").strip()
+    if not normalized or normalized.isdigit():
+        return []
+
+    usernames_col = get_db("Website")["usernames"]
+    docs = list(
+        usernames_col.find(
+            {
+                "$or": [
+                    {"display_name": {"$regex": re.escape(normalized), "$options": "i"}},
+                    {"username": {"$regex": re.escape(normalized), "$options": "i"}},
+                ]
+            },
+            {"_id": 1},
+        )
+    )
+    return [str(doc.get("_id")) for doc in docs if doc.get("_id") is not None]
+
+
+def _build_coinflip_events(*, search_term="", result_filter="all", start_dt=None, end_dt=None, page=1, per_page=12):
     econ_db = get_db("Economy")
-    events = []
     source_mode = "ledger"
+    normalized_search = (search_term or "").strip()
+    normalized_result = (result_filter or "all").strip().lower()
+    ts_query = {}
+    if start_dt:
+        ts_query["$gte"] = start_dt
+    if end_dt:
+        ts_query["$lt"] = end_dt
+    matching_user_ids = _gambling_matching_user_ids(normalized_search)
+    matching_numeric_user_ids = [
+        int(user_id)
+        for user_id in matching_user_ids
+        if str(user_id).isdigit()
+    ]
 
     collection_names = set(econ_db.list_collection_names())
     if "coinflip_logs" in collection_names:
         source_mode = "collection"
+        query = {}
+        if ts_query:
+            query["ts"] = ts_query
+        if normalized_result != "all":
+            query["result"] = normalized_result
+        if normalized_search:
+            search_clauses = [{"username": {"$regex": re.escape(normalized_search), "$options": "i"}}]
+            if normalized_search.isdigit():
+                numeric_search = int(normalized_search)
+                search_clauses.append({"user_id": numeric_search})
+                search_clauses.append({"user_id": normalized_search})
+            elif matching_numeric_user_ids:
+                search_clauses.append({"user_id": {"$in": matching_numeric_user_ids}})
+            if search_clauses:
+                query["$or"] = search_clauses
+
+        coinflip_col = econ_db["coinflip_logs"]
+        total = coinflip_col.count_documents(query)
+        stats_rows = list(coinflip_col.aggregate([
+            {"$match": query},
+            {"$group": {
+                "_id": None,
+                "total": {"$sum": 1},
+                "wins": {"$sum": {"$cond": [{"$eq": ["$result", "win"]}, 1, 0]}},
+                "losses": {"$sum": {"$cond": [{"$eq": ["$result", "loss"]}, 1, 0]}},
+                "heads": {"$sum": {"$cond": [{
+                    "$in": [{"$toLower": {"$ifNull": ["$flip_result", ""]}}, ["head", "heads"]]
+                }, 1, 0]}},
+                "tails": {"$sum": {"$cond": [{
+                    "$in": [{"$toLower": {"$ifNull": ["$flip_result", ""]}}, ["tail", "tails"]]
+                }, 1, 0]}},
+                "wagered": {"$sum": {"$ifNull": ["$bet", 0]}},
+                "paid_out": {"$sum": {"$ifNull": ["$payout", 0]}},
+                "profit_paid": {"$sum": {"$cond": [
+                    {"$gt": [{"$ifNull": ["$payout", 0]}, {"$ifNull": ["$bet", 0]}]},
+                    {"$subtract": [{"$ifNull": ["$payout", 0]}, {"$ifNull": ["$bet", 0]}]},
+                    0,
+                ]}},
+            }},
+        ]))
+        stats = stats_rows[0] if stats_rows else {
+            "total": 0,
+            "wins": 0,
+            "losses": 0,
+            "heads": 0,
+            "tails": 0,
+            "wagered": 0,
+            "paid_out": 0,
+            "profit_paid": 0,
+        }
+
         coinflip_logs = list(
-            econ_db["coinflip_logs"]
-            .find({})
+            coinflip_col.find(query)
             .sort("ts", -1)
-            .limit(fetch_limit)
+            .skip((max(1, int(page)) - 1) * per_page)
+            .limit(per_page)
         )
 
         usernames = _gambling_username_map(doc.get("user_id") for doc in coinflip_logs)
+        paged_logs = []
         for doc in coinflip_logs:
             user_id = doc.get("user_id")
             payout = int(doc.get("payout", 0) or 0)
             bet = int(doc.get("bet", 0) or 0)
-            events.append({
+            paged_logs.append({
                 "event_id": str(doc.get("_id")),
                 "storage_mode": "collection",
                 "ts": doc.get("ts"),
@@ -8448,105 +10333,121 @@ def _build_coinflip_events(*, search_term="", result_filter="all", fetch_limit=6
                 "admin_reviewed_at": doc.get("admin_reviewed_at"),
                 "can_refund": (doc.get("result") or "").lower() == "loss" and not doc.get("admin_refunded_at"),
             })
-    else:
-        ledger_entries = list(
-            econ_db["coin_ledger"]
-            .find({"source": {"$in": ["coinflip:wager", "coinflip:win"]}})
-            .sort("ts", -1)
-            .limit(fetch_limit)
-        )
-        ledger_entries.reverse()
+        return paged_logs, stats, source_mode, total
 
-        usernames = _gambling_username_map(entry.get("user_id") for entry in ledger_entries)
-        pending_wagers = defaultdict(list)
+    ledger_query = {"source": {"$in": ["coinflip:wager", "coinflip:win"]}}
+    if ts_query:
+        ledger_query["ts"] = ts_query
+    if normalized_search:
+        if normalized_search.isdigit():
+            ledger_query["user_id"] = int(normalized_search)
+        elif matching_numeric_user_ids:
+            ledger_query["user_id"] = {"$in": matching_numeric_user_ids}
+        else:
+            stats = {
+                "total": 0,
+                "wins": 0,
+                "losses": 0,
+                "heads": 0,
+                "tails": 0,
+                "wagered": 0,
+                "paid_out": 0,
+                "profit_paid": 0,
+            }
+            return [], stats, source_mode, 0
 
-        for entry in ledger_entries:
-            user_id = entry.get("user_id")
-            source = entry.get("source")
-            meta = entry.get("meta") or {}
+    ledger_entries = list(
+        econ_db["coin_ledger"]
+        .find(ledger_query)
+        .sort("ts", 1)
+    )
 
-            if source == "coinflip:wager":
-                pending_wagers[user_id].append(entry)
-                continue
+    pending_wagers = defaultdict(list)
+    events = []
+    for entry in ledger_entries:
+        user_id = entry.get("user_id")
+        source = entry.get("source")
+        meta = entry.get("meta") or {}
 
-            if source != "coinflip:win":
-                continue
+        if source == "coinflip:wager":
+            pending_wagers[user_id].append(entry)
+            continue
 
-            bet = int(meta.get("bet") or max(0, int(entry.get("amount", 0) or 0) // 2))
-            wager = None
-            for index in range(len(pending_wagers[user_id]) - 1, -1, -1):
-                candidate = pending_wagers[user_id][index]
-                if int(candidate.get("amount", 0) or 0) == bet:
-                    wager = pending_wagers[user_id].pop(index)
-                    break
+        if source != "coinflip:win":
+            continue
 
-            payout = int(entry.get("amount", 0) or 0)
+        bet = int(meta.get("bet") or max(0, int(entry.get("amount", 0) or 0) // 2))
+        wager = None
+        for index in range(len(pending_wagers[user_id]) - 1, -1, -1):
+            candidate = pending_wagers[user_id][index]
+            if int(candidate.get("amount", 0) or 0) == bet:
+                wager = pending_wagers[user_id].pop(index)
+                break
+
+        payout = int(entry.get("amount", 0) or 0)
+        events.append({
+            "event_id": str((wager or {}).get("_id") or entry.get("_id")),
+            "storage_mode": "ledger",
+            "ts": entry.get("ts") or (wager or {}).get("ts"),
+            "user_id": user_id,
+            "result": "win",
+            "bet": bet,
+            "payout": payout,
+            "profit": max(0, payout - bet),
+            "choice": meta.get("choice"),
+            "flip_result": meta.get("flip_result"),
+            "balance_after": entry.get("balance_after"),
+            "source": "coinflip",
+            "admin_refunded_at": (wager or {}).get("admin_refunded_at") or entry.get("admin_refunded_at"),
+            "admin_reviewed_at": (wager or {}).get("admin_reviewed_at") or entry.get("admin_reviewed_at"),
+            "can_refund": False,
+        })
+
+    for user_id, wagers in pending_wagers.items():
+        for wager in wagers:
             events.append({
-                "event_id": str((wager or {}).get("_id") or entry.get("_id")),
+                "event_id": str(wager.get("_id")),
                 "storage_mode": "ledger",
-                "ts": entry.get("ts") or (wager or {}).get("ts"),
+                "ts": wager.get("ts"),
                 "user_id": user_id,
-                "username": usernames.get(str(user_id)) or str(user_id),
-                "result": "win",
-                "bet": bet,
-                "payout": payout,
-                "profit": max(0, payout - bet),
-                "choice": meta.get("choice"),
-                "flip_result": meta.get("flip_result"),
-                "balance_after": entry.get("balance_after"),
+                "result": "loss",
+                "bet": int(wager.get("amount", 0) or 0),
+                "payout": 0,
+                "profit": 0,
+                "choice": None,
+                "flip_result": None,
+                "balance_after": wager.get("balance_after"),
                 "source": "coinflip",
-                "admin_refunded_at": (wager or {}).get("admin_refunded_at") or entry.get("admin_refunded_at"),
-                "admin_reviewed_at": (wager or {}).get("admin_reviewed_at") or entry.get("admin_reviewed_at"),
-                "can_refund": False,
+                "admin_refunded_at": wager.get("admin_refunded_at"),
+                "admin_reviewed_at": wager.get("admin_reviewed_at"),
+                "can_refund": not wager.get("admin_refunded_at"),
             })
 
-        for user_id, wagers in pending_wagers.items():
-            for wager in wagers:
-                events.append({
-                    "event_id": str(wager.get("_id")),
-                    "storage_mode": "ledger",
-                    "ts": wager.get("ts"),
-                    "user_id": user_id,
-                    "username": usernames.get(str(user_id)) or str(user_id),
-                    "result": "loss",
-                    "bet": int(wager.get("amount", 0) or 0),
-                    "payout": 0,
-                    "profit": 0,
-                    "choice": None,
-                    "flip_result": None,
-                    "balance_after": wager.get("balance_after"),
-                    "source": "coinflip",
-                    "admin_refunded_at": wager.get("admin_refunded_at"),
-                    "admin_reviewed_at": wager.get("admin_reviewed_at"),
-                    "can_refund": not wager.get("admin_refunded_at"),
-                })
+    if normalized_result != "all":
+        events = [event for event in events if event.get("result") == normalized_result]
 
-        events.sort(
-            key=lambda item: item.get("ts") or datetime.min.replace(tzinfo=timezone.utc),
-            reverse=True,
-        )
+    events.sort(
+        key=lambda item: item.get("ts") or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
 
-    normalized_search = (search_term or "").strip().lower()
-    normalized_result = (result_filter or "all").strip().lower()
-
-    filtered = []
-    for event in events:
-        haystack = f"{event.get('username', '')} {event.get('user_id', '')}".lower()
-        if normalized_search and normalized_search not in haystack:
-            continue
-        if normalized_result != "all" and event.get("result") != normalized_result:
-            continue
-        filtered.append(event)
-
+    total = len(events)
     stats = {
-        "total": len(filtered),
-        "wins": sum(1 for event in filtered if event.get("result") == "win"),
-        "losses": sum(1 for event in filtered if event.get("result") == "loss"),
-        "wagered": sum(int(event.get("bet", 0) or 0) for event in filtered),
-        "paid_out": sum(int(event.get("payout", 0) or 0) for event in filtered),
-        "profit_paid": sum(int(event.get("profit", 0) or 0) for event in filtered),
+        "total": total,
+        "wins": sum(1 for event in events if event.get("result") == "win"),
+        "losses": sum(1 for event in events if event.get("result") == "loss"),
+        "heads": sum(1 for event in events if str(event.get("flip_result") or "").lower() in {"head", "heads"}),
+        "tails": sum(1 for event in events if str(event.get("flip_result") or "").lower() in {"tail", "tails"}),
+        "wagered": sum(int(event.get("bet", 0) or 0) for event in events),
+        "paid_out": sum(int(event.get("payout", 0) or 0) for event in events),
+        "profit_paid": sum(int(event.get("profit", 0) or 0) for event in events),
     }
-    return filtered, stats, source_mode
+    page_start = (max(1, int(page)) - 1) * per_page
+    paged_logs = events[page_start:page_start + per_page]
+    usernames = _gambling_username_map(log.get("user_id") for log in paged_logs)
+    for log in paged_logs:
+        log["username"] = usernames.get(str(log.get("user_id"))) or str(log.get("user_id"))
+    return paged_logs, stats, source_mode, total
 
 
 def _gambling_credit_user(user_id, amount, *, source, meta=None):
@@ -9890,10 +11791,14 @@ def api_blackjack_bet():
 
     if has_reserved_bet:
         player["next_bet"] = bet
+        if bet > 0:
+            player["auto_bet_amount"] = bet
         table["message"] = f"{player.get('username')} set next hand bet to {bet:,}."
     else:
         player["bet"] = bet
         player["next_bet"] = 0
+        if bet > 0:
+            player["auto_bet_amount"] = bet
         table["message"] = f"{player.get('username')} set a bet of {bet:,}."
 
     if not has_reserved_bet and table.get("phase") not in {"player_turns", "insurance"}:
@@ -9933,24 +11838,15 @@ def api_blackjack_auto_bet():
         return jsonify({"error": "Join the table first"}), 400
 
     enabled = bool(data.get("enabled"))
-    try:
-        amount = int(data.get("amount", 0) or 0)
-    except (TypeError, ValueError):
-        return jsonify({"error": "Invalid auto bet amount"}), 400
-
     min_bet = int(table.get("min_bet", 1) or 1)
-    if enabled:
-        if amount < min_bet:
-            return jsonify({"error": f"Minimum bet is {min_bet}"}), 400
-        if amount > BLACKJACK_MAX_BET:
-            return jsonify({"error": f"Maximum bet is {BLACKJACK_MAX_BET}"}), 400
-    else:
-        amount = max(0, amount)
-
+    amount = int(player.get("bet", 0) or player.get("auto_bet_amount", 0) or 0)
+    if enabled and amount <= 0:
+        return jsonify({"error": "Place a bet first, then turn on auto bet"}), 400
     player["auto_bet_enabled"] = enabled
-    player["auto_bet_amount"] = amount if amount > 0 else int(player.get("auto_bet_amount", min_bet) or min_bet)
+    if amount > 0:
+        player["auto_bet_amount"] = amount
     if int(player.get("reserved_bet", 0) or 0) <= 0:
-        if enabled:
+        if enabled and amount > 0:
             player["bet"] = amount
         if table.get("phase") not in {"player_turns", "insurance"}:
             _bj_schedule_start(table, force=False)
@@ -9960,7 +11856,7 @@ def api_blackjack_auto_bet():
                 table["message"] = message if not ok else table.get("message")
 
     table["message"] = (
-        f"{player.get('username')} enabled auto bet at {amount:,}."
+        f"{player.get('username')} turned on auto bet for {amount:,}."
         if enabled
         else f"{player.get('username')} turned auto bet off."
     )
@@ -10281,6 +12177,164 @@ def api_blackjack_report():
     return jsonify({"ok": True})
 
 
+def _ticket_archive_col():
+    return get_db("Support")["transcripts"]
+
+
+def _ticket_archive_meta_col():
+    return get_db("Support")["active_tickets"]
+
+
+def _ticket_archive_format_dt(value):
+    if not value:
+        return ""
+    if isinstance(value, datetime):
+        dt = value
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(COPENHAGEN_TZ).strftime("%Y-%m-%d %H:%M")
+    return str(value)
+
+
+def _ticket_archive_plain_text(html):
+    soup = BeautifulSoup(html or "", "html.parser")
+    return re.sub(r"\s+", " ", soup.get_text(" ", strip=True)).strip()
+
+
+def _ticket_archive_snippet(text, query, radius=150):
+    text = text or ""
+    if not text:
+        return "Transcript has no readable text."
+
+    q = (query or "").strip()
+    if q:
+        idx = text.lower().find(q.lower())
+        if idx >= 0:
+            start = max(0, idx - radius)
+            end = min(len(text), idx + len(q) + radius)
+            prefix = "..." if start > 0 else ""
+            suffix = "..." if end < len(text) else ""
+            return f"{prefix}{text[start:end].strip()}{suffix}"
+
+    return text[:320].strip() + ("..." if len(text) > 320 else "")
+
+
+def _ticket_archive_result(doc, meta_doc, query):
+    channel_id = str(doc.get("_id") or "")
+    html = doc.get("html") or ""
+    text = _ticket_archive_plain_text(html)
+    ticket_type = (meta_doc or {}).get("type")
+    if not ticket_type:
+        ticket_type = "Giveaway" if "giveaway details" in text.lower() else "Transcript"
+
+    username = (meta_doc or {}).get("username") or ""
+    channel_name = (meta_doc or {}).get("channel_name") or ""
+    title_bits = [ticket_type]
+    if username:
+        title_bits.append(username)
+    elif channel_name:
+        title_bits.append(channel_name)
+
+    status = ((meta_doc or {}).get("status") or "archived").title()
+    status_key = re.sub(r"[^a-z0-9]+", "-", status.lower()).strip("-") or "archived"
+
+    return {
+        "channel_id": channel_id,
+        "title": " - ".join(title_bits),
+        "ticket_type": ticket_type,
+        "status": status,
+        "status_key": status_key,
+        "username": username,
+        "user_id": (meta_doc or {}).get("user_id") or "",
+        "created_at": _ticket_archive_format_dt((meta_doc or {}).get("created_at")),
+        "last_updated": _ticket_archive_format_dt(doc.get("last_updated")),
+        "snippet": _ticket_archive_snippet(text, query),
+    }
+
+
+def _ticket_archive_safe_channel_id(channel_id):
+    cid = str(channel_id or "").strip()
+    if not cid.isdigit():
+        abort(404)
+    return cid
+
+
+def _ticket_archive_allowed_asset_url(url):
+    parsed = urlparse(url or "")
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    if parsed.username or parsed.password:
+        return None
+
+    host = (parsed.hostname or "").lower()
+    allowed_hosts = {
+        "cdn.discordapp.com",
+        "media.discordapp.net",
+        "images-ext-1.discordapp.net",
+        "images-ext-2.discordapp.net",
+        "pub-d60d332f99c6465bbf7133fadd42a702.r2.dev",
+    }
+    configured_public = (R2_PUBLIC_HOST or "").strip()
+    if configured_public:
+        configured_host = urlparse(configured_public if "://" in configured_public else f"https://{configured_public}").hostname
+        if configured_host:
+            allowed_hosts.add(configured_host.lower())
+
+    if host in allowed_hosts or host.endswith(".r2.dev"):
+        return parsed.geturl()
+    return None
+
+
+def _ticket_archive_rewrite_media_urls(html, channel_id):
+    soup = BeautifulSoup(html or "", "html.parser")
+    media_attrs = {
+        "img": ("src",),
+        "video": ("src", "poster"),
+        "audio": ("src",),
+        "source": ("src",),
+    }
+    for tag_name, attrs in media_attrs.items():
+        for tag in soup.find_all(tag_name):
+            for attr in attrs:
+                src = tag.get(attr)
+                if not _ticket_archive_allowed_asset_url(src):
+                    continue
+                tag[attr] = url_for("ticket_archive_asset", channel_id=channel_id, url=src)
+                if tag_name == "img":
+                    tag["loading"] = "lazy"
+                    tag["referrerpolicy"] = "no-referrer"
+    return str(soup)
+
+
+def _ticket_archive_html_response(channel_id, *, as_attachment=False):
+    cid = _ticket_archive_safe_channel_id(channel_id)
+    doc = _ticket_archive_col().find_one({"_id": cid}, {"html": 1, "last_updated": 1})
+    if not doc or not doc.get("html"):
+        abort(404)
+
+    html = doc["html"] if as_attachment else _ticket_archive_rewrite_media_urls(doc["html"], cid)
+    response = make_response(html)
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    disposition = "attachment" if as_attachment else "inline"
+    response.headers["Content-Disposition"] = f'{disposition}; filename="transcript-{cid}.html"'
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads; "
+        "default-src 'none'; "
+        "script-src 'none'; "
+        "connect-src 'none'; "
+        "img-src 'self' data: blob: https: http:; "
+        "media-src 'self' data: blob: https: http:; "
+        "style-src 'unsafe-inline'; "
+        "font-src data: https:; "
+        "base-uri 'none'; "
+        "form-action 'none'"
+    )
+    return response
+
+
 @app.route("/dashboard")
 def dashboard():
     if "discord_id" not in session or not is_staff():
@@ -10328,6 +12382,147 @@ def dashboard():
     )
 
 
+@app.route("/dashboard/ticket-archives")
+def ticket_archives():
+    if "discord_id" not in session or not is_staff():
+        return "Unauthorized", 403
+
+    query = (request.args.get("q") or "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (TypeError, ValueError):
+        page = 1
+    per_page = 12
+
+    transcripts_col = _ticket_archive_col()
+    meta_col = _ticket_archive_meta_col()
+
+    mongo_query = {}
+    if query and len(query) >= 2:
+        safe_q = re.escape(query)
+        meta_regex = {"$regex": safe_q, "$options": "i"}
+        matching_meta_ids = [
+            str(meta.get("_id"))
+            for meta in meta_col.find(
+                {
+                    "$or": [
+                        {"username": meta_regex},
+                        {"user_id": meta_regex},
+                        {"channel_name": meta_regex},
+                        {"type": meta_regex},
+                        {"claimed_by": meta_regex},
+                    ]
+                },
+                {"_id": 1},
+            ).limit(1000)
+        ]
+        search_clauses = [
+            {"html": {"$regex": safe_q, "$options": "i"}},
+            {"_id": {"$regex": safe_q, "$options": "i"}},
+        ]
+        if matching_meta_ids:
+            search_clauses.append({"_id": {"$in": matching_meta_ids}})
+        mongo_query = {"$or": search_clauses}
+    elif query:
+        mongo_query = {"_id": "__too_short__"}
+
+    total_results = transcripts_col.count_documents(mongo_query)
+    total_pages = max(1, ceil(total_results / per_page)) if total_results else 1
+    if page > total_pages:
+        page = total_pages
+
+    docs = list(
+        transcripts_col.find(mongo_query, {"html": 1, "last_updated": 1})
+        .sort("last_updated", -1)
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
+
+    channel_ids = [str(doc.get("_id")) for doc in docs]
+    meta_docs = {
+        str(meta.get("_id")): meta
+        for meta in meta_col.find({"_id": {"$in": channel_ids}})
+    } if channel_ids else {}
+    results = [
+        _ticket_archive_result(doc, meta_docs.get(str(doc.get("_id"))), query)
+        for doc in docs
+    ]
+
+    stats = {
+        "total_transcripts": transcripts_col.estimated_document_count(),
+        "support_tickets": meta_col.estimated_document_count(),
+    }
+
+    return render_template(
+        "ticket_archives.html",
+        year=datetime.now().year,
+        query=query,
+        page=page,
+        total_pages=total_pages,
+        total_results=total_results,
+        results=results,
+        stats=stats,
+    )
+
+
+@app.route("/dashboard/ticket-archives/<channel_id>")
+def ticket_archive_view(channel_id):
+    if "discord_id" not in session or not is_staff():
+        return "Unauthorized", 403
+    return _ticket_archive_html_response(channel_id)
+
+
+@app.route("/dashboard/ticket-archives/<channel_id>/asset")
+def ticket_archive_asset(channel_id):
+    if "discord_id" not in session or not is_staff():
+        return "Unauthorized", 403
+
+    _ticket_archive_safe_channel_id(channel_id)
+    asset_url = _ticket_archive_allowed_asset_url(request.args.get("url"))
+    if not asset_url:
+        abort(404)
+
+    try:
+        upstream = requests.get(
+            asset_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 HayDayTicketArchive/1.0",
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+            },
+            timeout=12,
+            stream=True,
+            allow_redirects=False,
+        )
+        upstream.raise_for_status()
+    except requests.RequestException:
+        abort(502)
+
+    content_type = upstream.headers.get("Content-Type") or mimetypes.guess_type(asset_url)[0] or "application/octet-stream"
+    if not (content_type.startswith("image/") or content_type.startswith("video/") or content_type.startswith("audio/")):
+        upstream.close()
+        abort(415)
+
+    def generate():
+        try:
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    response = Response(stream_with_context(generate()), content_type=content_type)
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
+@app.route("/dashboard/ticket-archives/<channel_id>/download")
+def ticket_archive_download(channel_id):
+    if "discord_id" not in session or not is_staff():
+        return "Unauthorized", 403
+    return _ticket_archive_html_response(channel_id, as_attachment=True)
+
+
 @app.route("/dashboard/gambling")
 def dashboard_gambling():
     if "discord_id" not in session or not is_admin():
@@ -10343,6 +12538,10 @@ def dashboard_gambling():
     table_code = (request.args.get("table_code") or "").strip().upper()
     blackjack_result = (request.args.get("blackjack_result") or "all").strip().lower()
     coinflip_result = (request.args.get("coinflip_result") or "all").strip().lower()
+    start_date, end_date, start_dt, end_dt = _gambling_dashboard_date_bounds(
+        request.args.get("start_date"),
+        request.args.get("end_date"),
+    )
     blackjack_page = _safe_page(request.args.get("blackjack_page", 1) or 1)
     coinflip_page = _safe_page(request.args.get("coinflip_page", 1) or 1)
     per_page = 12
@@ -10355,6 +12554,12 @@ def dashboard_gambling():
         blackjack_query["result"] = blackjack_result
     if table_code:
         blackjack_query["table_code"] = table_code
+    if start_dt or end_dt:
+        blackjack_query["ts"] = {}
+        if start_dt:
+            blackjack_query["ts"]["$gte"] = start_dt
+        if end_dt:
+            blackjack_query["ts"]["$lt"] = end_dt
 
     if search_term:
         search_clauses = [{"username": {"$regex": re.escape(search_term), "$options": "i"}}]
@@ -10390,6 +12595,12 @@ def dashboard_gambling():
         "pushes": 0,
         "splits": 0,
     }
+    blackjack_win_rate, blackjack_loss_rate = _gambling_result_percentages(
+        blackjack_stats.get("wins"),
+        blackjack_stats.get("losses"),
+    )
+    blackjack_stats["win_rate"] = blackjack_win_rate
+    blackjack_stats["loss_rate"] = blackjack_loss_rate
 
     blackjack_name_map = _gambling_username_map(log.get("user_id") for log in blackjack_logs)
     for log in blackjack_logs:
@@ -10403,6 +12614,12 @@ def dashboard_gambling():
     action_query = {}
     if table_code:
         action_query["table_code"] = table_code
+    if start_dt or end_dt:
+        action_query["ts"] = {}
+        if start_dt:
+            action_query["ts"]["$gte"] = start_dt
+        if end_dt:
+            action_query["ts"]["$lt"] = end_dt
     if search_term:
         action_search = [{"username": {"$regex": re.escape(search_term), "$options": "i"}}]
         if search_term.isdigit():
@@ -10414,6 +12631,12 @@ def dashboard_gambling():
     report_query = {}
     if table_code:
         report_query["table_code"] = table_code
+    if start_dt or end_dt:
+        report_query["created_at"] = {}
+        if start_dt:
+            report_query["created_at"]["$gte"] = start_dt
+        if end_dt:
+            report_query["created_at"]["$lt"] = end_dt
     if search_term:
         report_search = [{"reporter_username": {"$regex": re.escape(search_term), "$options": "i"}}]
         if search_term.isdigit():
@@ -10421,13 +12644,26 @@ def dashboard_gambling():
         report_query["$or"] = report_search
     blackjack_reports = list(report_col.find(report_query).sort("created_at", -1).limit(50))
 
-    coinflip_events, coinflip_stats, coinflip_mode = _build_coinflip_events(
+    coinflip_logs, coinflip_stats, coinflip_mode, coinflip_total = _build_coinflip_events(
         search_term=search_term,
         result_filter=coinflip_result,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        page=coinflip_page,
+        per_page=per_page,
     )
-    coinflip_total = len(coinflip_events)
-    coinflip_start = (coinflip_page - 1) * per_page
-    coinflip_logs = coinflip_events[coinflip_start:coinflip_start + per_page]
+    coinflip_win_rate, coinflip_loss_rate = _gambling_result_percentages(
+        coinflip_stats.get("wins"),
+        coinflip_stats.get("losses"),
+    )
+    coinflip_head_rate, coinflip_tail_rate = _gambling_coin_side_percentages(
+        coinflip_stats.get("heads"),
+        coinflip_stats.get("tails"),
+    )
+    coinflip_stats["win_rate"] = coinflip_win_rate
+    coinflip_stats["loss_rate"] = coinflip_loss_rate
+    coinflip_stats["head_rate"] = coinflip_head_rate
+    coinflip_stats["tail_rate"] = coinflip_tail_rate
 
     return render_template(
         "dashboard_gambling.html",
@@ -10436,6 +12672,8 @@ def dashboard_gambling():
         table_code=table_code,
         blackjack_result=blackjack_result,
         coinflip_result=coinflip_result,
+        start_date=start_date,
+        end_date=end_date,
         blackjack_logs=blackjack_logs,
         blackjack_action_logs=blackjack_action_logs,
         blackjack_reports=blackjack_reports,
@@ -10768,7 +13006,6 @@ def dashboard_pets():
                 starter = PET_STARTERS[pet_type]
                 pet["type"] = pet_type
                 pet["emoji"] = starter["emoji"]
-                pet["equipped_cosmetics"] = []
 
             if not isinstance(pet.get("web_style"), dict):
                 pet["web_style"] = {"accent_color": "strawberry"}
@@ -10898,7 +13135,6 @@ def dashboard_pets():
             "hotel_status_text": pet_context.get("hotel_status_text"),
             "hotel_return_state": pet_context.get("hotel_return_state"),
             "owned_boost_count": len(pet.get("owned_boosts", [])),
-            "owned_cosmetic_count": len(pet.get("owned_cosmetics", [])),
             "owned_consumable_count": len(pet.get("owned_consumables", [])),
         })
 
@@ -11753,9 +13989,9 @@ def competition_home():
         app.logger.info(f"[competition_home] No entries for comp_id={comp_id}. "
                         f"Example doc fields? created_at/comp_id set?")
     prizes = {
-        "first":  "1,000,000 coins or 75k Server coins + 1 month of Discord Nitro",
-        "second": "700,000 coins",
-        "third":  "500,000 coins",
+        "first":  "75k Server coins + 1 month of Discord Nitro",
+        "second": "50k Server coins",
+        "third":  "25k Server coins",
     }
     return render_template(
         "competition_home.html",
@@ -11780,6 +14016,12 @@ def competition_gallery():
 
     viewer_id = session.get("discord_id")
     sort_mode = request.args.get("sort", "random" if phase == "voting" else "newest")
+    if phase == "voting" and sort_mode not in {"random", "newest"}:
+        sort_mode = "random"
+    elif phase == "results" and sort_mode not in {"newest", "random", "top"}:
+        sort_mode = "newest"
+    elif phase not in {"voting", "results"} and sort_mode not in {"newest", "random"}:
+        sort_mode = "newest"
     PER_PAGE = 16
 
     try:
@@ -11795,24 +14037,26 @@ def competition_gallery():
     q_entries = {"comp_id": comp_id}
     total = entries_col.count_documents(q_entries)
 
-    # --- build vote counts (all keys as strings) ---
-    pipeline = [
-        {"$match": {"comp_id": comp_id}},
-        {"$group": {"_id": "$entry_id", "count": {"$sum": 1}}},
-    ]
     counts = {}
-    for doc in votes_col.aggregate(pipeline):
-        counts[str(doc["_id"])] = doc["count"]
+    show_vote_counts = (phase == "results")
+    if show_vote_counts:
+        # --- build vote counts (all keys as strings) ---
+        pipeline = [
+            {"$match": {"comp_id": comp_id}},
+            {"$group": {"_id": "$entry_id", "count": {"$sum": 1}}},
+        ]
+        for doc in votes_col.aggregate(pipeline):
+            counts[str(doc["_id"])] = doc["count"]
 
-    # ensure zeros
-    for _e in entries_col.find(q_entries, {"_id": 1}):
-        k = str(_e["_id"])
-        if k not in counts:
-            counts[k] = 0
+        # ensure zeros
+        for _e in entries_col.find(q_entries, {"_id": 1}):
+            k = str(_e["_id"])
+            if k not in counts:
+                counts[k] = 0
 
     # --- fetch entries per your sort ---
-    if phase == "voting" and sort_mode == "top":
-        # existing TOP logic (unchanged)
+    if show_vote_counts and sort_mode == "top":
+        # Vote-based sorting is only public once results are live.
         rank_pipeline = [
             {"$match": {"comp_id": comp_id}},
             {"$group": {"_id": "$entry_id", "votes": {"$sum": 1}}},
@@ -11892,6 +14136,7 @@ def competition_gallery():
         viewer_id=str(viewer_id) if viewer_id else None,
         sort_mode=sort_mode,
         vote_counts=counts,
+        show_vote_counts=show_vote_counts,
         theme=theme,  
         **cal,
     )
@@ -11912,9 +14157,12 @@ def competition_submit():
     discord_id = session.get("discord_id")
     roles = [str(r) for r in (session.get("roles") or [])]
     is_member = bool(session.get("is_member", False))
+    submission_ban = _competition_submission_ban(comp_id, str(discord_id)) if discord_id else None
 
     if not discord_id:
         submit_status = "not_logged_in"
+    elif submission_ban:
+        submit_status = "banned"
     elif not is_member:
         submit_status = "not_in_guild"
     elif str(UNVERIFIED_ROLE_ID) in roles:
@@ -11933,9 +14181,10 @@ def competition_submit():
     if request.method == "GET":
         theme = _theme_for(comp_id)
         from flask import g
-        g.comp_id_for_theme = comp_id        
+        g.comp_id_for_theme = comp_id
         user_key = str(discord_id) if discord_id else f"anon-{request.remote_addr}"
         entry = entries_col.find_one({"comp_id": comp_id, "user_id": user_key})
+        submit_reward_claimed = _competition_has_reward_claim(comp_id, str(discord_id), "submit") if discord_id else False
 
         # Fetch "your vote" (during voting) and the voted image URL
         my_vote = None
@@ -11954,14 +14203,19 @@ def competition_submit():
             phase=phase,
             entry=entry,
             submit_status=submit_status,
+            submission_ban=submission_ban,
+            submit_reward_claimed=submit_reward_claimed,
             my_vote=my_vote,          # <-- enables "Your vote" section
             entries_map=entries_map,  # <-- image lookup for your vote
             GUILD_ID=GUILD_ID,        # used by template links
-            theme=theme,  
+            theme=theme,
         )
 
     # --- POST (only if allowed) ---
     if submit_status != "ok":
+        if submit_status == "banned":
+            flash("You are blocked from entering this contest month because a previous submission was removed by staff.", "error")
+            return redirect(url_for("competition_submit"))
         flash("Please log in and verify in Discord to submit.", "error")
         return redirect(url_for("competition_submit"))
 
@@ -12004,13 +14258,18 @@ def competition_submit():
 
     # Upload to R2 (resized)
     unique_name = uuid.uuid4().hex
-    buf, content_type, ext_out = resize_to_max_edge(file)  # returns JPEG 85%
+    try:
+        buf, content_type, ext_out = resize_to_max_edge(file)  # returns JPEG 85%
+    except ValueError:
+        flash("Invalid or corrupted image file. Please choose a different PNG or JPG.", "error")
+        return redirect(url_for("competition_submit"))
     object_key = f"{comp_id}/{unique_name}.{ext_out}"
     image_url = r2_put_object(buf, object_key, content_type)
 
     # Match UI limit
     caption = (request.form.get("caption") or "").strip()[:35]
 
+    existing_entry = entries_col.find_one({"comp_id": comp_id, "user_id": str(discord_id)}, {"_id": 1})
     entries_col.update_one(
         {"comp_id": comp_id, "user_id": str(discord_id)},
         {"$set": {
@@ -12028,7 +14287,20 @@ def competition_submit():
         if f":{comp_id}:" in k or k.startswith(f"results:{comp_id}:"):
             COMP_RESULTS_CACHE.pop(k, None)
 
-    flash("Submission saved!", "success")
+    reward_granted, _ = _competition_try_grant_reward(
+        comp_id,
+        str(discord_id),
+        "submit",
+        COMP_SUBMIT_REWARD,
+        meta={"entry_action": "create" if not existing_entry else "update"},
+    )
+
+    if reward_granted:
+        flash(f"Submission saved! +{COMP_SUBMIT_REWARD:,} server coins awarded.", "success")
+    elif existing_entry:
+        flash("Submission updated!", "success")
+    else:
+        flash("Submission saved!", "success")
     # nicer loop: land back on Submit so they see their card (and later their vote)
     return redirect(url_for("competition_submit"))
 
@@ -12173,9 +14445,9 @@ def competition_results():
                   "cta_href": url_for("competition_gallery"),
                   "cta_label": "Go vote now"}
     prizes = {
-        "first":  "1,000,000 coins + 1 month of Discord Nitro",
-        "second": "700,000 coins",
-        "third":  "500,000 coins",
+        "first":  "75k Server coins + 1 month of Discord Nitro",
+        "second": "50k Server coins",
+        "third":  "25k Server coins",
     }
 
     return render_template(
@@ -12219,6 +14491,10 @@ def competition_delete():
 
     if phase != "submit":
         flash("Edits are locked during voting/results.", "error")
+        return redirect(url_for("competition_submit"))
+
+    if _competition_has_reward_claim(comp_id, str(discord_id), "submit"):
+        flash("You can't delete this submission after claiming the submit reward. You can still replace the image or edit the title.", "error")
         return redirect(url_for("competition_submit"))
 
     client = get_db()
@@ -12285,6 +14561,8 @@ def competition_update_caption():
     phase, comp_id = _phase_today()
     if phase != "submit":
         return jsonify(ok=False, error="Edits are locked during voting/results."), 400
+    if _competition_submission_ban(comp_id, str(discord_id)):
+        return jsonify(ok=False, error="You are blocked from editing submissions for this contest month."), 403
 
     new_caption = (request.form.get("caption") or "").strip()[:35]
 
@@ -12332,6 +14610,11 @@ def competition_vote():
     voter_id = session.get("discord_id")
     if not voter_id:
         return jsonify({"ok": False, "error": "Login required."}), 401
+    roles = [str(r) for r in (session.get("roles") or [])]
+    if not bool(session.get("is_member", False)):
+        return jsonify({"ok": False, "error": "You must be in the Discord server to vote."}), 403
+    if str(UNVERIFIED_ROLE_ID) in roles:
+        return jsonify({"ok": False, "error": "You must be verified in Discord to vote."}), 403
 
     payload = request.get_json(silent=True) or {}
     entry_id = request.form.get("entry_id") or payload.get("entry_id")
@@ -12379,8 +14662,21 @@ def competition_vote():
                 "entry_id": new_entry_id,
                 "created_at": datetime.now(timezone.utc),
             })
+            reward_granted, _ = _competition_try_grant_reward(
+                comp_id,
+                str(voter_id),
+                "vote",
+                COMP_VOTE_REWARD,
+                meta={"entry_id": new_entry_id},
+            )
             # 猬囷笍 was changed: False
-            return jsonify({"ok": True, "entry_id": new_entry_id, "changed": True})
+            return jsonify({
+                "ok": True,
+                "entry_id": new_entry_id,
+                "changed": True,
+                "reward_granted": reward_granted,
+                "reward_amount": COMP_VOTE_REWARD if reward_granted else 0,
+            })
         except DuplicateKeyError:
             # another request inserted first - re-fetch and continue below
             existing = votes.find_one({"comp_id": comp_id, "voter_id": str(voter_id)})
@@ -12426,6 +14722,15 @@ def api_competition_submit_from_bot():
 
     if not discord_id:
         return jsonify(ok=False, error="Missing discord_id"), 400
+    submission_ban = _competition_submission_ban(comp_id, str(discord_id))
+    if submission_ban:
+        return jsonify(
+            ok=False,
+            error="User is banned from submitting for this contest month.",
+            comp_id=comp_id,
+            reason=submission_ban.get("reason", ""),
+            image_url=submission_ban.get("image_url", ""),
+        ), 403
     if not file or file.filename == "":
         return jsonify(ok=False, error="Missing image file"), 400
 
@@ -12439,7 +14744,10 @@ def api_competition_submit_from_bot():
 
     # Upload resized
     unique_name = uuid.uuid4().hex
-    buf, content_type, ext_out = resize_to_max_edge(file)
+    try:
+        buf, content_type, ext_out = resize_to_max_edge(file)
+    except ValueError:
+        return jsonify(ok=False, error="Invalid or corrupted image file"), 400
     object_key = f"{comp_id}/{unique_name}.{ext_out}"
     image_url = r2_put_object(buf, object_key, content_type)
 
@@ -12447,6 +14755,7 @@ def api_competition_submit_from_bot():
     c= get_db()
     db = c["Website"]
 
+    existing_entry = db["CompEntries"].find_one({"comp_id": comp_id, "user_id": str(discord_id)}, {"_id": 1})
     db["CompEntries"].update_one(
         {"comp_id": comp_id, "user_id": str(discord_id)},
         {"$set": {
@@ -12471,7 +14780,22 @@ def api_competition_submit_from_bot():
         upsert=True
     )
 
-    return jsonify(ok=True, comp_id=comp_id, image_url=image_url, caption=caption)
+    reward_granted, _ = _competition_try_grant_reward(
+        comp_id,
+        str(discord_id),
+        "submit",
+        COMP_SUBMIT_REWARD,
+        meta={"entry_action": "create" if not existing_entry else "update", "via": "bot"},
+    )
+
+    return jsonify(
+        ok=True,
+        comp_id=comp_id,
+        image_url=image_url,
+        caption=caption,
+        reward_granted=reward_granted,
+        reward_amount=COMP_SUBMIT_REWARD if reward_granted else 0,
+    )
 
 
 @csrf.exempt
@@ -12488,6 +14812,9 @@ def api_competition_edit_caption_from_bot():
     caption = (payload.get("caption") or "").strip()[:35]
     if not discord_id:
         return jsonify(ok=False, error="Missing discord_id"), 400
+    submission_ban = _competition_submission_ban(comp_id, str(discord_id))
+    if submission_ban:
+        return jsonify(ok=False, error="User is banned from editing submissions for this contest month."), 403
 
     db = get_db("Website")
     entry = db["CompEntries"].find_one({"comp_id": comp_id, "user_id": str(discord_id)})
@@ -12510,6 +14837,12 @@ def api_competition_delete_from_bot():
     discord_id = (payload.get("discord_id") or "").strip()
     if not discord_id:
         return jsonify(ok=False, error="Missing discord_id"), 400
+
+    if _competition_has_reward_claim(comp_id, str(discord_id), "submit"):
+        return jsonify(
+            ok=False,
+            error="Submit reward already claimed; deletion is locked for this month. Replace the submission instead.",
+        ), 409
 
     db = get_db("Website")
     db["CompEntries"].delete_one({"comp_id": comp_id, "user_id": str(discord_id)})

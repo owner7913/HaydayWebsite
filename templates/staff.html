@@ -629,6 +629,13 @@
       "Giveaway Staff": "🎁"
     } %}
 
+    {% set status_labels = {
+      "online": "Online",
+      "idle": "Idle",
+      "dnd": "Do Not Disturb",
+      "offline": "Offline"
+    } %}
+
     {% set total_staff = staff|length %}
     {% set counts = namespace(online=0, boosters=0) %}
     {% for member in staff %}
@@ -646,14 +653,14 @@
           <div class="eyebrow">Community team directory</div>
           <h1 class="staff-title">Meet the HayDay staff team</h1>
           <p class="staff-subtitle">
-            A cleaner public directory for your moderators, verifiers, and event staff. Cards are grouped by role,
-            show live-style presence status, and open a polished member detail modal when clicked.
+            Get to know the people who help keep the HayDay community friendly, fair, and active.
+            Browse the team by role, see who is around, and open a profile for more details.
           </p>
 
           <div class="hero-badges">
-            <div class="hero-badge">✨ Role-based sections</div>
-            <div class="hero-badge">🟢 Status indicators</div>
-            <div class="hero-badge">🚀 Boosting highlight</div>
+            <div class="hero-badge">✨ Here to help</div>
+            <div class="hero-badge">🟢 Active team members</div>
+            <div class="hero-badge">🚀 Server boosters</div>
           </div>
         </div>
 
@@ -694,6 +701,7 @@
 
           <div class="staff-grid">
             {% for member in grouped_staff[role] %}
+              {% set status_key = (member.status or 'offline') | lower %}
               <article
                 class="member-card"
                 onclick='showProfileModal(JSON.parse(this.dataset.member))'
@@ -702,7 +710,7 @@
                   <div class="avatar-ring">
                     <img src="{{ member.avatar }}" class="avatar" alt="{{ member.name }} avatar">
                   </div>
-                  <span class="presence-dot {{ (member.status or 'offline') | lower }}"></span>
+                  <span class="presence-dot {{ status_key }}"></span>
                 </div>
 
                 <div class="member-info">
@@ -717,8 +725,8 @@
 
                   <div class="member-meta">
                     <span class="meta-chip">
-                      <span class="presence-dot {{ (member.status or 'offline') | lower }}" style="position:static;width:10px;height:10px;border-width:0;box-shadow:none;"></span>
-                      <span class="status-text">{{ member.status or 'Offline' }}</span>
+                      <span class="presence-dot {{ status_key }}" style="position:static;width:10px;height:10px;border-width:0;box-shadow:none;"></span>
+                      <span class="status-text">{{ status_labels.get(status_key, member.status or 'Offline') }}</span>
                     </span>
                     <span class="meta-chip">{{ role }}</span>
                   </div>
@@ -776,6 +784,17 @@
 
 {% block scripts %}
 <script>
+  function formatStatusLabel(status) {
+    const labels = {
+      online: "Online",
+      idle: "Idle",
+      dnd: "Do Not Disturb",
+      offline: "Offline",
+    };
+
+    return labels[status] || status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
   function showProfileModal(member) {
     const modal = document.getElementById("profileModal");
     const status = (member.status || "offline").toLowerCase();
@@ -787,7 +806,7 @@
 
     const statusDot = document.getElementById("modalStatusDot");
     statusDot.className = "presence-dot " + status;
-    document.getElementById("modalStatusText").textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    document.getElementById("modalStatusText").textContent = formatStatusLabel(status);
 
     document.getElementById("modalJoin").textContent = member.joined_at
       ? new Date(member.joined_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })

@@ -307,6 +307,14 @@
             <option value="loss" {% if coinflip_result == 'loss' %}selected{% endif %}>Loss</option>
           </select>
         </div>
+        <div>
+          <label for="start_date">Start date</label>
+          <input id="start_date" name="start_date" type="date" value="{{ start_date or '' }}">
+        </div>
+        <div>
+          <label for="end_date">End date</label>
+          <input id="end_date" name="end_date" type="date" value="{{ end_date or '' }}">
+        </div>
         <div class="filter-actions">
           <button class="btn" type="submit">Apply filters</button>
           <a class="btn secondary" href="/dashboard/gambling">Reset</a>
@@ -323,12 +331,14 @@
       </div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="label">Sessions</div><div class="value">{{ blackjack_total }}</div></div>
-        <div class="stat-card"><div class="label">Wins</div><div class="value">{{ blackjack_stats.wins or 0 }}</div></div>
-        <div class="stat-card"><div class="label">Losses</div><div class="value">{{ blackjack_stats.losses or 0 }}</div></div>
-        <div class="stat-card"><div class="label">Pushes</div><div class="value">{{ blackjack_stats.pushes or 0 }}</div></div>
-        <div class="stat-card"><div class="label">Split Games</div><div class="value">{{ blackjack_stats.splits or 0 }}</div></div>
-        <div class="stat-card"><div class="label">Bets</div><div class="value">{{ blackjack_stats.wagered or 0 }}</div></div>
+        <div class="stat-card"><div class="label">Sessions</div><div class="value">{{ "{:,}".format(blackjack_total or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Wins</div><div class="value">{{ "{:,}".format(blackjack_stats.wins or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Losses</div><div class="value">{{ "{:,}".format(blackjack_stats.losses or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Win Rate</div><div class="value">{{ blackjack_stats.win_rate or 0 }}%</div></div>
+        <div class="stat-card"><div class="label">Loss Rate</div><div class="value">{{ blackjack_stats.loss_rate or 0 }}%</div></div>
+        <div class="stat-card"><div class="label">Pushes</div><div class="value">{{ "{:,}".format(blackjack_stats.pushes or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Split Games</div><div class="value">{{ "{:,}".format(blackjack_stats.splits or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Bets</div><div class="value">{{ "{:,}".format(blackjack_stats.wagered or 0) }}</div></div>
       </div>
 
       {% if blackjack_logs %}
@@ -354,9 +364,9 @@
               <td>{{ log.ts.strftime('%Y-%m-%d %H:%M UTC') if log.ts else '-' }}</td>
               <td>{{ log.display_username }}<br><span class="hint">{{ log.user_id }}</span></td>
               <td><span class="pill {{ log.result }}">{{ log.result|replace('_', ' ') }}</span></td>
-              <td>{{ log.bet or 0 }}</td>
-              <td>{{ log.total_wager or 0 }}</td>
-              <td>{{ log.payout or 0 }}</td>
+              <td>{{ "{:,}".format(log.bet or 0) }}</td>
+              <td>{{ "{:,}".format(log.total_wager or 0) }}</td>
+              <td>{{ "{:,}".format(log.payout or 0) }}</td>
               <td>{{ log.dealer_total or '-' }}</td>
               <td>{{ (log.player_totals or [])|join(', ') }}</td>
               <td class="summary">{{ log.summary or '-' }}</td>
@@ -391,11 +401,11 @@
 
       <div class="pagination">
         {% if blackjack_page > 1 %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page - 1, coinflip_page=coinflip_page) }}">Previous blackjack page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, start_date=start_date, end_date=end_date, blackjack_page=blackjack_page - 1, coinflip_page=coinflip_page) }}">Previous blackjack page</a>
         {% endif %}
         <span class="hint">Page {{ blackjack_page }}</span>
         {% if blackjack_page * per_page < blackjack_total %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page + 1, coinflip_page=coinflip_page) }}">Next blackjack page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, start_date=start_date, end_date=end_date, blackjack_page=blackjack_page + 1, coinflip_page=coinflip_page) }}">Next blackjack page</a>
         {% endif %}
       </div>
       {% else %}
@@ -514,12 +524,16 @@
       </div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="label">Events</div><div class="value">{{ coinflip_stats.total }}</div></div>
-        <div class="stat-card"><div class="label">Wins</div><div class="value">{{ coinflip_stats.wins }}</div></div>
-        <div class="stat-card"><div class="label">Losses</div><div class="value">{{ coinflip_stats.losses }}</div></div>
-        <div class="stat-card"><div class="label">Bets</div><div class="value">{{ coinflip_stats.wagered }}</div></div>
-        <div class="stat-card"><div class="label">Paid Out</div><div class="value">{{ coinflip_stats.paid_out }}</div></div>
-        <div class="stat-card"><div class="label">Profit Paid</div><div class="value">{{ coinflip_stats.profit_paid }}</div></div>
+        <div class="stat-card"><div class="label">Events</div><div class="value">{{ "{:,}".format(coinflip_stats.total or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Wins</div><div class="value">{{ "{:,}".format(coinflip_stats.wins or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Losses</div><div class="value">{{ "{:,}".format(coinflip_stats.losses or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Win Rate</div><div class="value">{{ coinflip_stats.win_rate or 0 }}%</div></div>
+        <div class="stat-card"><div class="label">Loss Rate</div><div class="value">{{ coinflip_stats.loss_rate or 0 }}%</div></div>
+        <div class="stat-card"><div class="label">Head %</div><div class="value">{{ coinflip_stats.head_rate or 0 }}%</div></div>
+        <div class="stat-card"><div class="label">Tail %</div><div class="value">{{ coinflip_stats.tail_rate or 0 }}%</div></div>
+        <div class="stat-card"><div class="label">Bets</div><div class="value">{{ "{:,}".format(coinflip_stats.wagered or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Paid Out</div><div class="value">{{ "{:,}".format(coinflip_stats.paid_out or 0) }}</div></div>
+        <div class="stat-card"><div class="label">Profit Paid</div><div class="value">{{ "{:,}".format(coinflip_stats.profit_paid or 0) }}</div></div>
       </div>
 
       {% if coinflip_logs %}
@@ -544,11 +558,11 @@
               <td>{{ log.ts.strftime('%Y-%m-%d %H:%M UTC') if log.ts else '-' }}</td>
               <td>{{ log.username }}<br><span class="hint">{{ log.user_id }}</span></td>
               <td><span class="pill {{ log.result }}">{{ log.result }}</span></td>
-              <td>{{ log.bet }}</td>
-              <td>{{ log.payout }}</td>
+              <td>{{ "{:,}".format(log.bet or 0) }}</td>
+              <td>{{ "{:,}".format(log.payout or 0) }}</td>
               <td>{{ log.choice or '-' }}</td>
               <td>{{ log.flip_result or '-' }}</td>
-              <td>{{ log.balance_after if log.balance_after is not none else '-' }}</td>
+              <td>{{ "{:,}".format(log.balance_after) if log.balance_after is not none else '-' }}</td>
               <td>
                 {% if log.admin_refunded_at %}
                 <div class="hint">Refunded</div>
@@ -582,11 +596,11 @@
 
       <div class="pagination">
         {% if coinflip_page > 1 %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page - 1) }}">Previous coinflip page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, start_date=start_date, end_date=end_date, blackjack_page=blackjack_page, coinflip_page=coinflip_page - 1) }}">Previous coinflip page</a>
         {% endif %}
         <span class="hint">Page {{ coinflip_page }}</span>
         {% if coinflip_page * per_page < coinflip_total %}
-        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, blackjack_page=blackjack_page, coinflip_page=coinflip_page + 1) }}">Next coinflip page</a>
+        <a class="btn secondary" href="{{ url_for('dashboard_gambling', search=search_term, table_code=table_code, blackjack_result=blackjack_result, coinflip_result=coinflip_result, start_date=start_date, end_date=end_date, blackjack_page=blackjack_page, coinflip_page=coinflip_page + 1) }}">Next coinflip page</a>
         {% endif %}
       </div>
       {% else %}

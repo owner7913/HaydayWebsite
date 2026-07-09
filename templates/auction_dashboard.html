@@ -1,598 +1,1004 @@
 {% extends 'base.html' %}
-{% block title %}Auction Dashboard - HayDay 🍀{% endblock %}
+{% block title %}Auction Dashboard - HayDay{% endblock %}
 
 {% block head_extra %}
-  <style>
+<style>
+  :root {
+    --auction-admin-bg: #eef4ef;
+    --auction-admin-surface: rgba(255, 255, 255, .88);
+    --auction-admin-surface-strong: #ffffff;
+    --auction-admin-text: #172019;
+    --auction-admin-muted: #657266;
+    --auction-admin-line: rgba(29, 47, 33, .12);
+    --auction-admin-green: #3f9b50;
+    --auction-admin-green-dark: #277238;
+    --auction-admin-amber: #c98222;
+    --auction-admin-red: #c54747;
+    --auction-admin-blue: #3478db;
+    --auction-admin-shadow: 0 18px 38px rgba(31, 63, 38, .10);
+  }
 
-.card {
-  background: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  margin-bottom: 24px;
-}
+  body.dark {
+    --auction-admin-bg: #111712;
+    --auction-admin-surface: rgba(24, 31, 25, .9);
+    --auction-admin-surface-strong: #1b241c;
+    --auction-admin-text: #eef8ee;
+    --auction-admin-muted: #aebaaf;
+    --auction-admin-line: rgba(255, 255, 255, .10);
+    --auction-admin-green: #70c66a;
+    --auction-admin-green-dark: #48a84f;
+    --auction-admin-amber: #e0a644;
+    --auction-admin-red: #e26464;
+    --auction-admin-blue: #69a6f8;
+    --auction-admin-shadow: 0 18px 42px rgba(0, 0, 0, .28);
+  }
 
-body.dark .card {
-  background: #2b2b2b;
-  color: white;
-}
+  .auction-admin {
+    color: var(--auction-admin-text);
+  }
 
-/* Auction Entries */
-.auction-entry, .log-entry, .banned-user {
-  background-color: var(--card-bg, white);
-  border: 1px solid #ccc;
-  padding: 16px;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
+  .auction-admin .dashboard-content {
+    background:
+      linear-gradient(180deg, var(--auction-admin-bg), color-mix(in oklab, var(--auction-admin-bg) 86%, #ffffff));
+    min-width: 0;
+  }
 
-body.dark .auction-entry,
-body.dark .log-entry,
-body.dark .banned-user {
-  background-color: #2b2b2b;
-  color: white;
-  border-color: #444;
-}
+  body.dark .auction-admin .dashboard-content {
+    background: linear-gradient(180deg, #111712, #0d120e);
+  }
 
-.auction-entry {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-}
-/* Improve auction entry layout */
-.auction-entry {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-}
+  .auction-admin-shell {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: grid;
+    gap: 18px;
+  }
 
-/* Bids Container */
-.bids-container div {
-  background-color: rgba(255, 255, 255, 0.05);
-  padding: 8px 12px;
-  border-radius: 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-  font-size: 15px;
-}
+  .auction-admin-header,
+  .auction-admin-section {
+    border: 1px solid var(--auction-admin-line);
+    background: var(--auction-admin-surface);
+    box-shadow: var(--auction-admin-shadow);
+    backdrop-filter: blur(10px);
+  }
 
-/* Buttons inside bids */
-.bids-container form button {
-  background-color: #c0392b;
-  border: none;
-  color: white;
-  padding: 6px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-}
+  .auction-admin-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 18px;
+    border-radius: 8px;
+    padding: 22px;
+  }
 
-.bids-container form button:hover {
-  background-color: #e74c3c;
-}
+  .auction-admin-kicker {
+    margin: 0 0 6px;
+    color: var(--auction-admin-green-dark);
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
 
-/* Edit Modal Form */
-#editModal form label {
-  display: flex;
-  flex-direction: column;
-  font-weight: 500;
-  margin-bottom: 12px;
-}
+  body.dark .auction-admin-kicker {
+    color: #c9f6c1;
+  }
 
-#editModal input,
-#editModal select {
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  margin-top: 4px;
-  width: 100%;
-}
+  .auction-admin-title {
+    margin: 0;
+    font-size: clamp(1.75rem, 3vw, 2.55rem);
+    line-height: 1.05;
+  }
 
-#editModal form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+  .auction-admin-subtitle,
+  .auction-section-subtitle,
+  .auction-muted {
+    color: var(--auction-admin-muted);
+    line-height: 1.55;
+  }
 
-#editModal form button {
-  width: 48%;
-}
+  .auction-admin-subtitle {
+    max-width: 760px;
+    margin: 8px 0 0;
+  }
 
-/* Buttons side-by-side */
-#editModal .button-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 16px;
-}
+  .auction-admin-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(124px, 1fr));
+    gap: 10px;
+  }
 
-/* Responsive tweak */
-@media (max-width: 480px) {
-  .bids-container div {
-    font-size: 14px;
-    flex-direction: column;
-    align-items: flex-start;
+  .auction-stat {
+    min-height: 76px;
+    padding: 12px 14px;
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .55);
+  }
+
+  body.dark .auction-stat {
+    background: rgba(255, 255, 255, .035);
+  }
+
+  .auction-stat-label,
+  .auction-meta-label,
+  .auction-log-type {
+    display: block;
+    color: var(--auction-admin-muted);
+    font-size: .72rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .auction-stat-value {
+    display: block;
+    margin-top: 4px;
+    font-size: 1.45rem;
+    font-weight: 900;
+  }
+
+  .auction-admin-section {
+    border-radius: 8px;
+    padding: 18px;
+  }
+
+  .auction-section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .auction-section-title {
+    margin: 0;
+    font-size: 1.18rem;
+  }
+
+  .auction-section-subtitle {
+    margin: 4px 0 0;
+    font-size: .94rem;
+  }
+
+  .auction-count-pill,
+  .auction-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    border-radius: 999px;
+    border: 1px solid var(--auction-admin-line);
+    font-size: .78rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .auction-count-pill {
+    padding: 5px 10px;
+    background: rgba(63, 155, 80, .10);
+    color: var(--auction-admin-green-dark);
+  }
+
+  body.dark .auction-count-pill {
+    color: #d8ffd1;
+  }
+
+  .auction-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .auction-row,
+  .auction-log,
+  .auction-banned-user {
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: var(--auction-admin-surface-strong);
+  }
+
+  body.dark .auction-row,
+  body.dark .auction-log,
+  body.dark .auction-banned-user {
+    background: rgba(255, 255, 255, .035);
+  }
+
+  .auction-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+    gap: 14px;
+    padding: 15px;
+  }
+
+  .auction-row-main {
+    min-width: 0;
+    display: grid;
+    gap: 12px;
+  }
+
+  .auction-row-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .auction-row-title strong {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 1.06rem;
+  }
+
+  .auction-status-pill {
+    padding: 4px 9px;
+    background: rgba(63, 155, 80, .12);
+    color: var(--auction-admin-green-dark);
+  }
+
+  .auction-status-ended,
+  .auction-status-no_bids {
+    background: rgba(201, 130, 34, .13);
+    color: var(--auction-admin-amber);
+  }
+
+  .auction-status-cancelled {
+    background: rgba(197, 71, 71, .12);
+    color: var(--auction-admin-red);
+  }
+
+  .auction-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(130px, 1fr));
+    gap: 10px;
+  }
+
+  .auction-meta {
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .46);
+  }
+
+  body.dark .auction-meta {
+    background: rgba(255, 255, 255, .03);
+  }
+
+  .auction-meta-value {
+    display: block;
+    margin-top: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-weight: 800;
+  }
+
+  .auction-image-preview {
+    display: grid;
+    gap: 8px;
+    max-width: 240px;
+  }
+
+  .auction-image-preview img {
+    width: 100%;
+    max-height: 160px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--auction-admin-line);
+  }
+
+  .auction-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-content: flex-start;
+    gap: 8px;
+  }
+
+  .auction-actions form {
+    margin: 0;
+    display: contents;
+  }
+
+  .action-btn,
+  .pagination-link {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .78);
+    color: var(--auction-admin-text);
+    font-size: .88rem;
+    font-weight: 850;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  }
+
+  body.dark .action-btn,
+  body.dark .pagination-link {
+    background: rgba(255, 255, 255, .045);
+  }
+
+  body.dark .auction-admin .action-btn,
+  body.dark .edit-modal-overlay .action-btn {
+    background: rgba(255, 255, 255, .045);
+    color: var(--auction-admin-text);
+    border-color: var(--auction-admin-line);
+  }
+
+  .action-btn:hover,
+  .pagination-link:hover {
+    transform: translateY(-1px);
+    border-color: rgba(63, 155, 80, .34);
+    box-shadow: 0 10px 20px rgba(31, 63, 38, .08);
+  }
+
+  .action-btn-primary {
+    background: linear-gradient(180deg, var(--auction-admin-green), var(--auction-admin-green-dark));
+    border-color: transparent;
+    color: #fff;
+  }
+
+  body.dark .auction-admin .action-btn-primary,
+  body.dark .edit-modal-overlay .action-btn-primary {
+    background: linear-gradient(180deg, var(--auction-admin-green), var(--auction-admin-green-dark));
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .action-btn-blue {
+    background: linear-gradient(180deg, var(--auction-admin-blue), #235ba9);
+    border-color: transparent;
+    color: #fff;
+  }
+
+  body.dark .auction-admin .action-btn-blue,
+  body.dark .edit-modal-overlay .action-btn-blue {
+    background: linear-gradient(180deg, var(--auction-admin-blue), #235ba9);
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .action-btn-warn {
+    background: rgba(201, 130, 34, .13);
+    color: var(--auction-admin-amber);
+  }
+
+  body.dark .auction-admin .action-btn-warn,
+  body.dark .edit-modal-overlay .action-btn-warn {
+    background: rgba(224, 166, 68, .16);
+    color: var(--auction-admin-amber);
+  }
+
+  .action-btn-danger {
+    background: rgba(197, 71, 71, .13);
+    color: var(--auction-admin-red);
+  }
+
+  body.dark .auction-admin .action-btn-danger,
+  body.dark .edit-modal-overlay .action-btn-danger {
+    background: rgba(226, 100, 100, .16);
+    color: var(--auction-admin-red);
+  }
+
+  .action-btn:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .auction-bids {
+    display: none;
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--auction-admin-line);
+    padding-top: 12px;
+  }
+
+  .auction-bids.is-open {
+    display: grid;
+    gap: 8px;
+  }
+
+  .bid-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: rgba(63, 155, 80, .06);
+  }
+
+  .bid-row strong {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .bid-row span {
+    color: var(--auction-admin-muted);
+    font-size: .88rem;
+  }
+
+  .empty-state {
+    padding: 18px;
+    border: 1px dashed var(--auction-admin-line);
+    border-radius: 8px;
+    color: var(--auction-admin-muted);
+    text-align: center;
+  }
+
+  .auction-log-list,
+  .auction-banned-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .auction-log {
+    padding: 12px 13px;
+  }
+
+  .auction-log-message {
+    margin-top: 4px;
+    font-weight: 700;
+  }
+
+  .auction-banned-user {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+    padding: 10px;
+  }
+
+  .auction-banned-user img {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .auction-banned-user strong {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .pagination-status {
+    color: var(--auction-admin-muted);
+    font-size: .9rem;
+    font-weight: 750;
+  }
+
+  .edit-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, .62);
+  }
+
+  .edit-modal-overlay.is-open {
+    display: flex;
+  }
+
+  .edit-modal-box {
+    width: min(560px, 100%);
+    max-height: 92vh;
+    overflow-y: auto;
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: var(--auction-admin-surface-strong);
+    color: var(--auction-admin-text);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .34);
+  }
+
+  body.dark .edit-modal-box {
+    background: #1b241c;
+  }
+
+  .edit-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--auction-admin-line);
+  }
+
+  .edit-modal-head h3 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .edit-modal-form {
+    display: grid;
+    gap: 13px;
+    padding: 18px;
+  }
+
+  .edit-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px;
+  }
+
+  .edit-field {
+    display: grid;
     gap: 6px;
   }
 
-  #editModal form button {
-    width: 100%;
+  .edit-field-full {
+    grid-column: 1 / -1;
   }
 
-  #editModal .button-row {
-    flex-direction: column;
+  .edit-field label {
+    color: var(--auction-admin-muted);
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+
+  .edit-field input,
+  .edit-field select {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 11px;
+    border: 1px solid var(--auction-admin-line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .72);
+    color: var(--auction-admin-text);
+    box-sizing: border-box;
+  }
+
+  body.dark .edit-field input,
+  body.dark .edit-field select {
+    background: rgba(255, 255, 255, .045);
+  }
+
+  .edit-image-preview {
+    display: none;
     gap: 8px;
   }
-}
 
-.auction-entry strong {
-  display: block;
-}
-
-.log-entry {
-  font-size: 14px;
-  margin-bottom: 8px;
-  border-left: 4px solid #bbb;
-  padding-left: 12px;
-}
-
-.banned-user {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.banned-user img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  margin-right: 10px;
-}
-
-.banned-user button {
-  margin-left: auto;
-  padding: 6px 12px;
-  background-color: #e74c3c;
-  border: none;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-/* Grid Layout */
-.section-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-/* Pagination */
-.pagination {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.pagination button {
-  padding: 6px 12px;
-  background-color: #333;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.pagination button:hover {
-  background-color: #555;
-}
-
-/* Dark Theme Forms */
-.dark-mode-box {
-  background-color: #2b2b2b;
-  color: white;
-}
-
-body.dark input,
-body.dark select {
-  background-color: #444;
-  color: white;
-  border: 1px solid #666;
-}
-
-/* Universal touch-friendly buttons */
-button, input, select {
-  font-size: 16px;
-  padding: 10px;
-  min-width: 44px;
-  min-height: 44px;
-}
-
-/* Responsive: Mobile */
-@media (max-width: 480px) {
-  #editModal > div {
-    width: 95%;
-    padding: 16px;
-    max-height: 90vh;
-    overflow-y: auto;
+  .edit-image-preview.is-visible {
+    display: grid;
   }
 
-  #editModal h3 {
-    font-size: 18px;
-  }
-
-  #editModal input,
-  #editModal select {
-    font-size: 16px;
+  .edit-image-preview img {
     width: 100%;
-  }
-}
-.edit-modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.7);
-  z-index: 9999;
-  justify-content: center;
-  align-items: center;
-}
-
-.edit-modal-box {
-  background: #2b2b2b;
-  color: white;
-  border-radius: 10px;
-  padding: 20px 24px;
-  max-width: 360px;
-  max-height: 90vh;  
-  overflow-y: auto; 
-  width: 92%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  border: 1px solid #444;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-family: 'Segoe UI', sans-serif;
-  padding: 20px;
-  box-sizing: border-box;
-}
-
-body.dark .edit-modal-box {
-  background: #2b2b2b;
-  color: white;
-}
-
-
-.edit-modal-box h3 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
-  font-weight: 600;
-  text-align: center;
-  color: #fff;
-}
-
-.edit-modal-box label {
-  font-weight: 500;
-  font-size: 13px;
-  margin-bottom: 4px;
-  color: #ddd;
-}
-
-.edit-modal-box input,
-.edit-modal-box select {
-  padding: 8px 10px;
-  font-size: 14px;
-  width: 100%;
-  border-radius: 6px;
-  border: 1px solid #666;
-  background-color: #444;
-  color: white;
-  margin-bottom: 8px;
-  box-sizing: border-box;
-}
-
-.dark-mode-box input,
-.dark-mode-box select {
-  background-color: #444;
-  color: white;
-  border-color: #666;
-}
-
-.button-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.button-row button {
-  width: 100%;
-  font-size: 14px;
-  padding: 10px;
-  min-height: 38px;
-  background-color: #333;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.button-row button:hover {
-  background-color: #555;
-}
-
-@media (max-width: 480px) {
-  .edit-modal-box {
-    padding: 16px;
+    max-height: 220px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--auction-admin-line);
   }
 
-  .button-row {
-    flex-direction: column;
+  .edit-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 18px;
+    border-top: 1px solid var(--auction-admin-line);
   }
 
-  .button-row button {
-    width: 100%;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
-}
 
- /* General button styles */
-button, .btn {
-  font-size: 14px;
-  padding: 6px 10px;
-  min-width: 36px;
-  min-height: 36px;
-  border-radius: 6px;
-  border: none;
-  background-color: #333;
-  color: white;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
+  @media (max-width: 1180px) {
+    .auction-admin-header {
+      grid-template-columns: 1fr;
+    }
 
-button:hover, .btn:hover {
-  background-color: #555;
-}
+    .auction-admin-stats,
+    .auction-meta-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 
-button:disabled {
-  background-color: #666;
-  cursor: not-allowed;
-}
+  @media (max-width: 860px) {
+    .auction-admin .dashboard-content {
+      padding: 20px;
+    }
 
-/* Group buttons in a column with spacing */
-.auction-entry form,
-.auction-entry button {
-  display: block;
-  width: 100%;
-  margin: 4px 0;
-}
+    .auction-row {
+      grid-template-columns: 1fr;
+    }
 
-.auction-entry button {
-  font-size: 13px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  gap: 4px;
-  min-height: 36px;
-}
+    .auction-actions {
+      justify-content: flex-start;
+    }
 
-.btn-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
+    .auction-actions form {
+      display: block;
+    }
+  }
 
-/* Dark mode inputs */
-body.dark .edit-modal-box input,
-body.dark .edit-modal-box select {
-  background-color: #444;
-  color: white;
-  border-color: #666;
-}
+  @media (max-width: 560px) {
+    .auction-admin .dashboard-content {
+      padding: 14px;
+    }
 
+    .auction-admin-header,
+    .auction-admin-section {
+      padding: 14px;
+    }
 
-  
-  </style>
-{% endblock %}  
+    .auction-section-head,
+    .edit-modal-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .auction-admin-stats,
+    .auction-meta-grid,
+    .edit-field-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .auction-banned-user,
+    .bid-row {
+      grid-template-columns: 1fr;
+    }
+
+    .action-btn,
+    .pagination-link {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="dashboard-wrapper">
-{% include 'sidepanel.html' %}
+<div class="dashboard-wrapper auction-admin">
+  {% include 'sidepanel.html' %}
 
-<main class="dashboard-content">
-  <div class="card">
-    <h2>📦 Active Auctions</h2>
-    <div class="section-grid">
-    {% for auc in active_auctions %}
-      <div class="auction-entry">
-        <strong>{{ auc.item }} x{{ auc.quantity }}</strong><br>
-        Owner: {{ auc.owner_info.display_name or auc.owner_id }}<br>
-        Highest Bid: {{ auc.current_bid }} by {{ auc.bidder_info.display_name or "—" }}<br>
-        Ends at: {{ auc.end_time }}<br>
-
-  <button onclick="toggleBids('{{ auc.message_id }}', this)">🔽 Show Bids</button>
-
-  <form method="POST" action="/api/auction/end" style="display:inline;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="message_id" value="{{ auc.message_id }}">
-    <button class="btn btn-icon">❌ End Now</button>
-  </form>
-
-  <!-- 📝 Edit Button triggers modal -->
-  <button onclick="openEditAuction('{{ auc.message_id }}')">✏️ Edit</button>
-
-  <!-- 🗑️ Cancel Form (no image_url input here) -->
-  <form method="POST" action="/api/auction/cancel"
-        onsubmit="return confirmCancelWithReason(this);" 
-        style="display:inline;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="message_id" value="{{ auc.message_id }}">
-    <input type="hidden" name="reason" value="">
-    <button class="btn btn-icon" style="color: red;">❌ Cancel</button>
-  </form>
-
-
-
-  <!-- 🖼️ Show auction image if exists -->
-  {% if auc.image_url %}
-    <div style="margin-top: 5px;">
-      <img src="{{ auc.image_url }}" alt="Auction Image" style="max-width: 100%; border-radius: 8px;" />
-      <form method="POST" action="/api/auction/remove-image" onsubmit="return confirm('Remove image?')" style="display:inline;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="message_id" value="{{ auc.message_id }}">
-        <button class="btn btn-sm">🗑 Remove Image</button>
-      </form>
-    </div>
-  {% endif %}
-{% if auc.buyout_offer %}
-<form method="POST" action="/api/auction/remove-buyout" onsubmit="return confirm('Remove buyout offer?')">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <input type="hidden" name="message_id" value="{{ auc.message_id }}">
-  <button class="btn btn-sm" style="background-color:#c0392b;">❌ Remove Buyout</button>
-</form>
-{% endif %}
-
-  <!-- Bids container -->
-  <div class="bids-container" id="bids-{{ auc.message_id }}" style="display:none;"></div>
-
-      </div>
-    {% endfor %}
-
-    </div>
-    {% if active_total_pages > 1 %}
-      <div class="pagination">
-        {% if active_page > 1 %}
-          <a href="?active_page={{ active_page - 1 }}"><button>&laquo; Prev</button></a>
-        {% endif %}
-        <span>Page {{ active_page }} of {{ active_total_pages }}</span>
-        {% if active_page < active_total_pages %}
-          <a href="?active_page={{ active_page + 1 }}"><button>Next &raquo;</button></a>
-        {% endif %}
-      </div>
-    {% elif not active_auctions %}
-      <p>No active auctions found.</p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>🗃️ Recently Ended Auctions</h2>
-    <div class="section-grid">
-      {% for auc in ended_auctions %}
-        <div class="auction-entry">
-          <strong>{{ auc.item }} x{{ auc.quantity }}</strong>
-          Owner: {{ auc.owner_info.display_name or auc.owner_id }}<br>
-          Winner: {{ auc.bidder_info.display_name or "—" }}<br>
-          Final Bid: {{ auc.current_bid }}<br>
-          Status: {{ auc.status }}
+  <main class="dashboard-content">
+    <div class="auction-admin-shell">
+      <section class="auction-admin-header">
+        <div>
+          <p class="auction-admin-kicker">Staff tools</p>
+          <h1 class="auction-admin-title">Auction Dashboard</h1>
+          <p class="auction-admin-subtitle">Manage active listings, bid history, completed auctions, logs, and auction-restricted users from one clean view.</p>
         </div>
-      {% endfor %}
-    </div>
-    {% if ended_total_pages > 1 %}
-      <div class="pagination">
-        {% if ended_page > 1 %}
-          <a href="?ended_page={{ ended_page - 1 }}"><button>&laquo; Prev</button></a>
-        {% endif %}
-        <span>Page {{ ended_page }} of {{ ended_total_pages }}</span>
-        {% if ended_page < ended_total_pages %}
-          <a href="?ended_page={{ ended_page + 1 }}"><button>Next &raquo;</button></a>
-        {% endif %}
-      </div>
-    {% elif not ended_auctions %}
-      <p>No ended auctions found.</p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>📜 Auction Logs</h2>
-    <div class="section-grid">
-      {% for log in logs %}
-        <div class="log-entry">
-          [{{ log.timestamp }}] {{ log.type }} by {{ log.author_info.display_name or log.author.name }}
+        <div class="auction-admin-stats" aria-label="Auction dashboard totals">
+          <div class="auction-stat">
+            <span class="auction-stat-label">Active</span>
+            <span class="auction-stat-value">{{ active_total }}</span>
+          </div>
+          <div class="auction-stat">
+            <span class="auction-stat-label">Ended</span>
+            <span class="auction-stat-value">{{ ended_total }}</span>
+          </div>
+          <div class="auction-stat">
+            <span class="auction-stat-label">Logs</span>
+            <span class="auction-stat-value">{{ log_total }}</span>
+          </div>
+          <div class="auction-stat">
+            <span class="auction-stat-label">Banned</span>
+            <span class="auction-stat-value">{{ ban_total }}</span>
+          </div>
         </div>
-      {% endfor %}
-    </div>
-    {% if log_total_pages > 1 %}
-      <div class="pagination">
-        {% if log_page > 1 %}
-          <a href="?log_page={{ log_page - 1 }}"><button>&laquo; Prev</button></a>
-        {% endif %}
-        <span>Page {{ log_page }} of {{ log_total_pages }}</span>
-        {% if log_page < log_total_pages %}
-          <a href="?log_page={{ log_page + 1 }}"><button>Next &raquo;</button></a>
-        {% endif %}
-      </div>
-    {% elif not logs %}
-      <p>No logs found.</p>
-    {% endif %}
-  </div>
+      </section>
 
-  <div class="card">
-    <h2>🚫 Banned Auction Users</h2>
-    <div class="section-grid">
-      {% for user in banned_users %}
-        <div class="banned-user">
-          <img src="{{ user.avatar or 'https://cdn.discordapp.com/embed/avatars/0.png' }}">
-          <span>{{ user.display_name or user.username }}</span>
-          <form method="POST" action="/api/auction/unban" style="margin:0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="user_id" value="{{ user._id }}">
-            <button type="submit">Unban</button>
-          </form>
+      <section class="auction-admin-section">
+        <div class="auction-section-head">
+          <div>
+            <h2 class="auction-section-title">Active Auctions</h2>
+            <p class="auction-section-subtitle">Review live listings and use quick actions without leaving the page.</p>
+          </div>
+          <span class="auction-count-pill">{{ active_total }} total</span>
         </div>
-      {% endfor %}
+
+        <div class="auction-list">
+          {% for auc in active_auctions %}
+            <article class="auction-row">
+              <div class="auction-row-main">
+                <div class="auction-row-title">
+                  <strong title="{{ auc.item }} x{{ auc.quantity }}">{{ auc.item }} x{{ auc.quantity }}</strong>
+                  <span class="auction-status-pill">Active</span>
+                </div>
+
+                <div class="auction-meta-grid">
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Owner</span>
+                    <span class="auction-meta-value" title="{{ auc.owner_info.display_name or auc.owner_id }}">{{ auc.owner_info.display_name or auc.owner_id }}</span>
+                  </div>
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Highest Bid</span>
+                    <span class="auction-meta-value">{{ "{:,}".format(auc.current_bid or 0) }}</span>
+                  </div>
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Bidder</span>
+                    <span class="auction-meta-value" title="{{ auc.bidder_info.display_name or '' }}">{{ auc.bidder_info.display_name or "No bids yet" }}</span>
+                  </div>
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Ends</span>
+                    <span class="auction-meta-value">{{ auc.end_time }}</span>
+                  </div>
+                </div>
+
+                {% if auc.image_url %}
+                  <div class="auction-image-preview">
+                    <img src="{{ auc.image_url }}" alt="{{ auc.item }} auction image">
+                    <form method="POST" action="/api/auction/remove-image" onsubmit="return confirmAction('Remove this auction image?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="message_id" value="{{ auc.message_id }}">
+                      <button class="action-btn action-btn-danger" type="submit">Remove Image</button>
+                    </form>
+                  </div>
+                {% endif %}
+              </div>
+
+              <div class="auction-actions" aria-label="Actions for {{ auc.item }}">
+                <button class="action-btn action-btn-blue" type="button" data-bids-toggle data-message-id="{{ auc.message_id }}">Show Bids</button>
+
+                <form method="POST" action="/api/auction/end" onsubmit="return confirmAction('End this auction now?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="message_id" value="{{ auc.message_id }}">
+                  <button class="action-btn action-btn-warn" type="submit">End Now</button>
+                </form>
+
+                <button class="action-btn action-btn-primary" type="button" data-edit-auction data-message-id="{{ auc.message_id }}">Edit</button>
+
+                <form method="POST" action="/api/auction/cancel" onsubmit="return confirmCancelWithReason(this);">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="message_id" value="{{ auc.message_id }}">
+                  <input type="hidden" name="reason" value="">
+                  <button class="action-btn action-btn-danger" type="submit">Cancel</button>
+                </form>
+
+                {% if auc.buyout_offer %}
+                  <form method="POST" action="/api/auction/remove-buyout" onsubmit="return confirmAction('Remove this buyout offer?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="message_id" value="{{ auc.message_id }}">
+                    <button class="action-btn action-btn-danger" type="submit">Remove Buyout</button>
+                  </form>
+                {% endif %}
+              </div>
+
+              <div class="auction-bids" id="bids-{{ auc.message_id }}" aria-live="polite"></div>
+            </article>
+          {% else %}
+            <div class="empty-state">No active auctions found.</div>
+          {% endfor %}
+        </div>
+
+        {% if active_total_pages > 1 %}
+          <nav class="pagination" aria-label="Active auction pages">
+            {% if active_page > 1 %}
+              <a class="pagination-link" href="?active_page={{ active_page - 1 }}&ended_page={{ ended_page }}&log_page={{ log_page }}&ban_page={{ ban_page }}">Prev</a>
+            {% endif %}
+            <span class="pagination-status">Page {{ active_page }} of {{ active_total_pages }}</span>
+            {% if active_page < active_total_pages %}
+              <a class="pagination-link" href="?active_page={{ active_page + 1 }}&ended_page={{ ended_page }}&log_page={{ log_page }}&ban_page={{ ban_page }}">Next</a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      </section>
+
+      <section class="auction-admin-section">
+        <div class="auction-section-head">
+          <div>
+            <h2 class="auction-section-title">Recently Ended Auctions</h2>
+            <p class="auction-section-subtitle">Latest completed, cancelled, and no-bid records.</p>
+          </div>
+          <span class="auction-count-pill">{{ ended_total }} total</span>
+        </div>
+
+        <div class="auction-list">
+          {% for auc in ended_auctions %}
+            <article class="auction-row">
+              <div class="auction-row-main">
+                <div class="auction-row-title">
+                  <strong title="{{ auc.item }} x{{ auc.quantity }}">{{ auc.item }} x{{ auc.quantity }}</strong>
+                  <span class="auction-status-pill auction-status-{{ auc.status }}">{{ auc.status|replace("_", " ")|title }}</span>
+                </div>
+                <div class="auction-meta-grid">
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Owner</span>
+                    <span class="auction-meta-value">{{ auc.owner_info.display_name or auc.owner_id }}</span>
+                  </div>
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Winner</span>
+                    <span class="auction-meta-value">{{ auc.bidder_info.display_name or "No winner" }}</span>
+                  </div>
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Final Bid</span>
+                    <span class="auction-meta-value">{{ "{:,}".format(auc.current_bid or 0) }}</span>
+                  </div>
+                  <div class="auction-meta">
+                    <span class="auction-meta-label">Ended</span>
+                    <span class="auction-meta-value">{{ auc.end_time }}</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          {% else %}
+            <div class="empty-state">No ended auctions found.</div>
+          {% endfor %}
+        </div>
+
+        {% if ended_total_pages > 1 %}
+          <nav class="pagination" aria-label="Ended auction pages">
+            {% if ended_page > 1 %}
+              <a class="pagination-link" href="?active_page={{ active_page }}&ended_page={{ ended_page - 1 }}&log_page={{ log_page }}&ban_page={{ ban_page }}">Prev</a>
+            {% endif %}
+            <span class="pagination-status">Page {{ ended_page }} of {{ ended_total_pages }}</span>
+            {% if ended_page < ended_total_pages %}
+              <a class="pagination-link" href="?active_page={{ active_page }}&ended_page={{ ended_page + 1 }}&log_page={{ log_page }}&ban_page={{ ban_page }}">Next</a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      </section>
+
+      <section class="auction-admin-section">
+        <div class="auction-section-head">
+          <div>
+            <h2 class="auction-section-title">Auction Logs</h2>
+            <p class="auction-section-subtitle">Recent audit events generated by auction actions.</p>
+          </div>
+          <span class="auction-count-pill">{{ log_total }} total</span>
+        </div>
+
+        <div class="auction-log-list">
+          {% for log in logs %}
+            <article class="auction-log">
+              <span class="auction-log-type">{{ log.type }}</span>
+              <div class="auction-log-message">
+                {{ log.author_info.display_name or log.author.name or "Unknown staff" }}
+                <span class="auction-muted">at {{ log.timestamp }}</span>
+              </div>
+            </article>
+          {% else %}
+            <div class="empty-state">No logs found.</div>
+          {% endfor %}
+        </div>
+
+        {% if log_total_pages > 1 %}
+          <nav class="pagination" aria-label="Auction log pages">
+            {% if log_page > 1 %}
+              <a class="pagination-link" href="?active_page={{ active_page }}&ended_page={{ ended_page }}&log_page={{ log_page - 1 }}&ban_page={{ ban_page }}">Prev</a>
+            {% endif %}
+            <span class="pagination-status">Page {{ log_page }} of {{ log_total_pages }}</span>
+            {% if log_page < log_total_pages %}
+              <a class="pagination-link" href="?active_page={{ active_page }}&ended_page={{ ended_page }}&log_page={{ log_page + 1 }}&ban_page={{ ban_page }}">Next</a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      </section>
+
+      <section class="auction-admin-section">
+        <div class="auction-section-head">
+          <div>
+            <h2 class="auction-section-title">Banned Auction Users</h2>
+            <p class="auction-section-subtitle">Users currently marked with the auction ban role.</p>
+          </div>
+          <span class="auction-count-pill">{{ ban_total }} total</span>
+        </div>
+
+        <div class="auction-banned-list">
+          {% for user in banned_users %}
+            <article class="auction-banned-user">
+              <img src="{{ user.avatar or 'https://cdn.discordapp.com/embed/avatars/0.png' }}" alt="">
+              <div>
+                <strong>{{ user.display_name or user.username or user._id }}</strong>
+                <span class="auction-muted">{{ user._id }}</span>
+              </div>
+              <form method="POST" action="/api/auction/unban" onsubmit="return confirmAction('Remove this auction ban?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="user_id" value="{{ user._id }}">
+                <button class="action-btn action-btn-danger" type="submit">Unban</button>
+              </form>
+            </article>
+          {% else %}
+            <div class="empty-state">No banned users found.</div>
+          {% endfor %}
+        </div>
+
+        {% if ban_total_pages > 1 %}
+          <nav class="pagination" aria-label="Auction ban pages">
+            {% if ban_page > 1 %}
+              <a class="pagination-link" href="?active_page={{ active_page }}&ended_page={{ ended_page }}&log_page={{ log_page }}&ban_page={{ ban_page - 1 }}">Prev</a>
+            {% endif %}
+            <span class="pagination-status">Page {{ ban_page }} of {{ ban_total_pages }}</span>
+            {% if ban_page < ban_total_pages %}
+              <a class="pagination-link" href="?active_page={{ active_page }}&ended_page={{ ended_page }}&log_page={{ log_page }}&ban_page={{ ban_page + 1 }}">Next</a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      </section>
     </div>
-    {% if ban_total_pages > 1 %}
-      <div class="pagination">
-        {% if ban_page > 1 %}
-          <a href="?ban_page={{ ban_page - 1 }}"><button>&laquo; Prev</button></a>
-        {% endif %}
-        <span>Page {{ ban_page }} of {{ ban_total_pages }}</span>
-        {% if ban_page < ban_total_pages %}
-          <a href="?ban_page={{ ban_page + 1 }}"><button>Next &raquo;</button></a>
-        {% endif %}
-      </div>
-    {% elif not banned_users %}
-      <p>No banned users found.</p>
-    {% endif %}
-  </div>
-<!-- Edit Auction Modal -->
-<div id="editModal" class="edit-modal-overlay">
-  <div class="edit-modal-box dark-mode-box" style="max-height: 90vh; overflow-y: auto;">
-    <h3>Edit Auction</h3>
+  </main>
+</div>
+
+<div id="editModal" class="edit-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editAuctionTitle">
+  <div class="edit-modal-box">
+    <div class="edit-modal-head">
+      <h3 id="editAuctionTitle">Edit Auction</h3>
+      <button class="action-btn" type="button" data-close-edit aria-label="Close edit modal">Close</button>
+    </div>
     <form method="POST" action="/api/auction/edit" id="editAuctionForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="message_id" id="edit-message-id">
 
-      <label for="edit-item">Item:</label>
-      <input type="text" name="item" id="edit-item" required>
+      <div class="edit-modal-form">
+        <div class="edit-field-grid">
+          <div class="edit-field edit-field-full">
+            <label for="edit-item">Item</label>
+            <input type="text" name="item" id="edit-item" required>
+          </div>
 
-      <label for="edit-quantity">Quantity:</label>
-      <input type="number" name="quantity" id="edit-quantity" required>
+          <div class="edit-field">
+            <label for="edit-quantity">Quantity</label>
+            <input type="number" name="quantity" id="edit-quantity" min="1" required>
+          </div>
 
-      <label for="edit-current-bid">Current Bid:</label>
-      <input type="number" name="current_bid" id="edit-current-bid">
+          <div class="edit-field">
+            <label for="edit-current-bid">Current Bid</label>
+            <input type="number" name="current_bid" id="edit-current-bid" min="0">
+          </div>
 
-      <label for="edit-min-increment">Min Increment:</label>
-      <input type="number" name="min_increment" id="edit-min-increment">
+          <div class="edit-field">
+            <label for="edit-min-increment">Min Increment</label>
+            <input type="number" name="min_increment" id="edit-min-increment" min="1">
+          </div>
 
-      <label for="image_url">Image URL</label>
-      <input type="text" name="image_url" id="edit-image-url">
-      <div id="edit-image-preview"></div>
+          <div class="edit-field">
+            <label for="edit-status">Status</label>
+            <select name="status" id="edit-status">
+              <option value="active">Active</option>
+              <option value="ended">Ended</option>
+              <option value="no_bids">No Bids</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
 
-      <label for="edit-status">Status:</label>
-      <select name="status" id="edit-status">
-        <option value="active">Active</option>
-        <option value="ended">Ended</option>
-        <option value="no_bids">No Bids</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
+          <div class="edit-field edit-field-full">
+            <label for="edit-image-url">Image URL</label>
+            <input type="url" name="image_url" id="edit-image-url">
+          </div>
+        </div>
 
-      <div class="button-row">
-        <button type="submit">💾 Save</button>
-        <button type="button" onclick="closeEditModal()">❌ Cancel</button>
+        <div id="edit-image-preview" class="edit-image-preview"></div>
+      </div>
+
+      <div class="edit-modal-actions">
+        <button class="action-btn" type="button" data-close-edit>Cancel</button>
+        <button class="action-btn action-btn-primary" type="submit">Save Changes</button>
       </div>
     </form>
   </div>
@@ -601,99 +1007,153 @@ body.dark .edit-modal-box select {
 
 {% block scripts %}
 <script>
-function toggleBids(messageId, btn) {
-  const container = document.getElementById(`bids-${messageId}`);
-  if (container.style.display === "none") {
-    fetch(`/api/auction/${messageId}/bids?v=${Date.now()}`)
-      .then(res => res.json())
-      .then(data => {
-        container.innerHTML = data.map(bid => {
-          return `
-            <div>
-                <span>${bid.user_display} - ${bid.amount.toLocaleString()}</span>
-                <form method="POST" action="/api/auction/${messageId}/remove-bid" style="display:inline;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="message_id" value="${messageId}">
-                  <input type="hidden" name="user_id" value="${bid.user_id}">
-                  <button type="submit">Remove</button>
-                </form>
-            </div>
-          `;
-        }).join("");
-        container.style.display = "block";
-        btn.textContent = "🔼 Hide Bids";
-      });
-  } else {
-    container.style.display = "none";
-    btn.textContent = "🔽 Show Bids";
+  const AUCTION_DATA = {{ active_auctions_json | tojson }};
+  const CSRF_TOKEN = {{ csrf_token() | tojson }};
+
+  function confirmAction(message) {
+    return window.confirm(message);
   }
-}
+
   function confirmCancelWithReason(form) {
-    const reason = prompt("Enter reason for cancelling (optional):");
-    if (reason === null) return false; // Cancel button pressed
-    form.querySelector('input[name="reason"]').value = reason && reason.trim() ? reason.trim() : "No reason provided.";
-    return confirm("Are you sure you want to cancel this auction?");
+    const reason = window.prompt("Reason for cancelling this auction:", "");
+    if (reason === null) return false;
+    form.querySelector('input[name="reason"]').value = reason.trim() || "No reason provided.";
+    return confirmAction("Cancel this auction?");
   }
-function endAuctionNow(messageId) {
-  if (!confirm("Are you sure you want to end this auction now?")) return;
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  fetch("/webhook/end-auction", {
-    method: "POST",
-    headers: {
-      "Authorization": "<your_webhook_key>",
-      "Content-Type": "application/json",
-      "X-CSRFToken": csrfToken 
-  },
-    body: JSON.stringify({ message_id: messageId })
-  })
-    .then(res => res.json())
-    .then(data => {
-      alert("Auction ended.");
-      location.reload();
-    })
-    .catch(err => alert("Failed to end auction: " + err));
-}
 
-function openEditAuction(messageId) {
-  const auction = {{ active_auctions_json | tojson }};
-  const entry = auction.find(a => String(a.message_id) === String(messageId));
+  function formatBidAmount(value) {
+    const amount = Number(value || 0);
+    return amount.toLocaleString();
+  }
 
-  if (!entry) return alert("Auction not found");
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
 
-  document.getElementById("edit-message-id").value = entry.message_id;
-  document.getElementById("edit-item").value = entry.item;
-  // Populate the image URL field
-  document.getElementById("edit-image-url").value = entry.image_url || "";
+  function renderBidRows(messageId, bids) {
+    if (!bids.length) {
+      return '<div class="empty-state">No bids recorded for this auction.</div>';
+    }
 
-  // Show preview (below image_url input)
-  const preview = document.getElementById("edit-image-preview");
-  if (entry.image_url) {
+    return bids.map((bid) => `
+      <div class="bid-row">
+        <div>
+          <strong>${escapeHtml(bid.user_display)}</strong>
+          <span>${formatBidAmount(bid.amount)} coins${bid.timestamp ? ` - ${escapeHtml(bid.timestamp)}` : ""}</span>
+        </div>
+        <form method="POST" action="/api/auction/${encodeURIComponent(messageId)}/remove-bid" onsubmit="return confirmAction('Remove this bid?');">
+          <input type="hidden" name="csrf_token" value="${escapeHtml(CSRF_TOKEN)}">
+          <input type="hidden" name="user_id" value="${escapeHtml(bid.user_id)}">
+          <button class="action-btn action-btn-danger" type="submit">Remove</button>
+        </form>
+      </div>
+    `).join("");
+  }
+
+  async function toggleBids(messageId, button) {
+    const container = document.getElementById(`bids-${messageId}`);
+    if (!container) return;
+
+    if (container.classList.contains("is-open")) {
+      container.classList.remove("is-open");
+      button.textContent = "Show Bids";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Loading...";
+
+    try {
+      const response = await fetch(`/api/auction/${encodeURIComponent(messageId)}/bids?v=${Date.now()}`, {
+        headers: { "Accept": "application/json" }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`);
+      }
+
+      const bids = await response.json();
+      container.innerHTML = renderBidRows(messageId, Array.isArray(bids) ? bids : []);
+      container.classList.add("is-open");
+      button.textContent = "Hide Bids";
+    } catch (error) {
+      container.innerHTML = '<div class="empty-state">Could not load bids. Try again in a moment.</div>';
+      container.classList.add("is-open");
+      button.textContent = "Hide Bids";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function setEditPreview(entry) {
+    const preview = document.getElementById("edit-image-preview");
+    if (!preview) return;
+
+    if (!entry.image_url) {
+      preview.classList.remove("is-visible");
+      preview.innerHTML = "";
+      return;
+    }
+
+    preview.classList.add("is-visible");
     preview.innerHTML = `
-      <img src="${entry.image_url}" alt="Preview" style="max-width:100%; border-radius:8px; margin-top:8px;">
-      <form method="POST" action="/api/auction/remove-image" onsubmit="return confirm('Remove image?')" style="margin-top:5px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="message_id" value="${entry.message_id}">
-        <button type="submit" class="btn btn-sm">🗑 Remove Image</button>
+      <img src="${escapeHtml(entry.image_url)}" alt="Current auction image">
+      <form method="POST" action="/api/auction/remove-image" onsubmit="return confirmAction('Remove this auction image?');">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(CSRF_TOKEN)}">
+        <input type="hidden" name="message_id" value="${escapeHtml(entry.message_id)}">
+        <button class="action-btn action-btn-danger" type="submit">Remove Image</button>
       </form>
     `;
-  } else {
-    preview.innerHTML = "";
   }
 
-  document.getElementById("edit-quantity").value = entry.quantity;
-  document.getElementById("edit-current-bid").value = entry.current_bid || "";
-  document.getElementById("edit-min-increment").value = entry.min_increment || "";
-  document.getElementById("edit-status").value = entry.status;
+  function openEditAuction(messageId) {
+    const entry = AUCTION_DATA.find((auction) => String(auction.message_id) === String(messageId));
+    if (!entry) {
+      window.alert("Auction not found.");
+      return;
+    }
 
-  document.getElementById("editModal").style.display = "flex";
-},
+    document.getElementById("edit-message-id").value = entry.message_id || "";
+    document.getElementById("edit-item").value = entry.item || "";
+    document.getElementById("edit-quantity").value = entry.quantity || 1;
+    document.getElementById("edit-current-bid").value = entry.current_bid || 0;
+    document.getElementById("edit-min-increment").value = entry.min_increment || 1;
+    document.getElementById("edit-status").value = entry.status || "active";
+    document.getElementById("edit-image-url").value = entry.image_url || "";
+    setEditPreview(entry);
 
-function closeEditModal() {
-  document.getElementById("editModal").style.display = "none";
-}
+    document.getElementById("editModal").classList.add("is-open");
+  }
 
+  function closeEditModal() {
+    document.getElementById("editModal").classList.remove("is-open");
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("[data-bids-toggle]").forEach((button) => {
+      button.addEventListener("click", () => toggleBids(button.dataset.messageId, button));
+    });
+
+    document.querySelectorAll("[data-edit-auction]").forEach((button) => {
+      button.addEventListener("click", () => openEditAuction(button.dataset.messageId));
+    });
+
+    document.querySelectorAll("[data-close-edit]").forEach((button) => {
+      button.addEventListener("click", closeEditModal);
+    });
+
+    document.getElementById("editModal")?.addEventListener("click", (event) => {
+      if (event.target.id === "editModal") closeEditModal();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeEditModal();
+    });
+  });
 </script>
 {% endblock %}
-
-
-
