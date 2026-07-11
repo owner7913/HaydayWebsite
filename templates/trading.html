@@ -772,9 +772,7 @@ body.light .trade-controls select.input option{
       <div>
         <div class="control-label">Sort</div>
         <select id="sortSelect" class="input">
-          <option value="value" selected>Total Value</option>
-          <option value="qty">Quantity</option>
-          <option value="posts">Posts</option>
+          <option value="posts" selected>Posts</option>
           <option value="avg_sell">Avg Sell</option>
           <option value="avg_buy">Avg Buy</option>
         </select>
@@ -1122,12 +1120,6 @@ async function openPointPosts(itemKey, bucket, atLabel, postType){
     const total = (p.total_value ?? "-");
     const jump = p.jump_url ? p.jump_url : null;
 
-    const raw = (p.raw_text || "").toString().trim();
-    const safeRaw = raw
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
-
     const delBtn = IS_STAFF
       ? `<button class="btn hero-refresh" style="padding:6px 10px; background:#b33;"
             onclick="deleteTradeRecord('${p.id}', this)">
@@ -1158,7 +1150,6 @@ async function openPointPosts(itemKey, bucket, atLabel, postType){
           <span>Total: <b>${total}</b></span>
         </div>
 
-        ${safeRaw ? `<div class="post-meta" style="white-space:pre-wrap;">${safeRaw}</div>` : ``}
       </div>
     `;
 
@@ -1338,14 +1329,6 @@ function renderModalStats(item){
       <div class="stat-box">
         <div class="stat-label">Spread</div>
         <div class="stat-value">${fmtMoney(spread)}</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Quantity</div>
-        <div class="stat-value" title="${fmt(item.total_qty)}">${fmtCompact(item.total_qty)}</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Total Value</div>
-        <div class="stat-value" title="${fmt(item.total_value)}">${fmtCompact(item.total_value)}</div>
       </div>
       <div class="stat-box">
         <div class="stat-label">Posts</div>
@@ -1655,7 +1638,7 @@ async function loadTrading(page = 1){
   const q = document.getElementById("searchInput").value.trim();
   const days = document.getElementById("daysSelect").value || "7";
   const type = document.getElementById("typeSelect").value || "all";
-  const sort = document.getElementById("sortSelect").value || "value";
+  const sort = document.getElementById("sortSelect").value || "posts";
 
   const container = document.getElementById("tradeResults");
   const pager = document.getElementById("pager");
@@ -1722,14 +1705,6 @@ async function loadTrading(page = 1){
         <div class="stat-box">
           <div class="stat-label">Avg Buy</div>
           <div class="stat-value" id="v-${item.item_key}-avg_buy">${avgBuy}</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Quantity</div>
-          <div class="stat-value" id="v-${item.item_key}-qty" title="${fmt(item.total_qty)}">${fmtCompact(item.total_qty)}</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Total Value</div>
-          <div class="stat-value" id="v-${item.item_key}-value" title="${fmt(item.total_value)}">${fmtCompact(item.total_value)}</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Posts</div>
@@ -1834,7 +1809,7 @@ async function checkForUpdates(){
   const q = document.getElementById("searchInput").value.trim();
   const days = document.getElementById("daysSelect").value || "7";
   const type = document.getElementById("typeSelect").value || "all";
-  const sort = document.getElementById("sortSelect").value || "value";
+  const sort = document.getElementById("sortSelect").value || "posts";
 
   const url = `/api/trading/overview?days=${days}&type=${type}&sort=${sort}&page=${CURRENT_PAGE}&q=${encodeURIComponent(q)}`;
   const res = await fetch(url);
@@ -1893,8 +1868,6 @@ async function checkForUpdates(){
       const updates = {
         avg_sell: fmtMoney(it.avg_sell),
         avg_buy: fmtMoney(it.avg_buy),
-        qty: fmtCompact(it.total_qty),
-        value: fmtCompact(it.total_value),
         posts: fmt(it.total_posts),
         xmp: (() => {
           const a = fmtXmp(it.xmp_min);
@@ -1914,9 +1887,6 @@ async function checkForUpdates(){
 
         if(el.textContent !== newText){
           el.textContent = newText;
-
-          if(field === "qty") el.title = fmt(it.total_qty);
-          if(field === "value") el.title = fmt(it.total_value);
 
           el.classList.remove("num-flash");
           void el.offsetWidth;

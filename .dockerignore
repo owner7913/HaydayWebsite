@@ -3,4 +3,7 @@
 .git
 __pycache__/
 *.pyc
+output/
+tests/
+.agents/
 # static/

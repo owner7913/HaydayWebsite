@@ -112,11 +112,16 @@ MONGO_URI = os.getenv("MONGO_URI")
 TRADING_MONGO_URI = os.getenv("TRADING_MONGO_URI") or MONGO_URI
 TRADING_DB_NAME = os.getenv("TRADING_DB_NAME", "hayday")
 TRADING_COLLECTIONS = {
-    "posts": os.getenv("TRADING_POSTS_COLLECTION", "auctions.Trading.posts"),
-    "ticks": os.getenv("TRADING_TICKS_COLLECTION", "auctions.Trading.ticks"),
+    "posts": os.getenv(
+        "TRADING_PRIZES_POSTS_COLLECTION",
+        os.getenv("TRADING_POSTS_COLLECTION", "auctions.Trading.prize_posts"),
+    ),
+    "ticks": os.getenv(
+        "TRADING_PRIZES_TICKS_COLLECTION",
+        os.getenv("TRADING_TICKS_COLLECTION", "auctions.Trading.prize_ticks"),
+    ),
     "items": os.getenv("TRADING_ITEMS_COLLECTION", "auctions.Trading.items"),
     "config": os.getenv("TRADING_CONFIG_COLLECTION", "auctions.Trading.config"),
-    "mp_ticks": os.getenv("TRADING_MP_TICKS_COLLECTION", "auctions.Trading.mp_ticks"),
 }
 LIVE_GIVEAWAYS_CACHE = {
     "expires": 0,
@@ -190,7 +195,12 @@ with INDEX_PATH.open("r", encoding="utf-8") as f:
     _INDEX = json.load(f)
 
 # Only allow real items we control
-INDEX_ITEMS = [d for d in _INDEX if d.get("category") == "item" and d.get("key") and d.get("name")]
+INDEX_ITEMS = [
+    d for d in _INDEX
+    if d.get("key")
+    and d.get("name")
+    and (d.get("category") in {"item", "set"} or d.get("key") == "help")
+]
 
 DISPLAY_MAP = {d["key"]: d["name"] for d in INDEX_ITEMS}
 
@@ -8623,8 +8633,9 @@ def api_trading_overview():
 
     match = {
         "guild_id": TRADING_GUILD_ID,
-        "ts": {"$gte": since},
-        "category": {"$in": ["item", "set"]}, 
+        "created_at": {"$gte": since},
+        "status": "accepted",
+        "price_type": "coins",
     }
 
     if post_type in {"buy", "sell"}:
@@ -8634,7 +8645,6 @@ def api_trading_overview():
 
 
     ticks = get_trading_collection("ticks")
-    mp_ticks = get_trading_collection("mp_ticks")
     display_map, alias_to_key, key_to_filename, key_to_source_url, key_to_image_url = _trading_maps_with_overrides()
 
 
@@ -8643,7 +8653,11 @@ def api_trading_overview():
     {"$group": {
         "_id": {"k": "$item_key", "t": "$post_type"},
         "sum_qty": {"$sum": {"$ifNull": ["$qty", 0]}},
-        "sum_value": {"$sum": {"$ifNull": ["$total_value", 0]}},
+        "sum_value": {"$sum": {"$cond": [
+            {"$and": [{"$isNumber": "$qty"}, {"$isNumber": "$unit_price"}]},
+            {"$multiply": ["$qty", "$unit_price"]},
+            0,
+        ]}},
         "posts": {"$sum": 1},
         "price_posts": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, 1, 0]}},
         "sum_unit_price": {"$sum": {"$cond": [{"$isNumber": "$unit_price"}, "$unit_price", 0]}},
@@ -8672,7 +8686,7 @@ def api_trading_overview():
 
     trend_pipe = [
         {"$match": trend_match},
-        {"$sort": {"ts": 1}},
+        {"$sort": {"created_at": 1}},
         {"$group": {
             "_id": {"k": "$item_key", "t": "$post_type"},
             "first_price": {"$first": "$unit_price"},
@@ -8681,25 +8695,30 @@ def api_trading_overview():
     ]
     trend_rows = list(ticks.aggregate(trend_pipe))
 
-    # --- XMP range (mp_mult) per item_key (from mp_ticks collection) ---
+    # --- Market-price multiplier range from the normalized prize ticks. ---
     mp_match = {
         "guild_id": TRADING_GUILD_ID,
-        "mp_mult": {"$ne": None},
+        "status": "accepted",
+        "price_type": "market",
+        "unit_price": {"$ne": None},
+        "created_at": {"$gte": since},
     }
-    # only apply ts filter if you know mp_ticks has ts
-    mp_match["ts"] = {"$gte": since}
+    if post_type in {"buy", "sell"}:
+        mp_match["post_type"] = post_type
+    else:
+        mp_match["post_type"] = {"$in": ["buy", "sell"]}
 
 
     mp_pipe = [
         {"$match": mp_match},
         {"$group": {
             "_id": "$item_key",
-            "min_mp": {"$min": "$mp_mult"},
-            "max_mp": {"$max": "$mp_mult"},
+            "min_mp": {"$min": "$unit_price"},
+            "max_mp": {"$max": "$unit_price"},
             "mp_posts": {"$sum": 1},
         }},
     ]
-    mp_rows = list(mp_ticks.aggregate(mp_pipe))
+    mp_rows = list(ticks.aggregate(mp_pipe))
 
     mp_map = {}  # canonical_key -> {"min": x, "max": y, "posts": n}
     for r in mp_rows:
@@ -8803,6 +8822,17 @@ def api_trading_overview():
 
             m["sell_price_posts"] += price_posts
             m["sell_price_sum"] += price_sum
+
+    # Keep items that currently have only market-multiplier observations.
+    for canonical in mp_map:
+        merged.setdefault(canonical, {
+            "item_key": canonical,
+            "item_name": display_map[canonical],
+            "buy_qty": 0, "buy_value": 0, "buy_posts": 0,
+            "sell_qty": 0, "sell_value": 0, "sell_posts": 0,
+            "buy_price_posts": 0, "buy_price_sum": 0,
+            "sell_price_posts": 0, "sell_price_sum": 0,
+        })
 
 
     items_list = list(merged.values())
@@ -8938,30 +8968,35 @@ def api_trading_item_posts(item_key):
 
     match = {
         "guild_id": TRADING_GUILD_ID,
-        "category": {"$in": ["item", "set"]},
+        "status": "accepted",
+        "price_type": "coins",
         "item_key": canonical,
         "post_type": {"$in": ["buy", "sell"]} if post_type == "both" else post_type,
-        "ts": {"$gte": start, "$lt": end},
+        "created_at": {"$gte": start, "$lt": end},
     }
 
     # Return posts for scrolling + jump link
     ticks = get_trading_collection("ticks")
-    cursor = ticks.find(match).sort("ts", -1).limit(limit)
+    tick_rows = list(ticks.find(match).sort("created_at", -1).limit(limit))
 
     posts = []
-    for d in cursor:
+    for d in tick_rows:
+        qty = d.get("qty")
+        unit_price = d.get("unit_price")
+        total_value = None
+        if isinstance(qty, (int, float)) and isinstance(unit_price, (int, float)):
+            total_value = qty * unit_price
         posts.append({
             "id": str(d.get("_id")),
             "post_type": d.get("post_type"),
-            "ts": d.get("ts").isoformat() if d.get("ts") else None,
+            "ts": d.get("created_at").isoformat() if d.get("created_at") else None,
             "jump_url": d.get("jump_url"),
             "author_id": str(d.get("author_id")) if d.get("author_id") is not None else None,
             "channel_id": str(d.get("channel_id")) if d.get("channel_id") is not None else None,
             "message_id": str(d.get("message_id")) if d.get("message_id") is not None else None,
-            "qty": d.get("qty"),
-            "unit_price": d.get("unit_price"),
-            "total_value": d.get("total_value"),
-            "raw_text": d.get("raw_text") or d.get("content") or d.get("text"),
+            "qty": qty,
+            "unit_price": unit_price,
+            "total_value": total_value,
         })
 
 
@@ -8998,7 +9033,8 @@ def api_trading_item_history(item_key):
 
     match = {
         "guild_id": TRADING_GUILD_ID,
-        "category": {"$in": ["item", "set"]},
+        "status": "accepted",
+        "price_type": "coins",
         "item_key": canonical,
         "post_type": {"$in": ["buy", "sell"]},
         "unit_price": {"$ne": None},
@@ -9009,10 +9045,10 @@ def api_trading_item_history(item_key):
     if range_raw != "all":
         try:
             days = int(range_raw)
-            match["ts"] = {"$gte": now - timedelta(days=days)}
+            match["created_at"] = {"$gte": now - timedelta(days=days)}
         except ValueError:
             # fallback
-            match["ts"] = {"$gte": now - timedelta(days=30)}
+            match["created_at"] = {"$gte": now - timedelta(days=30)}
 
     unit = "hour" if bucket == "hour" else "day"
 
@@ -9020,7 +9056,7 @@ def api_trading_item_history(item_key):
         {"$match": match},
         {"$group": {
             "_id": {
-                "d": {"$dateTrunc": {"date": "$ts", "unit": unit}},
+                "d": {"$dateTrunc": {"date": "$created_at", "unit": unit}},
                 "t": "$post_type",
             },
             "avg_price": {"$avg": "$unit_price"},
