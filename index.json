@@ -3688,5 +3688,30 @@
     "file_title": "File:Zesty Perfume.png",
     "source_url": "https://static.wikia.nocookie.net/hayday/images/a/ac/Zesty_Perfume.png/revision/latest/scale-to-width-down/128?cb=20241209193805",
     "sha1": "2b52c093a7ca8491ca815231c329ff86f5766348"
+  },
+  {
+    "key": "help",
+    "name": "Help",
+    "category": "item"
+  },
+  {
+    "key": "bem_set",
+    "name": "BEM Set",
+    "category": "set"
+  },
+  {
+    "key": "lem_set",
+    "name": "LEM Set",
+    "category": "set"
+  },
+  {
+    "key": "tem_set",
+    "name": "TEM Set",
+    "category": "set"
+  },
+  {
+    "key": "sem_set",
+    "name": "SEM Set",
+    "category": "set"
   }
 ]
